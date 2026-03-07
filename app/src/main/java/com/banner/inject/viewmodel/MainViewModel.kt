@@ -223,6 +223,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(opState = OpState.Idle) }
     }
 
+    fun listAllBackups(): List<BackupManager.BackupInfo> = backupManager.listAllBackups()
+
+    fun deleteBackupByName(componentName: String) {
+        backupManager.deleteBackup(componentName)
+        val matching = _uiState.value.components.firstOrNull { it.folderName == componentName }
+        if (matching != null) refreshComponent(matching)
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private fun uriKey(packageName: String) = "uri_$packageName"

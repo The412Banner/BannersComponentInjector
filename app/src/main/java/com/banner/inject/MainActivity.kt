@@ -37,13 +37,19 @@ class MainActivity : ComponentActivity() {
                     val uiState by vm.uiState.collectAsState()
 
                     if (uiState.selectedApp == null) {
+                        val appVersion = remember {
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+                        }
                         AppListScreen(
                             apps = uiState.apps,
                             onAppSelected = { vm.selectApp(it) },
                             onAccessGranted = { app, uri -> vm.grantAccess(app, uri) },
                             onRevokeAccess = { vm.revokeAccess(it) },
                             onRefresh = { vm.refreshAppList() },
-                            initialUriHintFor = { vm.initialUriHintFor(it) }
+                            initialUriHintFor = { vm.initialUriHintFor(it) },
+                            onListBackups = { vm.listAllBackups() },
+                            onDeleteBackupByName = { vm.deleteBackupByName(it) },
+                            appVersion = appVersion
                         )
                     } else {
                         ComponentListScreen(

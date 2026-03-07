@@ -104,6 +104,34 @@ class BackupManager(private val context: Context) {
         }
     }
 
+    data class BackupInfo(val componentName: String, val fileCount: Int, val totalSize: Long)
+
+    fun listAllBackups(): List<BackupInfo> {
+        val base = "${Environment.DIRECTORY_DOWNLOADS}/$BACKUP_DIR/"
+        val cursor = context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Downloads.RELATIVE_PATH, MediaStore.Downloads.SIZE),
+            "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?",
+            arrayOf("$base%"),
+            null
+        )
+        val grouped = mutableMapOf<String, Pair<Int, Long>>()
+        cursor?.use {
+            val pathCol = it.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            val sizeCol = it.getColumnIndexOrThrow(MediaStore.Downloads.SIZE)
+            while (it.moveToNext()) {
+                val relPath = it.getString(pathCol)
+                val size = it.getLong(sizeCol)
+                val componentName = relPath.removePrefix(base).split("/")
+                    .firstOrNull { seg -> seg.isNotEmpty() } ?: continue
+                val current = grouped.getOrDefault(componentName, 0 to 0L)
+                grouped[componentName] = (current.first + 1) to (current.second + size)
+            }
+        }
+        return grouped.map { (name, data) -> BackupInfo(name, data.first, data.second) }
+            .sortedBy { it.componentName.lowercase() }
+    }
+
     private fun sanitize(name: String): String =
         name.replace(Regex("[/\\\\:*?\"<>|]"), "_")
 }

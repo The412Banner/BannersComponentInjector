@@ -1,5 +1,6 @@
 package com.banner.inject.ui.screens
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,9 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.banner.inject.data.BackupManager
 import com.banner.inject.model.GameHubApp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,12 +29,17 @@ fun AppListScreen(
     onAccessGranted: (GameHubApp, Uri) -> Unit, // user just picked the SAF folder
     onRevokeAccess: (GameHubApp) -> Unit,
     onRefresh: () -> Unit,
-    initialUriHintFor: (String) -> Uri
+    initialUriHintFor: (String) -> Uri,
+    onListBackups: () -> List<BackupManager.BackupInfo>,
+    onDeleteBackupByName: (String) -> Unit,
+    appVersion: String
 ) {
     // Track which app is pending an SAF grant so the launcher callback knows
     var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
     var showGrantGuide by remember { mutableStateOf<GameHubApp?>(null) }
     var showRevokeDialog by remember { mutableStateOf<GameHubApp?>(null) }
+    var showBackupManager by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -50,6 +58,12 @@ fun AppListScreen(
                 actions = {
                     IconButton(onClick = onRefresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                    IconButton(onClick = { showBackupManager = true }) {
+                        Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
+                    }
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -88,6 +102,21 @@ fun AppListScreen(
                 )
             }
         }
+    }
+
+    if (showBackupManager) {
+        BackupManagerSheet(
+            onDismiss = { showBackupManager = false },
+            onListBackups = onListBackups,
+            onDeleteBackup = onDeleteBackupByName
+        )
+    }
+
+    if (showSettings) {
+        SettingsSheet(
+            appVersion = appVersion,
+            onDismiss = { showSettings = false }
+        )
     }
 
     showGrantGuide?.let { app ->
@@ -152,6 +181,74 @@ fun AppListScreen(
                 TextButton(onClick = { showRevokeDialog = null }) { Text("Cancel") }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 40.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Settings, null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(24.dp))
+
+            Text(
+                "About",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("BannersComponentInjector", fontSize = 14.sp)
+                        Text(
+                            "v$appVersion",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent("android.intent.action.VIEW_DOWNLOADS"))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Open Downloads Folder")
+            }
+        }
     }
 }
 
