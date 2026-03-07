@@ -37,8 +37,8 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease -x lint
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
 
       - name: Rename APK
         run: |
@@ -50,7 +50,7 @@ jobs:
             TAG="manual"
           fi
           mkdir -p artifacts
-          cp app/build/outputs/apk/release/app-release-unsigned.apk \
+          cp app/build/outputs/apk/debug/app-debug.apk \
              artifacts/BannersComponentInjector-${TAG}.apk
 
       - name: Upload APK artifact
@@ -65,7 +65,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*.apk
-          prerelease: ${{ contains(github.ref_name, '-pre') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') }}
+          prerelease: ${{ !startsWith(github.ref_name, 'v') || contains(github.ref_name, '-') }}
           generate_release_notes: false
           body: |
             ## Banners Component Injector ${{ github.ref_name }}
