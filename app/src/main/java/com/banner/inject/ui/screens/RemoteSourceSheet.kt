@@ -41,7 +41,7 @@ fun RemoteSourceSheet(
             items = if (component.folderName.contains("Turnip", ignoreCase = true) || component.folderName.contains("adreno", ignoreCase = true)) {
                 repo.fetchTurnipReleases()
             } else {
-                repo.fetchWcpJson("https://raw.githubusercontent.com/arihany/wcp-json/main/wcp.json", component.folderName)
+                repo.fetchWcpJson("https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", component.folderName)
             }
             if (items.isEmpty()) {
                 errorMessage = "No compatible remote components found."

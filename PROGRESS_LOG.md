@@ -2,6 +2,14 @@
 
 ---
 
+### [pre-release] — v1.1.4-pre — Online Source Update (2026-03-07)
+**Tag:** v1.1.4-pre
+
+#### What changed
+- Remote Sources: Updated the default WCP JSON repository from `arihany/wcp-json` to `StevenMXZ/Winlator-Contents` to access a different catalog of components.
+
+---
+
 ### [pre-release] — v1.1.3-pre — Fast SAF Scanner (2026-03-07)
 **Tag:** v1.1.3-pre
 
