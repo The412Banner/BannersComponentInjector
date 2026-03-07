@@ -2,6 +2,20 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Black screen / ANR on load and refresh (2026-03-07)
+**Commit:** `32d6c91`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- `scanComponents` and `getRootDocument` do blocking SAF disk IO but were called on `Dispatchers.Main` (default for `viewModelScope.launch`) — main thread hung on load (black screen) and triggered ANR dialog on refresh
+- Wrapped both calls in `withContext(Dispatchers.IO)` so main thread stays free
+- Replaced bare `CircularProgressIndicator` with a card showing "Loading components..." (first load) or "Refreshing components..." (subsequent refreshes)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+
+---
+
 ### [fix] — v1.0.0-pre — Use profile.json type for WCP extraction mode (2026-03-07)
 **Commit:** `825f229`  |  **Tag:** v1.0.0-pre (retagged)
 
