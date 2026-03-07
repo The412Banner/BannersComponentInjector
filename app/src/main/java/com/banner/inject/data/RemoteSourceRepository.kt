@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -21,7 +22,7 @@ class RemoteSourceRepository(private val context: Context) {
         jsonUrl: String,
         componentType: String
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
-        val json = openUrl(jsonUrl).bufferedReader().readText()
+        val json = openUrl(jsonUrl).inputStream.bufferedReader().readText()
         val array = JSONArray(json)
         val all = mutableListOf<RemoteItem>()
         for (i in 0 until array.length()) {
@@ -40,7 +41,7 @@ class RemoteSourceRepository(private val context: Context) {
     suspend fun fetchTurnipReleases(): List<RemoteItem> = withContext(Dispatchers.IO) {
         val json = openUrl(
             "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases"
-        ).bufferedReader().readText()
+        ).inputStream.bufferedReader().readText()
         val array = JSONArray(json)
         val result = mutableListOf<RemoteItem>()
         for (i in 0 until array.length()) {
