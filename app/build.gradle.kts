@@ -52,6 +52,7 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("org.apache.commons:commons-compress:1.26.2")
     implementation("com.github.luben:zstd-jni:1.5.6-3@aar")
+    implementation("org.tukaani:xz:1.9")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
