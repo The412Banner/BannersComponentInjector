@@ -26,7 +26,8 @@ class RemoteSourceRepository(private val context: Context) {
 
     enum class SourceFormat {
         WCP_JSON,
-        GITHUB_RELEASES_TURNIP
+        GITHUB_RELEASES_TURNIP,
+        GITHUB_RELEASES_WCP
     }
 
     // You can define default sources here, optionally scoped to specific component types
@@ -44,6 +45,7 @@ class RemoteSourceRepository(private val context: Context) {
         when (source.format) {
             SourceFormat.WCP_JSON -> fetchWcpJson(source.url, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(source.url, source.name)
+            SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(source.url, componentType, source.name)
         }
     }
 
@@ -92,6 +94,35 @@ class RemoteSourceRepository(private val context: Context) {
                         sourceName = sourceName
                     )
                 )
+            }
+        }
+        result
+    }
+
+    private suspend fun fetchGithubReleasesWcp(url: String, componentType: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val array = JSONArray(json)
+        val result = mutableListOf<RemoteItem>()
+        for (i in 0 until array.length()) {
+            val release = array.getJSONObject(i)
+            val releaseName = release.getString("name").trim()
+            val assets = release.getJSONArray("assets")
+            val wcpAssets = (0 until assets.length())
+                .map { assets.getJSONObject(it) }
+                .filter { it.getString("name").endsWith(".wcp", ignoreCase = true) }
+            for (asset in wcpAssets) {
+                val assetName = asset.getString("name")
+                if (assetName.contains(componentType, ignoreCase = true) || componentType.isEmpty()) {
+                    val displayName = if (wcpAssets.size > 1) "$releaseName — $assetName" else releaseName
+                    result.add(
+                        RemoteItem(
+                            displayName = displayName,
+                            versionName = assetName.removeSuffix(".wcp"),
+                            downloadUrl = asset.getString("browser_download_url"),
+                            sourceName = sourceName
+                        )
+                    )
+                }
             }
         }
         result

@@ -2,6 +2,14 @@
 
 ---
 
+### [pre-release] — v1.1.7-pre — GitHub Releases WCP Support (2026-03-07)
+**Tag:** v1.1.7-pre
+
+#### What changed
+- Remote Sources: Added support for a new format `GITHUB_RELEASES_WCP`. This allows users or developers to add standard GitHub repository release APIs to the `defaultSources` list. The app will automatically scan the release assets for `.wcp` files and filter them based on the active component type.
+
+---
+
 ### [pre-release] — v1.1.6-pre — Additional Online Source (2026-03-07)
 **Tag:** v1.1.6-pre
 
