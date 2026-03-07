@@ -15,6 +15,28 @@
 
 ---
 
+### [feat] — v1.0.0-pre — WCP file import support (2026-03-07)
+**Commit:** `8420503`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- WCP format confirmed: Zstandard-compressed tar archive with `profile.json` + `system32/`/`syswow64/` DLL subfolders
+- `WcpExtractor.kt`: decompresses zstd stream → tar stream → extracts files to DocumentFile preserving directory structure; parses profile.json for type/versionName/description
+- `ComponentRepository.replaceWithWcp`: backup → wipe → WCP extract
+- `MainViewModel.replaceWithWcp`: success message includes component type + version name from profile.json
+- `ComponentDetailSheet`: import dialog redesigned as 3 styled option buttons — WCP File, Folder, Files
+- Dependencies added: `commons-compress:1.26.2`, `zstd-jni:1.5.6-3@aar`
+
+#### Files touched
+- `app/build.gradle.kts`
+- `app/src/main/java/com/banner/inject/data/WcpExtractor.kt` (new)
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/ComponentDetailSheet.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [feat] — v1.0.0-pre — Add storage permissions (2026-03-07)
 **Commit:** `824ddc8`  |  **Tag:** v1.0.0-pre (retagged)
 
