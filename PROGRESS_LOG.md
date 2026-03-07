@@ -2,6 +2,22 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Add missing launcher icons (2026-03-07)
+**Commit:** `1cc5c91`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Added adaptive launcher icons (mipmap-anydpi-v26) — were missing, causing AAPT failure
+- Dark (#1A1A1A) background + orange (#FF6D00) foreground vector
+- ic_launcher.xml + ic_launcher_round.xml both use adaptive-icon format
+
+#### Files touched
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml`
+- `app/src/main/res/drawable/ic_launcher_background.xml`
+- `app/src/main/res/drawable/ic_launcher_foreground.xml`
+
+---
+
 ### [fix] — v1.0.0-pre — Fix invalid theme resource (2026-03-07)
 **Commit:** `17d9468`  |  **Tag:** v1.0.0-pre (retagged)
 
