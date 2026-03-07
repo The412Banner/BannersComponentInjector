@@ -15,6 +15,20 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Auto-detect WCP compression format (2026-03-07)
+**Commit:** `c95a3b5`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- FEXCore WCPs caused "unknown frame descriptor" error — they use a different compression format than DXVK (which is zstd)
+- Replaced hardcoded ZstdInputStream with CompressorStreamFactory auto-detection
+- Now handles zstd, gzip, bzip2, xz, lz4, and more automatically
+- Falls back to plain uncompressed tar if no known compression detected
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/WcpExtractor.kt`
+
+---
+
 ### [fix] — v1.0.0-pre — Auto-detect flat vs structured layout for WCP extraction (2026-03-07)
 **Commit:** `9f4a51a`  |  **Tag:** v1.0.0-pre (retagged)
 
