@@ -3,10 +3,11 @@ package com.banner.inject.data
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
-import com.github.luben.zstd.ZstdInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.CompressorStreamFactory
+import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 
 class WcpExtractor(private val context: Context) {
@@ -28,8 +29,15 @@ class WcpExtractor(private val context: Context) {
                 ?: throw Exception("Cannot open WCP file")
 
             context.contentResolver.openInputStream(wcpUri)!!.use { raw ->
-                ZstdInputStream(raw).use { zstd ->
-                    TarArchiveInputStream(zstd).use { tar ->
+                // BufferedInputStream required for CompressorStreamFactory.detect() mark/reset
+                val buffered = BufferedInputStream(raw)
+                val decompressed = try {
+                    CompressorStreamFactory().createCompressorInputStream(buffered)
+                } catch (_: Exception) {
+                    // Not compressed — treat as plain tar
+                    buffered
+                }
+                TarArchiveInputStream(decompressed).use { tar ->
                         var profile: WcpProfile? = null
                         var entry = tar.nextTarEntry
 
@@ -76,7 +84,6 @@ class WcpExtractor(private val context: Context) {
                         }
 
                         profile ?: WcpProfile("Unknown", "Unknown", "No profile found")
-                    }
                 }
             }
         }
