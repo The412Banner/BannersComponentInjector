@@ -74,7 +74,7 @@ fun AppListScreen(
                 )
             }
 
-            items(apps, key = { it.known.packageName }) { app ->
+            items(apps, key = { it.known.packageNames.first() }) { app ->
                 AppCard(
                     app = app,
                     onClick = {
