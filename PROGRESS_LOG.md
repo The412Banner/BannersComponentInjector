@@ -2,6 +2,70 @@
 
 ---
 
+### [release] — v1.1.0 — Stable Backup Manager & External Backups (2026-03-07)
+**Tag:** v1.1.0
+
+#### What changed
+- Official stable release promoting v1.0.1-pre through v1.0.3-pre features.
+- External Backups: Backups now land in `Downloads/BannersComponentInjector/<componentName>/` instead of app-private internal storage, using `MediaStore.Downloads` API.
+- Backup Manager: Centralized Backup Manager accessible from the AppList top bar, Settings sheet, and ComponentList top bar.
+- Settings Sheet: Added a new Settings cog to the AppListScreen top bar to show the app version and provide an "Open Downloads Folder" shortcut.
+
+---
+
+### [feat] — v1.0.3-pre — Backup Manager in all screens and Settings (2026-03-07)
+**Commit:** `c817d1e`  |  **Tag:** v1.0.3-pre
+
+#### What changed
+- ComponentListScreen: Backup icon added to top bar; opens BackupManagerSheet
+- Settings sheet: "Backup Manager" button added; dismisses settings then opens Backup Manager
+- Backup Manager now reachable from: AppList top bar, Settings, ComponentList top bar
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
+### [feat] — v1.0.2-pre.1 — Backup Manager + Settings in top bar (2026-03-07)
+**Commit:** `554bdf4`  |  **Tag:** v1.0.2-pre.1
+
+#### What changed
+- Two new icon buttons added to AppListScreen top bar (next to Refresh)
+- **Backup icon → Backup Manager sheet**: lists all component backups in Downloads/BannersComponentInjector/, shows file count + size, allows per-component deletion with confirm dialog; loads async on IO dispatcher
+- **Settings cog → Settings sheet**: shows app version and "Open Downloads Folder" shortcut
+- `BackupManager`: added `BackupInfo` data class and `listAllBackups()` that queries MediaStore and groups files by component name
+- `MainViewModel`: added `listAllBackups()` and `deleteBackupByName()`
+- New `BackupManagerSheet.kt` composable
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/BackupManager.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/BackupManagerSheet.kt` (new)
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
+### [feat] — v1.0.1-pre — Save backups to Downloads folder (2026-03-07)
+**Commit:** `673715e`  |  **Tag:** v1.0.1-pre
+
+#### What changed
+- Backups now land in `Downloads/BannersComponentInjector/<componentName>/` instead of app-private internal storage
+- Users can browse/manage backups in any file manager or the system Downloads app
+- Uses `MediaStore.Downloads` API (Android 10+) — no extra permissions needed
+- Full subdirectory structure preserved (system32/, syswow64/, etc.)
+- `BackupManager` rewritten: File-based storage replaced with MediaStore insert/query/delete
+- `listAllBackupFiles()` return type changed from `List<Pair<File, String>>` to `List<Pair<Uri, String>>`
+- `ComponentRepository.restoreComponent()` updated to read via `contentResolver.openInputStream(uri)`
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/BackupManager.kt`
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+
+---
+
 ### [release] — v1.0.0 — First stable release (2026-03-07)
 **Commit:** `bf2c8cd`  |  **Tag:** v1.0.0
 
