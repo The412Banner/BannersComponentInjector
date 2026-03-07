@@ -22,6 +22,7 @@
 
 ---
 
+
 ### [ux] — v1.0.0-pre — Path guide dialog before SAF folder picker (2026-03-07)
 **Commit:** `dfde930`  |  **Tag:** v1.0.0-pre (retagged)
 
