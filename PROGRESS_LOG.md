@@ -2,6 +2,19 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Fix package visibility on Android 11+ (2026-03-07)
+**Commit:** `8e875f7`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- App was showing all GameHub variants as "not installed" even when installed
+- Root cause: Android 11+ package visibility — `getPackageInfo()` silently returns NameNotFoundException for undeclared packages
+- Fixed by adding `<queries>` block to AndroidManifest.xml listing all 5 package names
+
+#### Files touched
+- `app/src/main/AndroidManifest.xml`
+
+---
+
 ### [fix] — v1.0.0-pre — Add contents:write permission to workflow (2026-03-07)
 **Commit:** `d13dd63`  |  **Tag:** v1.0.0-pre (retagged)
 
