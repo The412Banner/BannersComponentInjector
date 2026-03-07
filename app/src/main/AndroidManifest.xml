@@ -16,6 +16,9 @@
         <package android:name="com.ludashi.aibench" />
         <package android:name="com.antutu.ABenchMark" />
         <package android:name="com.mihoyo.genshinimpact" />
+        <package android:name="com.xiaoji.egggame" />
+        <package android:name="com.ludashi.benchmark" />
+        <package android:name="com.antutu.benchmark.full" />
     </queries>
 
     <application
