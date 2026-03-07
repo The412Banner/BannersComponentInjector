@@ -2,6 +2,22 @@
 
 ---
 
+### [feat] — v1.0.0-pre — ZIP format support for Turnip / adrenotools GPU driver zips (2026-03-07)
+**Commit:** `5b318af`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Turnip drivers ship as plain ZIP (PK magic) with `meta.json` + flat `.so` — not a WCP tar archive
+- Auto-detect format by magic bytes: `PK` → ZIP path, else → TAR path
+- ZIP: reads `meta.json` (vendor→type, name→versionName), extracts all non-meta files flat to component root
+- TAR: all existing behaviour unchanged (zstd/xz/gzip/bzip2/lz4, FEXCore flat, ./ prefix strip)
+- No new dependencies — `java.util.zip` is built into the JVM
+- Refactored WcpExtractor into clearly separated ZIP and TAR private methods
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/WcpExtractor.kt`
+
+---
+
 ### [fix] — v1.0.0-pre — Strip ./ prefix from tar entries so FEXCore extracts flat (2026-03-07)
 **Commit:** `806d4b4`  |  **Tag:** v1.0.0-pre (retagged)
 
