@@ -14,11 +14,13 @@ import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.KNOWN_GAMEHUB_APPS
 import com.banner.inject.model.OpState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class UiState(
     val apps: List<GameHubApp> = emptyList(),
@@ -106,7 +108,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingComponents = true) }
             try {
-                val root = repo.getRootDocument(uri)
+                val root = withContext(Dispatchers.IO) { repo.getRootDocument(uri) }
                 if (root == null || !root.canRead()) {
                     _uiState.update {
                         it.copy(
@@ -116,7 +118,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     return@launch
                 }
-                val components = repo.scanComponents(root, backupManager)
+                val components = withContext(Dispatchers.IO) { repo.scanComponents(root, backupManager) }
                 _uiState.update { it.copy(isLoadingComponents = false, components = components) }
             } catch (e: Exception) {
                 _uiState.update {
