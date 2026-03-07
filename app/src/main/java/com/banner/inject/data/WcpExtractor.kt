@@ -29,7 +29,7 @@ class WcpExtractor(private val context: Context) {
                 TarArchiveInputStream(decompressed).use { tar ->
                     var entry = tar.nextTarEntry
                     while (entry != null) {
-                        if (entry.name == "profile.json") {
+                        if (entry.name.removePrefix("./") == "profile.json") {
                             val buf = ByteArrayOutputStream()
                             tar.copyTo(buf)
                             return@runCatching parseProfile(buf.toString(Charsets.UTF_8))
@@ -69,14 +69,14 @@ class WcpExtractor(private val context: Context) {
                             when {
                                 entry.isDirectory -> { /* skip — created on demand */ }
 
-                                entry.name == "profile.json" -> {
+                                entry.name.removePrefix("./") == "profile.json" -> {
                                     val buf = ByteArrayOutputStream()
                                     tar.copyTo(buf)
                                     profile = parseProfile(buf.toString(Charsets.UTF_8))
                                 }
 
                                 else -> {
-                                    val name = entry.name
+                                    val name = entry.name.removePrefix("./")
                                     val fileName = name.substringAfterLast('/')
                                     onProgress("Extracting $fileName...")
 
