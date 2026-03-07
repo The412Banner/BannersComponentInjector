@@ -15,6 +15,21 @@
 
 ---
 
+### [feat] — v1.0.0-pre — Add storage permissions (2026-03-07)
+**Commit:** `824ddc8`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Added `READ_EXTERNAL_STORAGE` (maxSdkVersion 32) to manifest
+- Added `WRITE_EXTERNAL_STORAGE` (maxSdkVersion 29) to manifest
+- Added `MANAGE_DOCUMENTS` for SAF URI persistence
+- Runtime permission request on launch for Android 12 and below
+
+#### Files touched
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [ci] — v1.0.0-pre — Release notes + raw APK attachment (2026-03-07)
 **Commit:** `5e9d9cc`  |  **Tag:** v1.0.0-pre (retagged)
 
