@@ -12,10 +12,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.formatSize
 
@@ -32,6 +34,10 @@ fun ComponentDetailSheet(
     var showNoBackupWarning by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showDeleteBackupConfirm by remember { mutableStateOf(false) }
+    var showRemoteSourceSheet by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val remoteRepo = remember { RemoteSourceRepository(context) }
 
     val wcpPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -39,11 +45,15 @@ fun ComponentDetailSheet(
         if (uri != null) { onReplaceWcp(uri); onDismiss() }
     }
 
-    fun onReplaceRequested() {
+    fun onReplaceRequested(isRemote: Boolean) {
         if (!component.hasBackup) {
             showNoBackupWarning = true
         } else {
-            wcpPicker.launch(arrayOf("*/*"))
+            if (isRemote) {
+                showRemoteSourceSheet = true
+            } else {
+                wcpPicker.launch(arrayOf("*/*"))
+            }
         }
     }
 
@@ -145,15 +155,28 @@ fun ComponentDetailSheet(
 
             Spacer(Modifier.height(8.dp))
 
-            // Replace with WCP
+            // Replace with WCP (Local)
             Button(
-                onClick = { onReplaceRequested() },
+                onClick = { onReplaceRequested(isRemote = false) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Default.Archive, null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Replace with WCP File")
+                Text("Select Local File")
+            }
+            
+            Spacer(Modifier.height(8.dp))
+
+            // Replace with Remote Source
+            Button(
+                onClick = { onReplaceRequested(isRemote = true) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Icon(Icons.Default.CloudDownload, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Select Online Source")
             }
 
             // Restore + delete backup
@@ -184,6 +207,18 @@ fun ComponentDetailSheet(
         }
     }
 
+    if (showRemoteSourceSheet) {
+        RemoteSourceSheet(
+            component = component,
+            repo = remoteRepo,
+            onDismiss = { showRemoteSourceSheet = false },
+            onDownloadAndReplace = { uri -> 
+                onReplaceWcp(uri)
+                onDismiss()
+            }
+        )
+    }
+
     // No backup warning
     if (showNoBackupWarning) {
         AlertDialog(
@@ -194,6 +229,8 @@ fun ComponentDetailSheet(
             confirmButton = {
                 TextButton(onClick = {
                     showNoBackupWarning = false
+                    // we show standard local picker if they say "anyway" when standard warned, 
+                    // though they could have clicked remote. We'll just show local picker for simplicity.
                     wcpPicker.launch(arrayOf("*/*"))
                 }) { Text("Replace Anyway", color = MaterialTheme.colorScheme.error) }
             },

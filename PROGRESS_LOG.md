@@ -2,6 +2,17 @@
 
 ---
 
+### [pre-release] — v1.1.2-pre — Remote Online Sources (2026-03-07)
+**Tag:** v1.1.2-pre
+
+#### What changed
+- Remote Replacement: Users can now replace components by downloading them directly from online sources instead of requiring a local WCP file.
+- Remote Sources: Added integration with `arihany/wcp-json` for standard components and GitHub Releases for Turnip GPU drivers.
+- UI Update: `ComponentDetailSheet` now features two options for replacement: "Select Local File" and "Select Online Source". 
+- Downloader UI: A new bottom sheet (`RemoteSourceSheet`) displays available remote files with their versions and shows real-time progress during downloads.
+
+---
+
 ### [pre-release] — v1.1.1-pre — Component Replacement Notes (2026-03-07)
 **Tag:** v1.1.1-pre
 
