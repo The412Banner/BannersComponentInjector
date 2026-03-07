@@ -2,6 +2,18 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Add contents:write permission to workflow (2026-03-07)
+**Commit:** `d13dd63`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- APK build was succeeding but release creation was failing with 403
+- Added `permissions: contents: write` to the build job in release.yml
+
+#### Files touched
+- `.github/workflows/release.yml`
+
+---
+
 ### [fix] — v1.0.0-pre — Add missing launcher icons (2026-03-07)
 **Commit:** `1cc5c91`  |  **Tag:** v1.0.0-pre (retagged)
 
