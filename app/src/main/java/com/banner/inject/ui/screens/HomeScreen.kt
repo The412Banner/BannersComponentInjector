@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.banner.inject.data.BackupManager
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.OpState
@@ -31,9 +32,12 @@ fun ComponentListScreen(
     onReplaceWcp: (ComponentEntry, android.net.Uri) -> Unit,
     onRestoreComponent: (ComponentEntry) -> Unit,
     onDeleteBackup: (ComponentEntry) -> Unit,
-    onClearOpState: () -> Unit
+    onClearOpState: () -> Unit,
+    onListBackups: () -> List<BackupManager.BackupInfo>,
+    onDeleteBackupByName: (String) -> Unit
 ) {
     var selectedComponent by remember { mutableStateOf<ComponentEntry?>(null) }
+    var showBackupManager by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(opState) {
@@ -62,6 +66,9 @@ fun ComponentListScreen(
                 actions = {
                     IconButton(onClick = onRefresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                    IconButton(onClick = { showBackupManager = true }) {
+                        Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -158,6 +165,14 @@ fun ComponentListScreen(
             onReplaceWcp = { uri -> onReplaceWcp(comp, uri) },
             onRestore = { onRestoreComponent(comp) },
             onDeleteBackup = { onDeleteBackup(comp) }
+        )
+    }
+
+    if (showBackupManager) {
+        BackupManagerSheet(
+            onDismiss = { showBackupManager = false },
+            onListBackups = onListBackups,
+            onDeleteBackup = onDeleteBackupByName
         )
     }
 }

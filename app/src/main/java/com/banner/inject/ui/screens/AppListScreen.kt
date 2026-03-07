@@ -115,7 +115,8 @@ fun AppListScreen(
     if (showSettings) {
         SettingsSheet(
             appVersion = appVersion,
-            onDismiss = { showSettings = false }
+            onDismiss = { showSettings = false },
+            onOpenBackupManager = { showSettings = false; showBackupManager = true }
         )
     }
 
@@ -186,7 +187,7 @@ fun AppListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit) {
+private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit, onOpenBackupManager: () -> Unit) {
     val context = LocalContext.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -236,6 +237,15 @@ private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit) {
             }
 
             Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onOpenBackupManager,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Backup, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Backup Manager")
+            }
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = {
                     runCatching {

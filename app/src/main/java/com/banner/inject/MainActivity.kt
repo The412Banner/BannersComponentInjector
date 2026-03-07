@@ -64,7 +64,9 @@ class MainActivity : ComponentActivity() {
                             onReplaceWcp = { comp, uri -> vm.replaceWithWcp(comp, uri) },
                             onRestoreComponent = { vm.restoreComponent(it) },
                             onDeleteBackup = { vm.deleteBackup(it) },
-                            onClearOpState = { vm.clearOpState() }
+                            onClearOpState = { vm.clearOpState() },
+                            onListBackups = { vm.listAllBackups() },
+                            onDeleteBackupByName = { vm.deleteBackupByName(it) }
                         )
                     }
                 }
