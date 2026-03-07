@@ -2,6 +2,14 @@
 
 ---
 
+### [pre-release] — v1.1.6-pre — Additional Online Source (2026-03-07)
+**Tag:** v1.1.6-pre
+
+#### What changed
+- Remote Sources: Added `Xnick417x` (Winlator-Bionic-Nightly-wcp) to the list of default remote repositories for broader component coverage.
+
+---
+
 ### [pre-release] — v1.1.5-pre — Multi-Source Remote Repositories (2026-03-07)
 **Tag:** v1.1.5-pre
 

@@ -33,6 +33,7 @@ class RemoteSourceRepository(private val context: Context) {
     val defaultSources = listOf(
         RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON),
         RemoteSource("Arihany", "https://raw.githubusercontent.com/arihany/wcp-json/main/wcp.json", SourceFormat.WCP_JSON),
+        RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON),
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno"))
     )
 
