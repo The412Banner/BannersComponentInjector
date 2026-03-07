@@ -19,8 +19,8 @@ class ComponentRepository(private val context: Context) {
         return rootDoc.listFiles()
             .filter { it.isDirectory }
             .map { dir ->
-                val files = collectFilesRecursively(dir, "")
                 val folderName = dir.name ?: "unknown"
+                val files = SafFastScanner.collectFilesRecursively(context, dir)
                 ComponentEntry(
                     folderName = folderName,
                     documentFile = dir,
@@ -34,8 +34,8 @@ class ComponentRepository(private val context: Context) {
     }
 
     fun scanSingleComponent(dir: DocumentFile, backupManager: BackupManager): ComponentEntry {
-        val files = collectFilesRecursively(dir, "")
         val folderName = dir.name ?: "unknown"
+        val files = SafFastScanner.collectFilesRecursively(context, dir)
         return ComponentEntry(
             folderName = folderName,
             documentFile = dir,

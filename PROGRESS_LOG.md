@@ -2,6 +2,15 @@
 
 ---
 
+### [pre-release] — v1.1.3-pre — Fast SAF Scanner (2026-03-07)
+**Tag:** v1.1.3-pre
+
+#### What changed
+- Performance Optimization: Dramatically sped up the initial load time of the component list.
+- Custom Scanner: Bypassed the slow Android `DocumentFile` recursive wrappers by introducing `SafFastScanner`, which performs highly optimized, raw `ContentResolver` queries to calculate file counts and sizes natively across directory trees.
+
+---
+
 ### [pre-release] — v1.1.2-pre — Remote Online Sources (2026-03-07)
 **Tag:** v1.1.2-pre
 
