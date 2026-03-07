@@ -147,6 +147,29 @@ class ComponentRepository(private val context: Context) {
         return delete()
     }
 
+    suspend fun replaceWithWcp(
+        component: DocumentFile,
+        wcpUri: Uri,
+        backupManager: BackupManager,
+        onProgress: (String) -> Unit
+    ): Result<WcpExtractor.WcpProfile> = withContext(Dispatchers.IO) {
+        runCatching {
+            val componentName = component.name ?: "component"
+
+            onProgress("Backing up $componentName...")
+            backupManager.backupFromDocumentFile(component, componentName)
+
+            onProgress("Clearing existing files...")
+            component.listFiles().forEach { it.deleteRecursively() }
+
+            val extractor = WcpExtractor(context)
+            val profile = extractor.extractToDocumentFile(wcpUri, component, onProgress)
+                .getOrThrow()
+
+            profile
+        }
+    }
+
     private fun getFileName(uri: Uri): String? {
         var name: String? = null
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->

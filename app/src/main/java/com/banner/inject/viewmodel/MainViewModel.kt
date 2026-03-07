@@ -190,6 +190,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun replaceWithWcp(component: ComponentEntry, wcpUri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(opState = OpState.InProgress("Reading WCP file...")) }
+            repo.replaceWithWcp(
+                component = component.documentFile,
+                wcpUri = wcpUri,
+                backupManager = backupManager,
+                onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
+            ).fold(
+                onSuccess = { profile ->
+                    _uiState.update {
+                        it.copy(opState = OpState.Done(
+                            "${component.folderName} replaced with ${profile.type} ${profile.versionName}"
+                        ))
+                    }
+                    refresh()
+                },
+                onFailure = { e ->
+                    _uiState.update { it.copy(opState = OpState.Error(e.message ?: "WCP import failed")) }
+                    refresh()
+                }
+            )
+        }
+    }
+
     fun restoreComponent(component: ComponentEntry) {
         viewModelScope.launch {
             _uiState.update { it.copy(opState = OpState.InProgress("Restoring ${component.folderName}...")) }

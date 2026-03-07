@@ -27,6 +27,7 @@ fun ComponentDetailSheet(
     onBackup: () -> Unit,
     onReplaceFiles: (List<Uri>) -> Unit,
     onReplaceFolder: (Uri) -> Unit,
+    onReplaceWcp: (Uri) -> Unit,
     onRestore: () -> Unit,
     onDeleteBackup: () -> Unit
 ) {
@@ -35,7 +36,6 @@ fun ComponentDetailSheet(
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showDeleteBackupConfirm by remember { mutableStateOf(false) }
 
-    // Callbacks stored so the no-backup warning can proceed to the right picker
     var pendingImportType by remember { mutableStateOf<ImportType?>(null) }
 
     val filePicker = rememberLauncherForActivityResult(
@@ -50,10 +50,17 @@ fun ComponentDetailSheet(
         if (uri != null) { onReplaceFolder(uri); onDismiss() }
     }
 
+    val wcpPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) { onReplaceWcp(uri); onDismiss() }
+    }
+
     fun launchPicker(type: ImportType) {
         when (type) {
-            ImportType.Files -> filePicker.launch(arrayOf("*/*"))
+            ImportType.Files  -> filePicker.launch(arrayOf("*/*"))
             ImportType.Folder -> folderPicker.launch(null)
+            ImportType.Wcp    -> wcpPicker.launch(arrayOf("*/*"))
         }
     }
 
@@ -213,18 +220,37 @@ fun ComponentDetailSheet(
         AlertDialog(
             onDismissRequest = { showImportDialog = false },
             title = { Text("Replace With") },
-            text = { Text("Import individual files, or replace with the entire contents of a folder?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showImportDialog = false
-                    onReplaceRequested(ImportType.Folder)
-                }) { Text("Import Folder") }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ImportOptionButton(
+                        icon = Icons.Default.Archive,
+                        label = "WCP File",
+                        subtitle = "Winlator component package (.wcp)"
+                    ) {
+                        showImportDialog = false
+                        onReplaceRequested(ImportType.Wcp)
+                    }
+                    ImportOptionButton(
+                        icon = Icons.Default.FolderOpen,
+                        label = "Folder",
+                        subtitle = "Replace with contents of a folder"
+                    ) {
+                        showImportDialog = false
+                        onReplaceRequested(ImportType.Folder)
+                    }
+                    ImportOptionButton(
+                        icon = Icons.Default.FileOpen,
+                        label = "Files",
+                        subtitle = "Select individual files"
+                    ) {
+                        showImportDialog = false
+                        onReplaceRequested(ImportType.Files)
+                    }
+                }
             },
+            confirmButton = {},
             dismissButton = {
-                TextButton(onClick = {
-                    showImportDialog = false
-                    onReplaceRequested(ImportType.Files)
-                }) { Text("Import Files") }
+                TextButton(onClick = { showImportDialog = false }) { Text("Cancel") }
             }
         )
     }
@@ -289,4 +315,24 @@ fun ComponentDetailSheet(
     }
 }
 
-private enum class ImportType { Files, Folder }
+private enum class ImportType { Files, Folder, Wcp }
+
+@Composable
+private fun ImportOptionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}

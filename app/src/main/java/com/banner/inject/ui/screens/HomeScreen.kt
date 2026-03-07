@@ -30,6 +30,7 @@ fun ComponentListScreen(
     onBackupComponent: (ComponentEntry) -> Unit,
     onReplaceFiles: (ComponentEntry, List<android.net.Uri>) -> Unit,
     onReplaceFolder: (ComponentEntry, android.net.Uri) -> Unit,
+    onReplaceWcp: (ComponentEntry, android.net.Uri) -> Unit,
     onRestoreComponent: (ComponentEntry) -> Unit,
     onDeleteBackup: (ComponentEntry) -> Unit,
     onClearOpState: () -> Unit
@@ -133,6 +134,7 @@ fun ComponentListScreen(
             onBackup = { onBackupComponent(comp) },
             onReplaceFiles = { uris -> onReplaceFiles(comp, uris) },
             onReplaceFolder = { uri -> onReplaceFolder(comp, uri) },
+            onReplaceWcp = { uri -> onReplaceWcp(comp, uri) },
             onRestore = { onRestoreComponent(comp) },
             onDeleteBackup = { onDeleteBackup(comp) }
         )

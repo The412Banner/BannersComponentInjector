@@ -50,6 +50,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("org.apache.commons:commons-compress:1.26.2")
+    implementation("com.github.luben:zstd-jni:1.5.6-3@aar")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
