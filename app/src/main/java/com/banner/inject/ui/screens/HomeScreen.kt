@@ -210,6 +210,15 @@ private fun ComponentCard(component: ComponentEntry, onClick: () -> Unit) {
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (component.replacedWith != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Replaced: ${component.replacedWith}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
 

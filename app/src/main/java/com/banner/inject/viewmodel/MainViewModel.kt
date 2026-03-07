@@ -179,9 +179,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
             ).fold(
                 onSuccess = { profile ->
+                    val note = "${profile.type} ${profile.versionName}"
+                    context.getSharedPreferences("component_notes", Context.MODE_PRIVATE)
+                        .edit().putString("replaced_with_${component.folderName}", note).apply()
                     _uiState.update {
                         it.copy(opState = OpState.Done(
-                            "${component.folderName} replaced with ${profile.type} ${profile.versionName}"
+                            "${component.folderName} replaced with $note"
                         ))
                     }
                     refreshComponent(component)
@@ -203,6 +206,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
             ).fold(
                 onSuccess = {
+                    context.getSharedPreferences("component_notes", Context.MODE_PRIVATE)
+                        .edit().remove("replaced_with_${component.folderName}").apply()
                     _uiState.update { it.copy(opState = OpState.Done("${component.folderName} restored")) }
                     refreshComponent(component)
                 },

@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 
 class ComponentRepository(private val context: Context) {
 
+    private val prefs = context.getSharedPreferences("component_notes", Context.MODE_PRIVATE)
+
     fun getRootDocument(uri: Uri): DocumentFile? =
         DocumentFile.fromTreeUri(context, uri)
 
@@ -18,12 +20,14 @@ class ComponentRepository(private val context: Context) {
             .filter { it.isDirectory }
             .map { dir ->
                 val files = collectFilesRecursively(dir, "")
+                val folderName = dir.name ?: "unknown"
                 ComponentEntry(
-                    folderName = dir.name ?: "unknown",
+                    folderName = folderName,
                     documentFile = dir,
                     files = files,
-                    hasBackup = backupManager.hasBackup(dir.name ?: ""),
-                    totalSize = files.sumOf { it.size }
+                    hasBackup = backupManager.hasBackup(folderName),
+                    totalSize = files.sumOf { it.size },
+                    replacedWith = prefs.getString("replaced_with_$folderName", null)
                 )
             }
             .sortedBy { it.folderName.lowercase() }
@@ -31,12 +35,14 @@ class ComponentRepository(private val context: Context) {
 
     fun scanSingleComponent(dir: DocumentFile, backupManager: BackupManager): ComponentEntry {
         val files = collectFilesRecursively(dir, "")
+        val folderName = dir.name ?: "unknown"
         return ComponentEntry(
-            folderName = dir.name ?: "unknown",
+            folderName = folderName,
             documentFile = dir,
             files = files,
-            hasBackup = backupManager.hasBackup(dir.name ?: ""),
-            totalSize = files.sumOf { it.size }
+            hasBackup = backupManager.hasBackup(folderName),
+            totalSize = files.sumOf { it.size },
+            replacedWith = prefs.getString("replaced_with_$folderName", null)
         )
     }
 

@@ -2,6 +2,15 @@
 
 ---
 
+### [pre-release] — v1.1.1-pre — Component Replacement Notes (2026-03-07)
+**Tag:** v1.1.1-pre
+
+#### What changed
+- Component Info: The component list now displays a note indicating what a component was replaced with after a successful WCP import.
+- State Persistence: Replacement notes are saved to `SharedPreferences` so they persist across app restarts and are cleared when a component is restored to its backup.
+
+---
+
 ### [release] — v1.1.0 — Stable Backup Manager & External Backups (2026-03-07)
 **Tag:** v1.1.0
 

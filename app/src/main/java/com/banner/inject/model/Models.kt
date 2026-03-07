@@ -28,7 +28,8 @@ data class ComponentEntry(
     val documentFile: DocumentFile,
     val files: List<FileInfo>,
     val hasBackup: Boolean,
-    val totalSize: Long
+    val totalSize: Long,
+    val replacedWith: String? = null
 ) {
     val fileCount: Int get() = files.size
     val formattedSize: String get() = formatSize(totalSize)
