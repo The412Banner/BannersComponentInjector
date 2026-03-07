@@ -32,6 +32,7 @@ fun ComponentDetailSheet(
     onDeleteBackup: () -> Unit
 ) {
     var showNoBackupWarning by remember { mutableStateOf(false) }
+    var pendingReplaceIsRemote by remember { mutableStateOf<Boolean?>(null) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showDeleteBackupConfirm by remember { mutableStateOf(false) }
     var showRemoteSourceSheet by remember { mutableStateOf(false) }
@@ -47,6 +48,7 @@ fun ComponentDetailSheet(
 
     fun onReplaceRequested(isRemote: Boolean) {
         if (!component.hasBackup) {
+            pendingReplaceIsRemote = isRemote
             showNoBackupWarning = true
         } else {
             if (isRemote) {
@@ -229,13 +231,19 @@ fun ComponentDetailSheet(
             confirmButton = {
                 TextButton(onClick = {
                     showNoBackupWarning = false
-                    // we show standard local picker if they say "anyway" when standard warned, 
-                    // though they could have clicked remote. We'll just show local picker for simplicity.
-                    wcpPicker.launch(arrayOf("*/*"))
+                    if (pendingReplaceIsRemote == true) {
+                        showRemoteSourceSheet = true
+                    } else {
+                        wcpPicker.launch(arrayOf("*/*"))
+                    }
+                    pendingReplaceIsRemote = null
                 }) { Text("Replace Anyway", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showNoBackupWarning = false }) { Text("Cancel") }
+                TextButton(onClick = { 
+                    showNoBackupWarning = false
+                    pendingReplaceIsRemote = null
+                }) { Text("Cancel") }
             }
         )
     }
