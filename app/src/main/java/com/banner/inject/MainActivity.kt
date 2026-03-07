@@ -54,8 +54,6 @@ class MainActivity : ComponentActivity() {
                             onBack = { vm.clearSelectedApp() },
                             onRefresh = { vm.refresh() },
                             onBackupComponent = { vm.backupComponent(it) },
-                            onReplaceFiles = { comp, uris -> vm.replaceWithFiles(comp, uris) },
-                            onReplaceFolder = { comp, uri -> vm.replaceWithFolder(comp, uri) },
                             onReplaceWcp = { comp, uri -> vm.replaceWithWcp(comp, uri) },
                             onRestoreComponent = { vm.restoreComponent(it) },
                             onDeleteBackup = { vm.deleteBackup(it) },

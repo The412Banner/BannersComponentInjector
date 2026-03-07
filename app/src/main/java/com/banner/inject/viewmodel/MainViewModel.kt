@@ -148,48 +148,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun replaceWithFiles(component: ComponentEntry, sourceUris: List<Uri>) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(opState = OpState.InProgress("Preparing...")) }
-            repo.replaceWithFiles(
-                component = component.documentFile,
-                sourceUris = sourceUris,
-                backupManager = backupManager,
-                onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
-            ).fold(
-                onSuccess = {
-                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} replaced")) }
-                    refresh()
-                },
-                onFailure = { e ->
-                    _uiState.update { it.copy(opState = OpState.Error(e.message ?: "Replace failed")) }
-                    refresh()
-                }
-            )
-        }
-    }
-
-    fun replaceWithFolder(component: ComponentEntry, sourceFolderUri: Uri) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(opState = OpState.InProgress("Preparing...")) }
-            repo.replaceWithFolder(
-                component = component.documentFile,
-                sourceFolderUri = sourceFolderUri,
-                backupManager = backupManager,
-                onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
-            ).fold(
-                onSuccess = {
-                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} replaced")) }
-                    refresh()
-                },
-                onFailure = { e ->
-                    _uiState.update { it.copy(opState = OpState.Error(e.message ?: "Replace failed")) }
-                    refresh()
-                }
-            )
-        }
-    }
-
     fun replaceWithWcp(component: ComponentEntry, wcpUri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(opState = OpState.InProgress("Reading WCP file...")) }

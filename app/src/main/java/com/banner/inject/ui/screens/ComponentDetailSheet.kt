@@ -25,30 +25,13 @@ fun ComponentDetailSheet(
     component: ComponentEntry,
     onDismiss: () -> Unit,
     onBackup: () -> Unit,
-    onReplaceFiles: (List<Uri>) -> Unit,
-    onReplaceFolder: (Uri) -> Unit,
     onReplaceWcp: (Uri) -> Unit,
     onRestore: () -> Unit,
     onDeleteBackup: () -> Unit
 ) {
-    var showImportDialog by remember { mutableStateOf(false) }
     var showNoBackupWarning by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showDeleteBackupConfirm by remember { mutableStateOf(false) }
-
-    var pendingImportType by remember { mutableStateOf<ImportType?>(null) }
-
-    val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        if (uris.isNotEmpty()) { onReplaceFiles(uris); onDismiss() }
-    }
-
-    val folderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) { onReplaceFolder(uri); onDismiss() }
-    }
 
     val wcpPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -56,20 +39,11 @@ fun ComponentDetailSheet(
         if (uri != null) { onReplaceWcp(uri); onDismiss() }
     }
 
-    fun launchPicker(type: ImportType) {
-        when (type) {
-            ImportType.Files  -> filePicker.launch(arrayOf("*/*"))
-            ImportType.Folder -> folderPicker.launch(null)
-            ImportType.Wcp    -> wcpPicker.launch(arrayOf("*/*"))
-        }
-    }
-
-    fun onReplaceRequested(type: ImportType) {
+    fun onReplaceRequested() {
         if (!component.hasBackup) {
-            pendingImportType = type
             showNoBackupWarning = true
         } else {
-            launchPicker(type)
+            wcpPicker.launch(arrayOf("*/*"))
         }
     }
 
@@ -156,7 +130,7 @@ fun ComponentDetailSheet(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(16.dp))
 
-            // ── Backup button ──────────────────────────────────────────────────
+            // Backup button
             OutlinedButton(
                 onClick = { onBackup(); onDismiss() },
                 modifier = Modifier.fillMaxWidth(),
@@ -166,28 +140,23 @@ fun ComponentDetailSheet(
             ) {
                 Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    if (component.hasBackup) "Re-backup Current Contents"
-                    else "Backup Current Contents"
-                )
+                Text(if (component.hasBackup) "Re-backup Current Contents" else "Backup Current Contents")
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // ── Replace button ─────────────────────────────────────────────────
+            // Replace with WCP
             Button(
-                onClick = { showImportDialog = true },
+                onClick = { onReplaceRequested() },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Default.SwapHoriz, null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Archive, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Replace Component")
+                Text("Replace with WCP File")
             }
 
-            // ── Restore + delete backup ────────────────────────────────────────
+            // Restore + delete backup
             if (component.hasBackup) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(
@@ -215,65 +184,21 @@ fun ComponentDetailSheet(
         }
     }
 
-    // Import type chooser
-    if (showImportDialog) {
-        AlertDialog(
-            onDismissRequest = { showImportDialog = false },
-            title = { Text("Replace With") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ImportOptionButton(
-                        icon = Icons.Default.Archive,
-                        label = "WCP File",
-                        subtitle = "Winlator component package (.wcp)"
-                    ) {
-                        showImportDialog = false
-                        onReplaceRequested(ImportType.Wcp)
-                    }
-                    ImportOptionButton(
-                        icon = Icons.Default.FolderOpen,
-                        label = "Folder",
-                        subtitle = "Replace with contents of a folder"
-                    ) {
-                        showImportDialog = false
-                        onReplaceRequested(ImportType.Folder)
-                    }
-                    ImportOptionButton(
-                        icon = Icons.Default.FileOpen,
-                        label = "Files",
-                        subtitle = "Select individual files"
-                    ) {
-                        showImportDialog = false
-                        onReplaceRequested(ImportType.Files)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showImportDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
     // No backup warning
     if (showNoBackupWarning) {
         AlertDialog(
-            onDismissRequest = { showNoBackupWarning = false; pendingImportType = null },
+            onDismissRequest = { showNoBackupWarning = false },
             icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text("No Backup Found") },
             text = { Text("You haven't backed up ${component.folderName} yet. If you replace it now you won't be able to restore the originals.") },
             confirmButton = {
                 TextButton(onClick = {
                     showNoBackupWarning = false
-                    pendingImportType?.let { launchPicker(it) }
-                    pendingImportType = null
+                    wcpPicker.launch(arrayOf("*/*"))
                 }) { Text("Replace Anyway", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showNoBackupWarning = false
-                    pendingImportType = null
-                }) { Text("Cancel") }
+                TextButton(onClick = { showNoBackupWarning = false }) { Text("Cancel") }
             }
         )
     }
@@ -312,27 +237,5 @@ fun ComponentDetailSheet(
                 TextButton(onClick = { showDeleteBackupConfirm = false }) { Text("Cancel") }
             }
         )
-    }
-}
-
-private enum class ImportType { Files, Folder, Wcp }
-
-@Composable
-private fun ImportOptionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }

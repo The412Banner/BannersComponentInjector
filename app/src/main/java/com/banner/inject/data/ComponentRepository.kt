@@ -2,7 +2,6 @@ package com.banner.inject.data
 
 import android.content.Context
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.FileInfo
@@ -21,24 +20,23 @@ class ComponentRepository(private val context: Context) {
                 val files = dir.listFiles()
                     .filter { it.isFile }
                     .map { f -> FileInfo(f.name ?: "unknown", f.length(), f.type ?: "") }
-                val totalSize = files.sumOf { it.size }
                 ComponentEntry(
                     folderName = dir.name ?: "unknown",
                     documentFile = dir,
                     files = files,
                     hasBackup = backupManager.hasBackup(dir.name ?: ""),
-                    totalSize = totalSize
+                    totalSize = files.sumOf { it.size }
                 )
             }
             .sortedBy { it.folderName.lowercase() }
     }
 
-    suspend fun replaceWithFiles(
+    suspend fun replaceWithWcp(
         component: DocumentFile,
-        sourceUris: List<Uri>,
+        wcpUri: Uri,
         backupManager: BackupManager,
         onProgress: (String) -> Unit
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<WcpExtractor.WcpProfile> = withContext(Dispatchers.IO) {
         runCatching {
             val componentName = component.name ?: "component"
 
@@ -48,38 +46,9 @@ class ComponentRepository(private val context: Context) {
             onProgress("Clearing existing files...")
             component.listFiles().forEach { it.deleteRecursively() }
 
-            sourceUris.forEachIndexed { i, uri ->
-                val fileName = getFileName(uri) ?: "file_$i"
-                onProgress("Copying $fileName...")
-                val destFile = component.createFile("application/octet-stream", fileName)
-                    ?: throw Exception("Failed to create $fileName in destination")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    context.contentResolver.openOutputStream(destFile.uri)?.use { output ->
-                        input.copyTo(output)
-                    }
-                } ?: throw Exception("Could not read $fileName")
-            }
-        }
-    }
-
-    suspend fun replaceWithFolder(
-        component: DocumentFile,
-        sourceFolderUri: Uri,
-        backupManager: BackupManager,
-        onProgress: (String) -> Unit
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val componentName = component.name ?: "component"
-            val sourceDoc = DocumentFile.fromTreeUri(context, sourceFolderUri)
-                ?: throw Exception("Cannot access selected folder")
-
-            onProgress("Backing up $componentName...")
-            backupManager.backupFromDocumentFile(component, componentName)
-
-            onProgress("Clearing existing files...")
-            component.listFiles().forEach { it.deleteRecursively() }
-
-            copyDocumentFolderContents(sourceDoc, component, onProgress)
+            WcpExtractor(context)
+                .extractToDocumentFile(wcpUri, component, onProgress)
+                .getOrThrow()
         }
     }
 
@@ -97,8 +66,7 @@ class ComponentRepository(private val context: Context) {
             onProgress("Clearing current files...")
             component.listFiles().forEach { it.deleteRecursively() }
 
-            val backupFiles = backupManager.listAllBackupFiles(componentName)
-            backupFiles.forEach { (file, relPath) ->
+            backupManager.listAllBackupFiles(componentName).forEach { (file, relPath) ->
                 onProgress("Restoring ${file.name}...")
                 val parts = relPath.split("/")
                 var currentDir = component
@@ -118,66 +86,8 @@ class ComponentRepository(private val context: Context) {
         }
     }
 
-    private fun copyDocumentFolderContents(
-        source: DocumentFile,
-        dest: DocumentFile,
-        onProgress: (String) -> Unit
-    ) {
-        source.listFiles().forEach { item ->
-            if (item.isDirectory) {
-                val newDir = dest.createDirectory(item.name ?: return@forEach)
-                    ?: throw Exception("Failed to create directory ${item.name}")
-                copyDocumentFolderContents(item, newDir, onProgress)
-            } else {
-                val name = item.name ?: return@forEach
-                onProgress("Copying $name...")
-                val destFile = dest.createFile("application/octet-stream", name)
-                    ?: throw Exception("Failed to create $name")
-                context.contentResolver.openInputStream(item.uri)?.use { input ->
-                    context.contentResolver.openOutputStream(destFile.uri)?.use { output ->
-                        input.copyTo(output)
-                    }
-                } ?: throw Exception("Could not read $name")
-            }
-        }
-    }
-
     private fun DocumentFile.deleteRecursively(): Boolean {
         if (isDirectory) listFiles().forEach { it.deleteRecursively() }
         return delete()
-    }
-
-    suspend fun replaceWithWcp(
-        component: DocumentFile,
-        wcpUri: Uri,
-        backupManager: BackupManager,
-        onProgress: (String) -> Unit
-    ): Result<WcpExtractor.WcpProfile> = withContext(Dispatchers.IO) {
-        runCatching {
-            val componentName = component.name ?: "component"
-
-            onProgress("Backing up $componentName...")
-            backupManager.backupFromDocumentFile(component, componentName)
-
-            onProgress("Clearing existing files...")
-            component.listFiles().forEach { it.deleteRecursively() }
-
-            val extractor = WcpExtractor(context)
-            val profile = extractor.extractToDocumentFile(wcpUri, component, onProgress)
-                .getOrThrow()
-
-            profile
-        }
-    }
-
-    private fun getFileName(uri: Uri): String? {
-        var name: String? = null
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex >= 0) {
-                name = cursor.getString(nameIndex)
-            }
-        }
-        return name ?: uri.lastPathSegment
     }
 }
