@@ -2,6 +2,18 @@
 
 ---
 
+### [pre-release] — v1.1.9-pre — Remote Source Drilldown Wizard (2026-03-07)
+**Tag:** v1.1.9-pre
+
+#### What changed
+- UX Overhaul: Replaced the flat remote components list with a multi-step drilldown wizard.
+  - Step 1: Users first select which online repository they want to browse (e.g., StevenMXZ, AdrenoToolsDrivers).
+  - Step 2: Users select the component type they are looking for (e.g., DXVK, Box64, Turnip). This allows users to browse and install any component type, regardless of which component folder they are currently editing.
+  - Step 3: Users are presented with the strictly filtered list of WCPs/ZIPs for that exact type from that specific repository.
+- Navigation: Added a dynamic header with a back button and breadcrumbs so users can easily navigate back up the wizard steps.
+
+---
+
 ### [pre-release] — v1.1.8-pre — Strict Component Filtering (2026-03-07)
 **Tag:** v1.1.8-pre
 

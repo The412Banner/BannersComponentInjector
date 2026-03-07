@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,8 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,43 +30,20 @@ fun RemoteSourceSheet(
     onDismiss: () -> Unit,
     onDownloadAndReplace: (Uri) -> Unit
 ) {
-    var items by remember { mutableStateOf<List<RemoteSourceRepository.RemoteItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    var selectedSource by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var selectedType by remember { mutableStateOf<String?>(null) }
+    
+    var items by remember { mutableStateOf<List<RemoteSourceRepository.RemoteItem>?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf("") }
+    
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(component.folderName) {
-        isLoading = true
-        errorMessage = null
-        try {
-            val validSources = repo.defaultSources.filter { source ->
-                source.supportedTypes.isEmpty() || source.supportedTypes.any { type ->
-                    component.folderName.contains(type, ignoreCase = true)
-                }
-            }
-
-            val fetchedItems = validSources.map { source ->
-                scope.async {
-                    try {
-                        repo.fetchFromSource(source, component.folderName)
-                    } catch (e: Exception) {
-                        emptyList() // Ignore failures from individual sources
-                    }
-                }
-            }.awaitAll().flatten()
-
-            items = fetchedItems
-            if (items.isEmpty()) {
-                errorMessage = "No compatible remote components found."
-            }
-        } catch (e: Exception) {
-            errorMessage = "Failed to fetch list: ${e.message}"
-        } finally {
-            isLoading = false
-        }
-    }
+    
+    // Fixed list of common component types users can select when source allows anything
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d")
 
     ModalBottomSheet(
         onDismissRequest = { if (!isDownloading) onDismiss() },
@@ -77,12 +55,36 @@ fun RemoteSourceSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
         ) {
-            Text(
-                "Online Sources for ${component.folderName}",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            // Header with back button
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectedSource != null) {
+                    IconButton(
+                        onClick = { 
+                            if (selectedType != null) {
+                                selectedType = null
+                                items = null
+                                errorMessage = null
+                            } else if (selectedSource != null) {
+                                selectedSource = null
+                                errorMessage = null
+                            }
+                        },
+                        modifier = Modifier.size(28.dp).padding(end = 8.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+                Text(
+                    when {
+                        selectedType != null -> "${selectedType!!.uppercase()} from ${selectedSource?.name}"
+                        selectedSource != null -> "Select Component Type"
+                        else -> "Select Online Repository"
+                    },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             Spacer(Modifier.height(16.dp))
 
             when {
@@ -116,12 +118,97 @@ fun RemoteSourceSheet(
                         Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
                     }
                 }
-                else -> {
+                selectedSource == null -> {
+                    // Step 1: List Sources
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(items) { item ->
+                        items(repo.defaultSources) { source ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { selectedSource = source },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Source,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(16.dp))
+                                    Text(
+                                        text = source.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                selectedType == null -> {
+                    // Step 2: List Component Types
+                    val typesToShow = if (selectedSource!!.supportedTypes.isNotEmpty()) selectedSource!!.supportedTypes else componentTypes
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(typesToShow) { type ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable { 
+                                    selectedType = type 
+                                    isLoading = true
+                                    errorMessage = null
+                                    scope.launch {
+                                        try {
+                                            val fetched = repo.fetchFromSource(selectedSource!!, type)
+                                            items = fetched
+                                            if (fetched.isEmpty()) {
+                                                errorMessage = "No components found for $type in this repository."
+                                            }
+                                        } catch (e: Exception) {
+                                            errorMessage = "Failed to fetch: ${e.message}"
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
+                                },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(16.dp))
+                                    Text(
+                                        text = type.uppercase(),
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                items != null -> {
+                    // Step 3: List Files
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(items!!) { item ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     scope.launch {
@@ -130,7 +217,6 @@ fun RemoteSourceSheet(
                                             val file = repo.downloadToTemp(item.downloadUrl) { progress ->
                                                 downloadProgress = progress
                                             }
-                                            // Pass the file URI back to be handled exactly like a local WCP replacement
                                             onDownloadAndReplace(Uri.fromFile(file))
                                             onDismiss()
                                         } catch (e: Exception) {
@@ -160,7 +246,7 @@ fun RemoteSourceSheet(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "From: ${item.sourceName}",
+                                            text = "Tap to download and replace",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
