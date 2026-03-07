@@ -30,6 +30,7 @@ fun AppListScreen(
 ) {
     // Track which app is pending an SAF grant so the launcher callback knows
     var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
+    var showGrantGuide by remember { mutableStateOf<GameHubApp?>(null) }
     var showRevokeDialog by remember { mutableStateOf<GameHubApp?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
@@ -80,14 +81,60 @@ fun AppListScreen(
                         if (app.hasAccess) {
                             onAppSelected(app)
                         } else {
-                            pendingApp = app
-                            folderPicker.launch(initialUriHintFor(app.known.packageName))
+                            showGrantGuide = app
                         }
                     },
                     onRevokeClick = { showRevokeDialog = app }
                 )
             }
         }
+    }
+
+    showGrantGuide?.let { app ->
+        AlertDialog(
+            onDismissRequest = { showGrantGuide = null },
+            icon = { Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Grant Folder Access") },
+            text = {
+                Column {
+                    Text(
+                        "In the folder picker, navigate to the components folder and tap \"Use this folder\".",
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.background,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                "Path to select:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Android/data/${app.known.packageName}/files/usr/home/components",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showGrantGuide = null
+                    pendingApp = app
+                    folderPicker.launch(initialUriHintFor(app.known.packageName))
+                }) { Text("Open Folder Picker") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGrantGuide = null }) { Text("Cancel") }
+            }
+        )
     }
 
     showRevokeDialog?.let { app ->
