@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <queries>
+        <package android:name="gamehub.lite" />
+        <package android:name="com.tencent.ig" />
+        <package android:name="com.ludashi.aibench" />
+        <package android:name="com.antutu.ABenchMark" />
+        <package android:name="com.mihoyo.genshinimpact" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
