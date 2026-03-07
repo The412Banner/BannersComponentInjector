@@ -34,6 +34,7 @@ data class ComponentEntry(
 
 data class FileInfo(
     val name: String,
+    val relativePath: String, // e.g. "system32/d3d11.dll"
     val size: Long,
     val mimeType: String
 )

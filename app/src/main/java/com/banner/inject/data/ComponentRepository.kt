@@ -17,9 +17,7 @@ class ComponentRepository(private val context: Context) {
         return rootDoc.listFiles()
             .filter { it.isDirectory }
             .map { dir ->
-                val files = dir.listFiles()
-                    .filter { it.isFile }
-                    .map { f -> FileInfo(f.name ?: "unknown", f.length(), f.type ?: "") }
+                val files = collectFilesRecursively(dir, "")
                 ComponentEntry(
                     folderName = dir.name ?: "unknown",
                     documentFile = dir,
@@ -29,6 +27,26 @@ class ComponentRepository(private val context: Context) {
                 )
             }
             .sortedBy { it.folderName.lowercase() }
+    }
+
+    private fun collectFilesRecursively(dir: DocumentFile, prefix: String): List<FileInfo> {
+        val result = mutableListOf<FileInfo>()
+        dir.listFiles().forEach { item ->
+            val relPath = if (prefix.isEmpty()) item.name ?: "" else "$prefix/${item.name ?: ""}"
+            if (item.isDirectory) {
+                result.addAll(collectFilesRecursively(item, relPath))
+            } else {
+                result.add(
+                    FileInfo(
+                        name = item.name ?: "unknown",
+                        relativePath = relPath,
+                        size = item.length(),
+                        mimeType = item.type ?: ""
+                    )
+                )
+            }
+        }
+        return result
     }
 
     suspend fun replaceWithWcp(

@@ -102,8 +102,8 @@ fun ComponentDetailSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                file.name,
-                                fontSize = 13.sp,
+                                file.relativePath.ifEmpty { file.name },
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
