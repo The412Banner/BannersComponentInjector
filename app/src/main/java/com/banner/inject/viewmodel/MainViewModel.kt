@@ -104,6 +104,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadComponents(uri)
     }
 
+    private fun refreshComponent(component: ComponentEntry) {
+        viewModelScope.launch {
+            val updated = withContext(Dispatchers.IO) {
+                repo.scanSingleComponent(component.documentFile, backupManager)
+            }
+            _uiState.update { state ->
+                state.copy(components = state.components.map {
+                    if (it.folderName == updated.folderName) updated else it
+                })
+            }
+        }
+    }
+
     private fun loadComponents(uri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingComponents = true) }
@@ -143,7 +156,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 backupManager.backupFromDocumentFile(component.documentFile, component.folderName)
                 _uiState.update { it.copy(opState = OpState.Done("Backup saved for ${component.folderName}")) }
-                refresh()
+                refreshComponent(component)
             } catch (e: Exception) {
                 _uiState.update { it.copy(opState = OpState.Error(e.message ?: "Backup failed")) }
             }
@@ -165,11 +178,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             "${component.folderName} replaced with ${profile.type} ${profile.versionName}"
                         ))
                     }
-                    refresh()
+                    refreshComponent(component)
                 },
                 onFailure = { e ->
                     _uiState.update { it.copy(opState = OpState.Error(e.message ?: "WCP import failed")) }
-                    refresh()
+                    refreshComponent(component)
                 }
             )
         }
@@ -185,11 +198,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ).fold(
                 onSuccess = {
                     _uiState.update { it.copy(opState = OpState.Done("${component.folderName} restored")) }
-                    refresh()
+                    refreshComponent(component)
                 },
                 onFailure = { e ->
                     _uiState.update { it.copy(opState = OpState.Error(e.message ?: "Restore failed")) }
-                    refresh()
+                    refreshComponent(component)
                 }
             )
         }
@@ -197,7 +210,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteBackup(component: ComponentEntry) {
         backupManager.deleteBackup(component.folderName)
-        refresh()
+        refreshComponent(component)
     }
 
     fun clearOpState() {

@@ -29,6 +29,17 @@ class ComponentRepository(private val context: Context) {
             .sortedBy { it.folderName.lowercase() }
     }
 
+    fun scanSingleComponent(dir: DocumentFile, backupManager: BackupManager): ComponentEntry {
+        val files = collectFilesRecursively(dir, "")
+        return ComponentEntry(
+            folderName = dir.name ?: "unknown",
+            documentFile = dir,
+            files = files,
+            hasBackup = backupManager.hasBackup(dir.name ?: ""),
+            totalSize = files.sumOf { it.size }
+        )
+    }
+
     private fun collectFilesRecursively(dir: DocumentFile, prefix: String): List<FileInfo> {
         val result = mutableListOf<FileInfo>()
         dir.listFiles().forEach { item ->
