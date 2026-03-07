@@ -30,11 +30,11 @@ class RemoteSourceRepository(private val context: Context) {
         GITHUB_RELEASES_WCP
     }
 
-    // You can define default sources here, optionally scoped to specific component types
+    // Default built-in sources mapped strictly to the components they provide
     val defaultSources = listOf(
-        RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON),
-        RemoteSource("Arihany", "https://raw.githubusercontent.com/arihany/wcp-json/main/wcp.json", SourceFormat.WCP_JSON),
-        RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON),
+        RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
+        RemoteSource("Arihany", "https://raw.githubusercontent.com/arihany/wcp-json/main/wcp.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
+        RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno"))
     )
 
@@ -64,8 +64,10 @@ class RemoteSourceRepository(private val context: Context) {
             val url = obj.getString("remoteUrl")
             all.add(RemoteItem(displayName = "$type  $verName", versionName = verName, downloadUrl = url, sourceName = sourceName))
         }
-        val filtered = all.filter { it.displayName.startsWith(componentType, ignoreCase = true) }
-        (if (filtered.isNotEmpty()) filtered else all).reversed()
+        // Ensure we only return items strictly matching the requested component folder
+        val term = if (componentType.equals("fex", ignoreCase = true)) "fex" else componentType
+        val filtered = all.filter { it.displayName.contains(term, ignoreCase = true) }
+        filtered.reversed()
     }
 
     private suspend fun fetchTurnipReleases(url: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {

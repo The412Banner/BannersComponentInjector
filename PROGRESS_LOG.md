@@ -2,6 +2,14 @@
 
 ---
 
+### [pre-release] — v1.1.8-pre — Strict Component Filtering (2026-03-07)
+**Tag:** v1.1.8-pre
+
+#### What changed
+- Smart Filtering: Remote sources now strictly filter their returned lists based on the active component folder. If you open `dxvk`, you will *only* see `dxvk` packages. If you open `box64`, you will *only* see `box64` packages, removing clutter and preventing accidental incorrect installations.
+
+---
+
 ### [pre-release] — v1.1.7-pre — GitHub Releases WCP Support (2026-03-07)
 **Tag:** v1.1.7-pre
 
