@@ -2,6 +2,19 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Add gradle.properties + bump minSdk to Android 10 (2026-03-07)
+**Commit:** `41f9742`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Added missing `gradle.properties` with `android.useAndroidX=true` (CI was failing: checkDebugAarMetadata task)
+- Bumped `minSdk` from 28 (Android 9) to 29 (Android 10)
+
+#### Files touched
+- `gradle.properties`
+- `app/build.gradle.kts`
+
+---
+
 ### [fix] — v1.0.0-pre — Add gradlew + debug APK build (2026-03-07)
 **Commit:** `c078e62`  |  **Tag:** v1.0.0-pre
 
