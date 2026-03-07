@@ -368,3 +368,20 @@
 - `settings.gradle.kts`
 - `gradle/wrapper/gradle-wrapper.properties`
 - `.github/workflows/release.yml`
+
+### [feat] — v1.0.0-pre — Condense app list to 6 entries with multi-package support (2026-03-07)
+**Commit:** `bbe1f0e`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- `KnownApp` now holds `packageNames: List<String>` instead of single `packageName`
+- `GameHubApp` gains `activePackage` (installed pkg → first with access → first in list)
+- AnTuTu and Ludashi merged into single entries covering 2 packages each
+- On grant: URI stored under ALL package names in the group
+- On revoke: ALL package names removed; select/refresh search across all names
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+
+---
