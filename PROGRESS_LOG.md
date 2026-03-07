@@ -2,6 +2,19 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Strip ./ prefix from tar entries so FEXCore extracts flat (2026-03-07)
+**Commit:** `806d4b4`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- WCPs packed with `./` prefix on entries (e.g. `./profile.json`, `./system32/foo.dll`) caused `readProfile()` to never match `"profile.json"`, returning type `"Unknown"` instead of `"FEXCore"`
+- `isFlat` was therefore always `false`, so FEXCore files landed in `system32/` instead of flat at the component root
+- Fixed by calling `.removePrefix("./")` on entry names before matching and before building the destination path
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/WcpExtractor.kt`
+
+---
+
 ### [fix] — v1.0.0-pre — Add XZ decompression support for FEXCore nightlies (2026-03-07)
 **Commit:** `01efb76`  |  **Tag:** v1.0.0-pre (retagged)
 
