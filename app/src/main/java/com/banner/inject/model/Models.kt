@@ -7,11 +7,11 @@ import androidx.documentfile.provider.DocumentFile
 data class KnownApp(val displayName: String, val packageName: String)
 
 val KNOWN_GAMEHUB_APPS = listOf(
-    KnownApp("GameHub",          "com.gamehub.app"),
-    KnownApp("GameHub Pro",      "com.gamehub.pro"),
-    KnownApp("GameHub Lite",     "com.gamehub.lite"),
-    KnownApp("GameHub Emulator", "com.gamehub.emulator"),
-    KnownApp("GameHub Beta",     "com.gamehub.beta")
+    KnownApp("GameHub Lite",             "gamehub.lite"),
+    KnownApp("GameHub (Tencent)",        "com.tencent.ig"),
+    KnownApp("GameHub (Ludashi)",        "com.ludashi.aibench"),
+    KnownApp("GameHub (AnTuTu)",         "com.antutu.ABenchMark"),
+    KnownApp("GameHub (Genshin Impact)", "com.mihoyo.genshinimpact")
 )
 
 // ── UI models ─────────────────────────────────────────────────────────────────
