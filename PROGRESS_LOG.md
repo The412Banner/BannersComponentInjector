@@ -2,6 +2,20 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Add XZ decompression support for FEXCore nightlies (2026-03-07)
+**Commit:** `01efb76`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- FEXCore nightly WCPs use XZ compression (`FD 37 7A 58 5A 00` magic bytes)
+- `commons-compress` detects XZ format but requires `org.tukaani:xz` on the classpath to decompress — without it the catch block silently fell back to treating raw XZ as plain tar, causing a parse error
+- Added `org.tukaani:xz:1.9` dependency — no logic changes needed
+- Supported formats now: zstd, xz, gzip, bzip2, lz4, plain tar
+
+#### Files touched
+- `app/build.gradle.kts`
+
+---
+
 ### [fix] — v1.0.0-pre — Black screen / ANR on load and refresh (2026-03-07)
 **Commit:** `32d6c91`  |  **Tag:** v1.0.0-pre (retagged)
 
