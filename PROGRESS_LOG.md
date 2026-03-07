@@ -2,6 +2,17 @@
 
 ---
 
+### [release] — v1.2.0 — Stable Remote Repositories & Fast Scanner (2026-03-07)
+**Tag:** v1.2.0
+
+#### What changed
+- Official stable release promoting all v1.1.1-pre through v1.1.9-pre features.
+- Performance: Massive speedup to component list loading using highly optimized raw `ContentResolver` queries (`SafFastScanner`).
+- Remote Sources: Built a complete multi-step drilldown wizard allowing users to fetch components directly from online repositories (StevenMXZ, Arihany, Xnick417x, AdrenoToolsDrivers) and generic GitHub Release APIs.
+- UX: Added clear replacement notes in the UI to remember what a component was last replaced with.
+
+---
+
 ### [pre-release] — v1.1.9-pre — Remote Source Drilldown Wizard (2026-03-07)
 **Tag:** v1.1.9-pre
 
