@@ -103,8 +103,9 @@ class ComponentRepository(private val context: Context) {
             onProgress("Clearing current files...")
             component.listFiles().forEach { it.deleteRecursively() }
 
-            backupManager.listAllBackupFiles(componentName).forEach { (file, relPath) ->
-                onProgress("Restoring ${file.name}...")
+            backupManager.listAllBackupFiles(componentName).forEach { (uri, relPath) ->
+                val fileName = relPath.substringAfterLast('/')
+                onProgress("Restoring $fileName...")
                 val parts = relPath.split("/")
                 var currentDir = component
                 for (i in 0 until parts.size - 1) {
@@ -112,13 +113,13 @@ class ComponentRepository(private val context: Context) {
                         ?: currentDir.createDirectory(parts[i])
                         ?: throw Exception("Failed to create directory ${parts[i]}")
                 }
-                val destFile = currentDir.createFile("application/octet-stream", file.name)
-                    ?: throw Exception("Failed to create ${file.name}")
-                file.inputStream().use { input ->
+                val destFile = currentDir.createFile("application/octet-stream", fileName)
+                    ?: throw Exception("Failed to create $fileName")
+                context.contentResolver.openInputStream(uri)?.use { input ->
                     context.contentResolver.openOutputStream(destFile.uri)?.use { output ->
                         input.copyTo(output)
-                    } ?: throw Exception("Cannot write to ${file.name}")
-                }
+                    } ?: throw Exception("Cannot write to $fileName")
+                } ?: throw Exception("Cannot read backup for $fileName")
             }
         }
     }
