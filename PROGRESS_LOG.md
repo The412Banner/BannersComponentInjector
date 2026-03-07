@@ -2,6 +2,26 @@
 
 ---
 
+### [release] — v1.0.0 — First stable release (2026-03-07)
+**Commit:** `bf2c8cd`  |  **Tag:** v1.0.0
+
+#### Full feature set at stable
+- 6 app entries covering 8 GameHub package names (AnTuTu + Ludashi each cover 2 variants)
+- Installed/access status per entry; Android 11+ package visibility via `<queries>`
+- SAF folder access grant with guide dialog showing exact path
+- Persistent URI permissions stored per package group; revoke access
+- Component list with recursive file count + size; loading/refreshing indicators
+- Per-component refresh after operations (not full list rescan)
+- Backup / Re-backup / Replace / Restore / Delete backup with confirmation dialogs
+- No-backup warning before replace
+- WCP format: zstd, xz, gzip, bzip2, lz4, plain tar — auto-detected
+- ZIP format (Turnip/adrenotools): meta.json + flat .so extraction
+- WCP FEXCore → flat extraction; all others → preserve system32/syswow64 structure
+- Progress overlay during operations; Snackbar feedback
+- Dark Material 3 theme, orange accent
+
+---
+
 ### [ux] — v1.0.0-pre — Path guide dialog before SAF folder picker (2026-03-07)
 **Commit:** `dfde930`  |  **Tag:** v1.0.0-pre (retagged)
 
