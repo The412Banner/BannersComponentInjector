@@ -20,6 +20,7 @@ class WcpExtractor(private val context: Context) {
     suspend fun extractToDocumentFile(
         wcpUri: Uri,
         destDir: DocumentFile,
+        flattenToRoot: Boolean = false,
         onProgress: (String) -> Unit
     ): Result<WcpProfile> = withContext(Dispatchers.IO) {
         runCatching {
@@ -34,7 +35,7 @@ class WcpExtractor(private val context: Context) {
 
                         while (entry != null) {
                             when {
-                                entry.isDirectory -> { /* skip — we create dirs on demand */ }
+                                entry.isDirectory -> { /* skip — created on demand */ }
 
                                 entry.name == "profile.json" -> {
                                     val buf = ByteArrayOutputStream()
@@ -44,21 +45,27 @@ class WcpExtractor(private val context: Context) {
 
                                 else -> {
                                     val name = entry.name
-                                    onProgress("Extracting ${name.substringAfterLast('/')}...")
+                                    val fileName = name.substringAfterLast('/')
+                                    onProgress("Extracting $fileName...")
 
-                                    // Navigate / create intermediate directories
-                                    val parts = name.split("/")
-                                    var currentDir = destDir
-                                    for (i in 0 until parts.size - 1) {
-                                        val dirName = parts[i]
-                                        currentDir = currentDir.findFile(dirName)
-                                            ?: currentDir.createDirectory(dirName)
-                                            ?: throw Exception("Failed to create directory $dirName")
+                                    val destFile = if (flattenToRoot) {
+                                        // Flat component — strip all subdirectory structure,
+                                        // place every file directly at the component root
+                                        destDir.createFile("application/octet-stream", fileName)
+                                            ?: throw Exception("Failed to create $fileName")
+                                    } else {
+                                        // Preserve full directory structure from WCP
+                                        val parts = name.split("/")
+                                        var currentDir = destDir
+                                        for (i in 0 until parts.size - 1) {
+                                            val dirName = parts[i]
+                                            currentDir = currentDir.findFile(dirName)
+                                                ?: currentDir.createDirectory(dirName)
+                                                ?: throw Exception("Failed to create directory $dirName")
+                                        }
+                                        currentDir.createFile("application/octet-stream", parts.last())
+                                            ?: throw Exception("Failed to create ${parts.last()}")
                                     }
-
-                                    val fileName = parts.last()
-                                    val destFile = currentDir.createFile("application/octet-stream", fileName)
-                                        ?: throw Exception("Failed to create $fileName in destination")
 
                                     context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
                                         tar.copyTo(out)

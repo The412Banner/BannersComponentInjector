@@ -58,6 +58,12 @@ class ComponentRepository(private val context: Context) {
         runCatching {
             val componentName = component.name ?: "component"
 
+            // Detect structure before wiping: if the existing component has no
+            // subdirectories it's a flat layout (e.g. FEXCore) — WCP contents
+            // will be extracted directly to the component root instead of
+            // preserving the WCP's internal directory structure.
+            val isFlat = component.listFiles().none { it.isDirectory }
+
             onProgress("Backing up $componentName...")
             backupManager.backupFromDocumentFile(component, componentName)
 
@@ -65,7 +71,7 @@ class ComponentRepository(private val context: Context) {
             component.listFiles().forEach { it.deleteRecursively() }
 
             WcpExtractor(context)
-                .extractToDocumentFile(wcpUri, component, onProgress)
+                .extractToDocumentFile(wcpUri, component, flattenToRoot = isFlat, onProgress)
                 .getOrThrow()
         }
     }
