@@ -15,6 +15,25 @@
 
 ---
 
+### [refactor] — v1.0.0-pre — WCP-only replace, removed files/folder options (2026-03-07)
+**Commit:** `a0eab19`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Removed Import Files and Import Folder replace options
+- ComponentDetailSheet now has a single "Replace with WCP File" button — no dialog needed
+- Removed replaceWithFiles, replaceWithFolder from ViewModel and Repository
+- Removed copyDocumentFolderContents, getFileName helpers from Repository
+- Net: -256 lines
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/ComponentDetailSheet.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+
+---
+
 ### [feat] — v1.0.0-pre — WCP file import support (2026-03-07)
 **Commit:** `8420503`  |  **Tag:** v1.0.0-pre (retagged)
 
