@@ -128,7 +128,7 @@ fun AppListScreen(
                 TextButton(onClick = {
                     showGrantGuide = null
                     pendingApp = app
-                    folderPicker.launch(initialUriHintFor(app.known.packageName))
+                    folderPicker.launch(initialUriHintFor(app.activePackage))
                 }) { Text("Open Folder Picker") }
             },
             dismissButton = {

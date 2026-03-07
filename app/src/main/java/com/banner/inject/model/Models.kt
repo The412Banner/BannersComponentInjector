@@ -3,25 +3,24 @@ package com.banner.inject.model
 import androidx.documentfile.provider.DocumentFile
 
 // ── Known GameHub variants ────────────────────────────────────────────────────
-// TODO: Replace placeholder package names with the real GameHub package names.
-data class KnownApp(val displayName: String, val packageName: String)
+data class KnownApp(val displayName: String, val packageNames: List<String>)
 
 val KNOWN_GAMEHUB_APPS = listOf(
-    KnownApp("GameHub Lite",              "gamehub.lite"),
-    KnownApp("GameHub (Tencent)",         "com.tencent.ig"),
-    KnownApp("GameHub (Ludashi)",         "com.ludashi.aibench"),
-    KnownApp("GameHub (AnTuTu)",          "com.antutu.ABenchMark"),
-    KnownApp("GameHub (Genshin Impact)",  "com.mihoyo.genshinimpact"),
-    KnownApp("GameHub (Original)",   "com.xiaoji.egggame"),
-    KnownApp("GameHub (Ludashi)",    "com.ludashi.benchmark"),
-    KnownApp("GameHub (AnTuTu)",     "com.antutu.benchmark.full")
+    KnownApp("GameHub Lite",          listOf("gamehub.lite")),
+    KnownApp("GameHub Lite PuBG",     listOf("com.tencent.ig")),
+    KnownApp("GameHub Lite AnTuTu",   listOf("com.antutu.ABenchMark", "com.antutu.benchmark.full")),
+    KnownApp("GameHub Lite Ludashi",  listOf("com.ludashi.aibench", "com.ludashi.benchmark")),
+    KnownApp("GameHub Lite Genshin",  listOf("com.mihoyo.genshinimpact")),
+    KnownApp("GameHub Lite Original", listOf("com.xiaoji.egggame"))
 )
 
 // ── UI models ─────────────────────────────────────────────────────────────────
 data class GameHubApp(
     val known: KnownApp,
     val isInstalled: Boolean,
-    val hasAccess: Boolean       // whether a persisted SAF URI exists for this package
+    val hasAccess: Boolean,
+    /** The installed package name, or first package with a stored URI, or first in list. */
+    val activePackage: String
 )
 
 data class ComponentEntry(

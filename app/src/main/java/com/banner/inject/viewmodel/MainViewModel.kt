@@ -47,14 +47,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshAppList() {
         val pm = context.packageManager
         val apps = KNOWN_GAMEHUB_APPS.map { known ->
-            val installed = try {
-                pm.getPackageInfo(known.packageName, 0)
-                true
-            } catch (_: PackageManager.NameNotFoundException) {
-                false
+            val installedPkg = known.packageNames.firstOrNull { pkg ->
+                try { pm.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
             }
-            val hasAccess = prefs.contains(uriKey(known.packageName))
-            GameHubApp(known = known, isInstalled = installed, hasAccess = hasAccess)
+            val accessPkg = known.packageNames.firstOrNull { pkg -> prefs.contains(uriKey(pkg)) }
+            GameHubApp(
+                known = known,
+                isInstalled = installedPkg != null,
+                hasAccess = accessPkg != null,
+                activePackage = installedPkg ?: accessPkg ?: known.packageNames.first()
+            )
         }
         _uiState.update { it.copy(apps = apps) }
     }
@@ -65,14 +67,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
-        prefs.edit().putString(uriKey(app.known.packageName), uri.toString()).apply()
+        // Store URI under all package names in the group so any lookup hits it
+        val edit = prefs.edit()
+        app.known.packageNames.forEach { pkg -> edit.putString(uriKey(pkg), uri.toString()) }
+        edit.apply()
         refreshAppList()
-        // Immediately open this app's component list
         selectApp(app.copy(hasAccess = true))
     }
 
     fun selectApp(app: GameHubApp) {
-        val uri = storedUri(app.known.packageName) ?: return
+        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull() ?: return
         _uiState.update { it.copy(selectedApp = app, components = emptyList(), isLoadingComponents = true) }
         loadComponents(uri)
     }
@@ -82,7 +86,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun revokeAccess(app: GameHubApp) {
-        val uri = storedUri(app.known.packageName)
+        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
         if (uri != null) {
             try {
                 context.contentResolver.releasePersistableUriPermission(
@@ -91,16 +95,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } catch (_: Exception) {}
         }
-        prefs.edit().remove(uriKey(app.known.packageName)).apply()
+        val edit = prefs.edit()
+        app.known.packageNames.forEach { pkg -> edit.remove(uriKey(pkg)) }
+        edit.apply()
         refreshAppList()
-        if (_uiState.value.selectedApp?.known?.packageName == app.known.packageName) {
+        if (_uiState.value.selectedApp?.known == app.known) {
             clearSelectedApp()
         }
     }
 
     fun refresh() {
-        val uri = _uiState.value.selectedApp?.known?.packageName
-            ?.let { storedUri(it) } ?: return
+        val app = _uiState.value.selectedApp ?: return
+        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull() ?: return
         loadComponents(uri)
     }
 
