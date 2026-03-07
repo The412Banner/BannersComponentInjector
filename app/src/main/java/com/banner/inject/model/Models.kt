@@ -12,9 +12,9 @@ val KNOWN_GAMEHUB_APPS = listOf(
     KnownApp("GameHub (Ludashi)",         "com.ludashi.aibench"),
     KnownApp("GameHub (AnTuTu)",          "com.antutu.ABenchMark"),
     KnownApp("GameHub (Genshin Impact)",  "com.mihoyo.genshinimpact"),
-    KnownApp("GameHub Lite (Original)",   "com.xiaoji.egggame"),
-    KnownApp("GameHub Lite (Ludashi)",    "com.ludashi.benchmark"),
-    KnownApp("GameHub Lite (AnTuTu)",     "com.antutu.benchmark.full")
+    KnownApp("GameHub (Original)",   "com.xiaoji.egggame"),
+    KnownApp("GameHub (Ludashi)",    "com.ludashi.benchmark"),
+    KnownApp("GameHub (AnTuTu)",     "com.antutu.benchmark.full")
 )
 
 // ── UI models ─────────────────────────────────────────────────────────────────
