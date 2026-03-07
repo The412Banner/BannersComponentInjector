@@ -2,6 +2,23 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Add gradlew + debug APK build (2026-03-07)
+**Commit:** `c078e62`  |  **Tag:** v1.0.0-pre
+
+#### What changed
+- Added missing `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar` (CI was failing without them)
+- Switched CI build from `assembleRelease` to `assembleDebug` — produces installable signed APK without manual signing step
+- Pre-release logic updated: any tag containing `-` is pre-release; clean `vX.Y.Z` tag = stable
+- Deleted broken `v1.0.0` tag/release; retagged as `v1.0.0-pre`
+
+#### Files touched
+- `gradlew`
+- `gradlew.bat`
+- `gradle/wrapper/gradle-wrapper.jar`
+- `.github/workflows/release.yml`
+
+---
+
 ### [release] — v1.0.0 — Initial release (2026-03-07)
 **Commit:** `febaa1f`  |  **Tag:** v1.0.0
 
