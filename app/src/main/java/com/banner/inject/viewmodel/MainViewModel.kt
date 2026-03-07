@@ -3,12 +3,16 @@ package com.banner.inject.viewmodel
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.banner.inject.data.BackupManager
 import com.banner.inject.data.ComponentRepository
 import com.banner.inject.model.ComponentEntry
+import com.banner.inject.model.GameHubApp
+import com.banner.inject.model.KNOWN_GAMEHUB_APPS
 import com.banner.inject.model.OpState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +21,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class UiState(
-    val componentsRootUri: Uri? = null,
+    val apps: List<GameHubApp> = emptyList(),
+    val selectedApp: GameHubApp? = null,
     val components: List<ComponentEntry> = emptyList(),
-    val isLoading: Boolean = false,
+    val isLoadingComponents: Boolean = false,
     val opState: OpState = OpState.Idle
 )
 
@@ -34,26 +39,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        val savedUri = prefs.getString("components_root_uri", null)?.let { Uri.parse(it) }
-        if (savedUri != null) {
-            _uiState.update { it.copy(componentsRootUri = savedUri) }
-            loadComponents(savedUri)
-        }
+        refreshAppList()
     }
 
-    fun setComponentsRoot(uri: Uri) {
-        // Take persistable permission so we can access across restarts
+    fun refreshAppList() {
+        val pm = context.packageManager
+        val apps = KNOWN_GAMEHUB_APPS.map { known ->
+            val installed = try {
+                pm.getPackageInfo(known.packageName, 0)
+                true
+            } catch (_: PackageManager.NameNotFoundException) {
+                false
+            }
+            val hasAccess = prefs.contains(uriKey(known.packageName))
+            GameHubApp(known = known, isInstalled = installed, hasAccess = hasAccess)
+        }
+        _uiState.update { it.copy(apps = apps) }
+    }
+
+    /** Called with the URI returned from ACTION_OPEN_DOCUMENT_TREE for a given app. */
+    fun grantAccess(app: GameHubApp, uri: Uri) {
         context.contentResolver.takePersistableUriPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
-        prefs.edit().putString("components_root_uri", uri.toString()).apply()
-        _uiState.update { it.copy(componentsRootUri = uri) }
+        prefs.edit().putString(uriKey(app.known.packageName), uri.toString()).apply()
+        refreshAppList()
+        // Immediately open this app's component list
+        selectApp(app.copy(hasAccess = true))
+    }
+
+    fun selectApp(app: GameHubApp) {
+        val uri = storedUri(app.known.packageName) ?: return
+        _uiState.update { it.copy(selectedApp = app, components = emptyList(), isLoadingComponents = true) }
         loadComponents(uri)
     }
 
-    fun clearRoot() {
-        val uri = _uiState.value.componentsRootUri
+    fun clearSelectedApp() {
+        _uiState.update { it.copy(selectedApp = null, components = emptyList()) }
+    }
+
+    fun revokeAccess(app: GameHubApp) {
+        val uri = storedUri(app.known.packageName)
         if (uri != null) {
             try {
                 context.contentResolver.releasePersistableUriPermission(
@@ -62,35 +89,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } catch (_: Exception) {}
         }
-        prefs.edit().remove("components_root_uri").apply()
-        _uiState.update { UiState() }
+        prefs.edit().remove(uriKey(app.known.packageName)).apply()
+        refreshAppList()
+        if (_uiState.value.selectedApp?.known?.packageName == app.known.packageName) {
+            clearSelectedApp()
+        }
     }
 
     fun refresh() {
-        val uri = _uiState.value.componentsRootUri ?: return
+        val uri = _uiState.value.selectedApp?.known?.packageName
+            ?.let { storedUri(it) } ?: return
         loadComponents(uri)
     }
 
     private fun loadComponents(uri: Uri) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoadingComponents = true) }
             try {
                 val root = repo.getRootDocument(uri)
                 if (root == null || !root.canRead()) {
                     _uiState.update {
                         it.copy(
-                            isLoading = false,
-                            opState = OpState.Error("Cannot read components folder. Re-select it.")
+                            isLoadingComponents = false,
+                            opState = OpState.Error("Cannot read folder. Re-grant access.")
                         )
                     }
                     return@launch
                 }
                 val components = repo.scanComponents(root, backupManager)
-                _uiState.update { it.copy(isLoading = false, components = components) }
+                _uiState.update { it.copy(isLoadingComponents = false, components = components) }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isLoading = false, opState = OpState.Error(e.message ?: "Unknown error"))
+                    it.copy(isLoadingComponents = false, opState = OpState.Error(e.message ?: "Unknown error"))
                 }
+            }
+        }
+    }
+
+    /** Build the SAF hint URI for the given package's components path on external storage. */
+    fun initialUriHintFor(packageName: String): Uri =
+        Uri.parse(
+            "content://com.android.externalstorage.documents/document/" +
+                Uri.encode("primary:Android/data/$packageName/files/usr/home/components")
+        )
+
+    // ── Component operations ───────────────────────────────────────────────────
+
+    fun backupComponent(component: ComponentEntry) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(opState = OpState.InProgress("Backing up ${component.folderName}...")) }
+            try {
+                backupManager.backupFromDocumentFile(component.documentFile, component.folderName)
+                _uiState.update { it.copy(opState = OpState.Done("Backup saved for ${component.folderName}")) }
+                refresh()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(opState = OpState.Error(e.message ?: "Backup failed")) }
             }
         }
     }
@@ -98,15 +151,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun replaceWithFiles(component: ComponentEntry, sourceUris: List<Uri>) {
         viewModelScope.launch {
             _uiState.update { it.copy(opState = OpState.InProgress("Preparing...")) }
-            val result = repo.replaceWithFiles(
+            repo.replaceWithFiles(
                 component = component.documentFile,
                 sourceUris = sourceUris,
                 backupManager = backupManager,
                 onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
-            )
-            result.fold(
+            ).fold(
                 onSuccess = {
-                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} replaced successfully")) }
+                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} replaced")) }
                     refresh()
                 },
                 onFailure = { e ->
@@ -120,15 +172,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun replaceWithFolder(component: ComponentEntry, sourceFolderUri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(opState = OpState.InProgress("Preparing...")) }
-            val result = repo.replaceWithFolder(
+            repo.replaceWithFolder(
                 component = component.documentFile,
                 sourceFolderUri = sourceFolderUri,
                 backupManager = backupManager,
                 onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
-            )
-            result.fold(
+            ).fold(
                 onSuccess = {
-                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} replaced successfully")) }
+                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} replaced")) }
                     refresh()
                 },
                 onFailure = { e ->
@@ -142,14 +193,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun restoreComponent(component: ComponentEntry) {
         viewModelScope.launch {
             _uiState.update { it.copy(opState = OpState.InProgress("Restoring ${component.folderName}...")) }
-            val result = repo.restoreComponent(
+            repo.restoreComponent(
                 component = component.documentFile,
                 backupManager = backupManager,
                 onProgress = { msg -> _uiState.update { it.copy(opState = OpState.InProgress(msg)) } }
-            )
-            result.fold(
+            ).fold(
                 onSuccess = {
-                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} restored from backup")) }
+                    _uiState.update { it.copy(opState = OpState.Done("${component.folderName} restored")) }
                     refresh()
                 },
                 onFailure = { e ->
@@ -168,4 +218,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearOpState() {
         _uiState.update { it.copy(opState = OpState.Idle) }
     }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private fun uriKey(packageName: String) = "uri_$packageName"
+
+    private fun storedUri(packageName: String): Uri? =
+        prefs.getString(uriKey(packageName), null)?.let { Uri.parse(it) }
 }

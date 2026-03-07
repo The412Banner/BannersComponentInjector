@@ -15,37 +15,32 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.model.ComponentEntry
+import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.OpState
-import com.banner.inject.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    uiState: UiState,
-    onChangeRoot: () -> Unit,
+fun ComponentListScreen(
+    app: GameHubApp,
+    components: List<ComponentEntry>,
+    isLoading: Boolean,
+    opState: OpState,
+    onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onBackupComponent: (ComponentEntry) -> Unit,
     onReplaceFiles: (ComponentEntry, List<android.net.Uri>) -> Unit,
     onReplaceFolder: (ComponentEntry, android.net.Uri) -> Unit,
-    onRestore: (ComponentEntry) -> Unit,
+    onRestoreComponent: (ComponentEntry) -> Unit,
     onDeleteBackup: (ComponentEntry) -> Unit,
     onClearOpState: () -> Unit
 ) {
     var selectedComponent by remember { mutableStateOf<ComponentEntry?>(null) }
-
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Show snackbar on op state change
-    val opState = uiState.opState
     LaunchedEffect(opState) {
         when (opState) {
-            is OpState.Done -> {
-                snackbarHostState.showSnackbar(opState.message)
-                onClearOpState()
-            }
-            is OpState.Error -> {
-                snackbarHostState.showSnackbar("Error: ${opState.message}")
-                onClearOpState()
-            }
+            is OpState.Done -> { snackbarHostState.showSnackbar(opState.message); onClearOpState() }
+            is OpState.Error -> { snackbarHostState.showSnackbar("Error: ${opState.message}"); onClearOpState() }
             else -> {}
         }
     }
@@ -54,19 +49,20 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 title = {
-                    Text(
-                        "Component Injector",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+                    Column {
+                        Text(app.known.displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Components", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 },
                 actions = {
                     IconButton(onClick = onRefresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                    IconButton(onClick = onChangeRoot) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = "Change folder")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -75,52 +71,42 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
-                uiState.isLoading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+
+                components.isEmpty() -> Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.FolderOff, null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("No component folders found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onRefresh) { Text("Refresh") }
                 }
-                uiState.components.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.FolderOff,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
                         Text(
-                            "No component folders found",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "Tap a component to backup or replace its contents",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextButton(onClick = onRefresh) { Text("Refresh") }
                     }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(uiState.components, key = { it.folderName }) { component ->
-                            ComponentCard(
-                                component = component,
-                                onClick = { selectedComponent = component }
-                            )
-                        }
+                    items(components, key = { it.folderName }) { component ->
+                        ComponentCard(component = component, onClick = { selectedComponent = component })
                     }
                 }
             }
 
-            // Operation progress overlay
+            // Progress overlay
             if (opState is OpState.InProgress) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -132,62 +118,45 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = opState.message,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp
-                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(opState.message, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                     }
                 }
             }
         }
     }
 
-    // Bottom sheet for selected component
     selectedComponent?.let { comp ->
         ComponentDetailSheet(
             component = comp,
             onDismiss = { selectedComponent = null },
+            onBackup = { onBackupComponent(comp) },
             onReplaceFiles = { uris -> onReplaceFiles(comp, uris) },
             onReplaceFolder = { uri -> onReplaceFolder(comp, uri) },
-            onRestore = { onRestore(comp) },
+            onRestore = { onRestoreComponent(comp) },
             onDeleteBackup = { onDeleteBackup(comp) }
         )
     }
 }
 
 @Composable
-private fun ComponentCard(
-    component: ComponentEntry,
-    onClick: () -> Unit
-) {
+private fun ComponentCard(component: ComponentEntry, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon
             Icon(
-                imageVector = Icons.Default.Layers,
+                Icons.Default.Layers,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(36.dp)
             )
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            // Info
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = component.folderName,
@@ -197,17 +166,15 @@ private fun ComponentCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = "${component.fileCount} files  •  ${component.formattedSize}",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Spacer(Modifier.width(8.dp))
 
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Backup badge
             if (component.hasBackup) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -218,12 +185,11 @@ private fun ComponentCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.CloudDone,
-                            contentDescription = "Backup available",
+                            Icons.Default.CloudDone, null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(Modifier.width(3.dp))
                         Text(
                             "Backup",
                             fontSize = 11.sp,
@@ -232,12 +198,11 @@ private fun ComponentCard(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(Modifier.width(8.dp))
             }
 
             Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
+                Icons.Default.ChevronRight, null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
