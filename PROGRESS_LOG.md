@@ -2,6 +2,22 @@
 
 ---
 
+### [ux] — v1.0.0-pre — Path guide dialog before SAF folder picker (2026-03-07)
+**Commit:** `dfde930`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Android 11+ often ignores `EXTRA_INITIAL_URI` hints for `Android/data` paths, leaving users to navigate from storage root manually
+- Added a guide dialog before the picker opens showing:
+  - Instruction to navigate and tap "Use this folder"
+  - Exact path: `Android/data/<packageName>/files/usr/home/components`
+  - "Open Folder Picker" button
+- The SAF picker still requires the user to confirm the folder (OS requirement, can't bypass)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+
+---
+
 ### [feat] — v1.0.0-pre — Add 3 new GameHub package variants (2026-03-07)
 **Commit:** `e016818`  |  **Tag:** v1.0.0-pre (retagged)
 
