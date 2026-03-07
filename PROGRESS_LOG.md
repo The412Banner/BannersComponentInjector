@@ -15,6 +15,20 @@
 
 ---
 
+### [ci] — v1.0.0-pre — Release notes + raw APK attachment (2026-03-07)
+**Commit:** `5e9d9cc`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Removed upload-artifact step (was creating zip downloads in Actions tab)
+- Release now attaches the APK file directly — no zip wrapper
+- Release notes auto-generated from git log since previous tag (doc commits filtered out)
+- fetch-depth: 0 added so full tag history is available
+
+#### Files touched
+- `.github/workflows/release.yml`
+
+---
+
 ### [fix] — v1.0.0-pre — Add contents:write permission to workflow (2026-03-07)
 **Commit:** `d13dd63`  |  **Tag:** v1.0.0-pre (retagged)
 
