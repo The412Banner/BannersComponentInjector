@@ -2,6 +2,22 @@
 
 ---
 
+### [feat] — v1.0.0-pre — Add 3 new GameHub package variants (2026-03-07)
+**Commit:** `e016818`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Added GameHub (Original) — `com.xiaoji.egggame`
+- Added GameHub (Ludashi) — `com.ludashi.benchmark`
+- Added GameHub (AnTuTu) — `com.antutu.benchmark.full`
+- Added matching `<queries>` entries to AndroidManifest.xml for Android 11+ visibility
+- App list now shows 8 variants total
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/AndroidManifest.xml`
+
+---
+
 ### [perf] — v1.0.0-pre — Refresh only affected component after operations (2026-03-07)
 **Commit:** `79a6f76`  |  **Tag:** v1.0.0-pre (retagged)
 
