@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version tag (e.g. v1.0.0)'
+        description: 'Version tag (e.g. v1.0.1-pre)'
         required: false
 
 jobs:
@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -48,30 +50,43 @@ jobs:
           if [ -z "$TAG" ] || [ "$TAG" = "refs/heads/main" ]; then
             TAG="${{ github.event.inputs.tag }}"
           fi
-          if [ -z "$TAG" ]; then
-            TAG="manual"
-          fi
+          if [ -z "$TAG" ]; then TAG="manual"; fi
           mkdir -p artifacts
           cp app/build/outputs/apk/debug/app-debug.apk \
-             artifacts/BannersComponentInjector-${TAG}.apk
+             "artifacts/BannersComponentInjector-${TAG}.apk"
+          echo "APK_TAG=$TAG" >> $GITHUB_ENV
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: artifacts/*.apk
-          retention-days: 30
+      - name: Generate release notes
+        id: notes
+        run: |
+          CURRENT="${{ github.ref_name }}"
+          # Find the previous tag (skip the current one)
+          PREV=$(git tag --sort=-creatordate | grep -v "^${CURRENT}$" | head -1)
+          if [ -n "$PREV" ]; then
+            COMMITS=$(git log "${PREV}..HEAD" --pretty=format:"- %s" --no-merges | grep -v "^- docs:" | head -30)
+            RANGE="Changes since \`${PREV}\`"
+          else
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges | grep -v "^- docs:" | head -30)
+            RANGE="All changes"
+          fi
+          echo "PREV_TAG=$PREV" >> $GITHUB_ENV
+          # Write multiline to file to avoid quoting issues
+          cat > /tmp/release_notes.md << NOTES
+          ## Banners Component Injector ${CURRENT}
+
+          ### ${RANGE}
+          ${COMMITS}
+
+          ---
+          **Installation:** sideload the APK below directly — debug build, no manual signing needed.
+          NOTES
+          echo "notes_file=/tmp/release_notes.md" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.apk
-          prerelease: ${{ !startsWith(github.ref_name, 'v') || contains(github.ref_name, '-') }}
+          files: artifacts/BannersComponentInjector-${{ env.APK_TAG }}.apk
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: false
-          body: |
-            ## Banners Component Injector ${{ github.ref_name }}
-
-            APK built from tag `${{ github.ref_name }}`.
-
-            > **Note:** This is an unsigned APK. Install with `adb install` or sign manually before installing.
+          body_path: /tmp/release_notes.md
