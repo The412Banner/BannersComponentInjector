@@ -2,6 +2,21 @@
 
 ---
 
+### [perf] — v1.0.0-pre — Refresh only affected component after operations (2026-03-07)
+**Commit:** `79a6f76`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Post-operation refresh (backup, replace, restore, delete backup) previously rescanned the entire directory
+- Added `scanSingleComponent()` to `ComponentRepository` and `refreshComponent()` to `MainViewModel`
+- All four post-op `refresh()` calls replaced with `refreshComponent(component)` — only the modified entry is re-scanned and swapped in-place
+- Toolbar refresh button still does a full rescan
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+
+---
+
 ### [feat] — v1.0.0-pre — ZIP format support for Turnip / adrenotools GPU driver zips (2026-03-07)
 **Commit:** `5b318af`  |  **Tag:** v1.0.0-pre (retagged)
 
