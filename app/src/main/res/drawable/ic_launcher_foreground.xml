@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer ring -->
+    <path
+        android:fillColor="#FF6D00"
+        android:pathData="M54,20 A34,34 0 1,1 53.99,20 Z" />
+    <!-- Inner cutout -->
+    <path
+        android:fillColor="#1A1A1A"
+        android:pathData="M54,30 A24,24 0 1,1 53.99,30 Z" />
+    <!-- Inject arrow pointing down-right -->
+    <path
+        android:fillColor="#FF6D00"
+        android:pathData="M46,42 L62,42 L62,54 L68,48 L54,62 L40,48 L46,54 Z" />
+</vector>
