@@ -18,6 +18,30 @@ class WcpExtractor(private val context: Context) {
         val description: String
     )
 
+    /** Opens the WCP and reads only profile.json without extracting any files. */
+    suspend fun readProfile(wcpUri: Uri): Result<WcpProfile> = withContext(Dispatchers.IO) {
+        runCatching {
+            context.contentResolver.openInputStream(wcpUri)!!.use { raw ->
+                val buffered = BufferedInputStream(raw)
+                val decompressed = try {
+                    CompressorStreamFactory().createCompressorInputStream(buffered)
+                } catch (_: Exception) { buffered }
+                TarArchiveInputStream(decompressed).use { tar ->
+                    var entry = tar.nextTarEntry
+                    while (entry != null) {
+                        if (entry.name == "profile.json") {
+                            val buf = ByteArrayOutputStream()
+                            tar.copyTo(buf)
+                            return@runCatching parseProfile(buf.toString(Charsets.UTF_8))
+                        }
+                        entry = tar.nextTarEntry
+                    }
+                    WcpProfile("Unknown", "Unknown", "No profile found")
+                }
+            }
+        }
+    }
+
     suspend fun extractToDocumentFile(
         wcpUri: Uri,
         destDir: DocumentFile,
