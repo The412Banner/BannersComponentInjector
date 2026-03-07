@@ -2,6 +2,19 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Fix invalid theme resource (2026-03-07)
+**Commit:** `17d9468`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Replaced `android:Theme.Material.NoTitleBar` (doesn't exist in AAPT) with `Theme.AppCompat.DayNight.NoActionBar`
+- Added `androidx.appcompat:appcompat:1.6.1` dependency
+
+#### Files touched
+- `app/src/main/res/values/themes.xml`
+- `app/build.gradle.kts`
+
+---
+
 ### [fix] — v1.0.0-pre — Add gradle.properties + bump minSdk to Android 10 (2026-03-07)
 **Commit:** `41f9742`  |  **Tag:** v1.0.0-pre (retagged)
 
