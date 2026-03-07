@@ -15,6 +15,23 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Auto-detect flat vs structured layout for WCP extraction (2026-03-07)
+**Commit:** `9f4a51a`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- FEXCore (and similar) components are flat — files sit directly at the component root, no subdirs
+- WCP files pack those files inside system32/ — without this fix they'd land in componentFolder/system32/ instead of componentFolder/
+- Before wiping, check if the existing component folder has any subdirectories
+  - Flat (no subdirs): flattenToRoot=true — strip WCP directory prefixes, dump all files at component root
+  - Structured (has subdirs, e.g. DXVK): flattenToRoot=false — preserve system32/, syswow64/ structure
+- Detection is automatic, no user configuration needed
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/WcpExtractor.kt`
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+
+---
+
 ### [fix] — v1.0.0-pre — Recursive file scan for components with subdirectories (2026-03-07)
 **Commit:** `69d4e0c`  |  **Tag:** v1.0.0-pre (retagged)
 
