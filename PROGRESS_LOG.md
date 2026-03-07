@@ -2,6 +2,22 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Use profile.json type for WCP extraction mode (2026-03-07)
+**Commit:** `825f229`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- VKD3D components were being extracted incorrectly — folder-subdir detection was unreliable (VKD3D folder may be flat even though its WCP needs system32/syswow64 structure preserved)
+- Now reads WCP profile.json type field before extraction to determine mode:
+  - `FEXCore` → `flattenToRoot=true` (files land directly at component root, strip WCP subdirs)
+  - All other types (DXVK, VKD3D, Box64, Turnip, etc.) → preserve system32/syswow64 structure
+- Added `readProfile()` method to `WcpExtractor` — opens only profile.json, no full extraction
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/WcpExtractor.kt`
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+
+---
+
 ### [fix] — v1.0.0-pre — Fix package visibility on Android 11+ (2026-03-07)
 **Commit:** `8e875f7`  |  **Tag:** v1.0.0-pre (retagged)
 
