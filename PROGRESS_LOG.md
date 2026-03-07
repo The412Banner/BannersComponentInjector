@@ -15,6 +15,22 @@
 
 ---
 
+### [fix] — v1.0.0-pre — Recursive file scan for components with subdirectories (2026-03-07)
+**Commit:** `69d4e0c`  |  **Tag:** v1.0.0-pre (retagged)
+
+#### What changed
+- Components with subdirs (system32/, syswow64/ etc.) were showing 0 files / 0 bytes
+- Added `collectFilesRecursively()` to walk the full directory tree
+- `FileInfo` gains `relativePath` field (e.g. "system32/d3d11.dll")
+- Detail sheet now shows relative paths so users can see subdirectory structure
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/ComponentDetailSheet.kt`
+
+---
+
 ### [refactor] — v1.0.0-pre — WCP-only replace, removed files/folder options (2026-03-07)
 **Commit:** `a0eab19`  |  **Tag:** v1.0.0-pre (retagged)
 
