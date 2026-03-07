@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,11 +40,23 @@ fun RemoteSourceSheet(
         isLoading = true
         errorMessage = null
         try {
-            items = if (component.folderName.contains("Turnip", ignoreCase = true) || component.folderName.contains("adreno", ignoreCase = true)) {
-                repo.fetchTurnipReleases()
-            } else {
-                repo.fetchWcpJson("https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", component.folderName)
+            val validSources = repo.defaultSources.filter { source ->
+                source.supportedTypes.isEmpty() || source.supportedTypes.any { type ->
+                    component.folderName.contains(type, ignoreCase = true)
+                }
             }
+
+            val fetchedItems = validSources.map { source ->
+                scope.async {
+                    try {
+                        repo.fetchFromSource(source, component.folderName)
+                    } catch (e: Exception) {
+                        emptyList() // Ignore failures from individual sources
+                    }
+                }
+            }.awaitAll().flatten()
+
+            items = fetchedItems
             if (items.isEmpty()) {
                 errorMessage = "No compatible remote components found."
             }
@@ -146,7 +160,7 @@ fun RemoteSourceSheet(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "Tap to download and replace",
+                                            text = "From: ${item.sourceName}",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

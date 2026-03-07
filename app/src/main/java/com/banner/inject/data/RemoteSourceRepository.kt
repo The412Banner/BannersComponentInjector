@@ -4,7 +4,6 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -14,13 +13,43 @@ class RemoteSourceRepository(private val context: Context) {
     data class RemoteItem(
         val displayName: String,
         val versionName: String,
-        val downloadUrl: String
+        val downloadUrl: String,
+        val sourceName: String
     )
 
-    // Arihany and StevenMXZ both use {type, verName, verCode, remoteUrl} format
-    suspend fun fetchWcpJson(
-        jsonUrl: String,
+    data class RemoteSource(
+        val name: String,
+        val url: String,
+        val format: SourceFormat,
+        val supportedTypes: List<String> = emptyList() // Empty implies all types
+    )
+
+    enum class SourceFormat {
+        WCP_JSON,
+        GITHUB_RELEASES_TURNIP
+    }
+
+    // You can define default sources here, optionally scoped to specific component types
+    val defaultSources = listOf(
+        RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON),
+        RemoteSource("Arihany", "https://raw.githubusercontent.com/arihany/wcp-json/main/wcp.json", SourceFormat.WCP_JSON),
+        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno"))
+    )
+
+    suspend fun fetchFromSource(
+        source: RemoteSource,
         componentType: String
+    ): List<RemoteItem> = withContext(Dispatchers.IO) {
+        when (source.format) {
+            SourceFormat.WCP_JSON -> fetchWcpJson(source.url, componentType, source.name)
+            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(source.url, source.name)
+        }
+    }
+
+    private suspend fun fetchWcpJson(
+        jsonUrl: String,
+        componentType: String,
+        sourceName: String
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
         val json = openUrl(jsonUrl).inputStream.bufferedReader().readText()
         val array = JSONArray(json)
@@ -30,18 +59,14 @@ class RemoteSourceRepository(private val context: Context) {
             val type = obj.getString("type")
             val verName = obj.getString("verName")
             val url = obj.getString("remoteUrl")
-            all.add(RemoteItem(displayName = "$type  $verName", versionName = verName, downloadUrl = url))
+            all.add(RemoteItem(displayName = "$type  $verName", versionName = verName, downloadUrl = url, sourceName = sourceName))
         }
-        // Try to filter by component type; fall back to all if nothing matches
         val filtered = all.filter { it.displayName.startsWith(componentType, ignoreCase = true) }
         (if (filtered.isNotEmpty()) filtered else all).reversed()
     }
 
-    // K11MCH1/AdrenoToolsDrivers — GitHub Releases API, Turnip ZIPs only
-    suspend fun fetchTurnipReleases(): List<RemoteItem> = withContext(Dispatchers.IO) {
-        val json = openUrl(
-            "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases"
-        ).inputStream.bufferedReader().readText()
+    private suspend fun fetchTurnipReleases(url: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
         val array = JSONArray(json)
         val result = mutableListOf<RemoteItem>()
         for (i in 0 until array.length()) {
@@ -62,7 +87,8 @@ class RemoteSourceRepository(private val context: Context) {
                     RemoteItem(
                         displayName = displayName,
                         versionName = assetName.removeSuffix(".zip"),
-                        downloadUrl = asset.getString("browser_download_url")
+                        downloadUrl = asset.getString("browser_download_url"),
+                        sourceName = sourceName
                     )
                 )
             }
@@ -70,7 +96,6 @@ class RemoteSourceRepository(private val context: Context) {
         result
     }
 
-    // Download URL to a temp file in cacheDir, reporting 0-100 progress
     suspend fun downloadToTemp(
         url: String,
         onProgress: (String) -> Unit
@@ -106,7 +131,6 @@ class RemoteSourceRepository(private val context: Context) {
         conn.setRequestProperty("Accept", "application/json")
         conn.instanceFollowRedirects = true
         conn.connect()
-        // Handle redirects manually in case of protocol change (http→https)
         val status = conn.responseCode
         if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
             status == HttpURLConnection.HTTP_MOVED_PERM ||

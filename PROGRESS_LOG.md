@@ -2,6 +2,16 @@
 
 ---
 
+### [pre-release] — v1.1.5-pre — Multi-Source Remote Repositories (2026-03-07)
+**Tag:** v1.1.5-pre
+
+#### What changed
+- Multi-Source Integration: The app now supports fetching components from multiple remote sources concurrently. 
+- Component Type Scoping: Sources can be configured to only trigger for specific component folders (e.g., Turnip sources only trigger for `turnip` or `adreno` folders).
+- Source Attribution: The remote list UI now clearly indicates which repository a file is originating from (e.g., "From: StevenMXZ" or "From: Arihany").
+
+---
+
 ### [pre-release] — v1.1.4-pre — Online Source Update (2026-03-07)
 **Tag:** v1.1.4-pre
 
