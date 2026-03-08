@@ -210,13 +210,16 @@ fun RemoteSourceSheet(
                         }
                     }
                 }
-                items != null -> {
-                    // Step 3: List Files
+                else -> {
+                    // Step 3: List Files — capture items in a local val to avoid Compose
+                    // snapshot race where items becomes null between the when-check and
+                    // LazyColumn's lazy content evaluation (causes NPE at items!!)
+                    val currentItems = items ?: return@Column
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(items!!) { item ->
+                        items(currentItems) { item ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     scope.launch {
