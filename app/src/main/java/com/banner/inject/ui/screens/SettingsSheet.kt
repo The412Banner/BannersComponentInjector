@@ -3,6 +3,7 @@ package com.banner.inject.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.UpdateRepository
 import com.banner.inject.ui.theme.ThemePrefs
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -49,6 +52,7 @@ sealed class UpdateState {
     data class Available(val release: UpdateRepository.ReleaseInfo) : UpdateState()
     object UpToDate : UpdateState()
     data class Error(val message: String) : UpdateState()
+    data class Downloading(val progress: Float, val release: UpdateRepository.ReleaseInfo) : UpdateState()
 }
 
 private fun Color.toHex(): String {
@@ -87,6 +91,7 @@ fun SettingsSheet(
         mutableStateOf(prefs.getBoolean("update_include_pre", false))
     }
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     var warnBeforeReplace by remember {
         mutableStateOf(!prefs.getBoolean("skip_backup_warning", false))
     }
@@ -94,254 +99,355 @@ fun SettingsSheet(
     val isCustom = ThemePrefs.PRESETS.none { it.second == accentColor }
     var showCustomInput by remember(isCustom) { mutableStateOf(isCustom) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceVariant
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 40.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Settings, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.width(10.dp))
-                Text("Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(24.dp))
+    // Intercept device back button
+    BackHandler(onBack = onDismiss)
 
-            // ── About ──────────────────────────────────────────────────────
-            Text("About", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("BannersComponentInjector", fontSize = 14.sp)
-                    Text("v$appVersion", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Full-screen overlay — drawn on top of the calling screen
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text("Settings", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+
+                // ── About ────────────────────────────────────────────────
+                item {
+                    SectionLabel("About")
+                    Spacer(Modifier.height(8.dp))
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("BannersComponentInjector", fontSize = 14.sp)
+                            Text("v$appVersion", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
-            }
 
-            Spacer(Modifier.height(20.dp))
+                // ── Appearance ───────────────────────────────────────────
+                item {
+                    SectionLabel("Appearance")
+                    Spacer(Modifier.height(8.dp))
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                            Text("Accent Color", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(14.dp))
 
-            // ── Appearance ─────────────────────────────────────────────────
-            Text("Appearance", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text("Accent Color", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(14.dp))
+                            val rows = ThemePrefs.PRESETS.chunked(4)
+                            rows.forEach { row ->
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                    row.forEach { (name, color) ->
+                                        ColorSwatch(
+                                            color = color,
+                                            isSelected = accentColor == color,
+                                            label = name,
+                                            onClick = {
+                                                onAccentColorChanged(color)
+                                                ThemePrefs.save(context, color)
+                                                showCustomInput = false
+                                            }
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(10.dp))
+                            }
 
-                    // Preset swatches — 2 rows of 4
-                    val rows = ThemePrefs.PRESETS.chunked(4)
-                    rows.forEach { row ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            row.forEach { (name, color) ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                                 ColorSwatch(
-                                    color = color,
-                                    isSelected = accentColor == color,
-                                    label = name,
-                                    onClick = {
+                                    color = if (isCustom) accentColor else Color(0xFF707070),
+                                    isSelected = isCustom,
+                                    label = "Custom",
+                                    onClick = { showCustomInput = !showCustomInput }
+                                )
+                                repeat(3) { Spacer(Modifier.width(56.dp)) }
+                            }
+
+                            if (showCustomInput) {
+                                Spacer(Modifier.height(12.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                                Spacer(Modifier.height(12.dp))
+                                HsvColorWheelPicker(
+                                    color = accentColor,
+                                    onColorChanged = { color -> onAccentColorChanged(color) },
+                                    onApply = { color ->
                                         onAccentColorChanged(color)
                                         ThemePrefs.save(context, color)
-                                        showCustomInput = false
                                     }
                                 )
                             }
                         }
-                        Spacer(Modifier.height(10.dp))
-                    }
-
-                    // Custom swatch
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        ColorSwatch(
-                            color = if (isCustom) accentColor else Color(0xFF707070),
-                            isSelected = isCustom,
-                            label = "Custom",
-                            onClick = { showCustomInput = !showCustomInput }
-                        )
-                        repeat(3) { Spacer(Modifier.width(56.dp)) }
-                    }
-
-                    // Custom color wheel picker
-                    if (showCustomInput) {
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                        Spacer(Modifier.height(12.dp))
-                        HsvColorWheelPicker(
-                            color = accentColor,
-                            onColorChanged = { color -> onAccentColorChanged(color) },
-                            onApply = { color ->
-                                onAccentColorChanged(color)
-                                ThemePrefs.save(context, color)
-                            }
-                        )
                     }
                 }
-            }
 
-            Spacer(Modifier.height(20.dp))
-
-            // ── Prompts ────────────────────────────────────────────────────
-            Text("Prompts", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Backup warning", fontSize = 14.sp)
-                        Text("Warn before replacing without a backup", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(
-                        checked = warnBeforeReplace,
-                        onCheckedChange = {
-                            warnBeforeReplace = it
-                            prefs.edit().putBoolean("skip_backup_warning", !it).apply()
-                        }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── Updates ────────────────────────────────────────────────────
-            Text("Updates", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Include pre-releases", fontSize = 14.sp)
-                            Text("Check for pre-release updates too", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(
-                            checked = includePreReleases,
-                            onCheckedChange = {
-                                includePreReleases = it
-                                prefs.edit().putBoolean("update_include_pre", it).apply()
-                                updateState = UpdateState.Idle
+                // ── Prompts ──────────────────────────────────────────────
+                item {
+                    SectionLabel("Prompts")
+                    Spacer(Modifier.height(8.dp))
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Backup warning", fontSize = 14.sp)
+                                Text("Warn before replacing without a backup", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                        )
+                            Switch(
+                                checked = warnBeforeReplace,
+                                onCheckedChange = {
+                                    warnBeforeReplace = it
+                                    prefs.edit().putBoolean("skip_backup_warning", !it).apply()
+                                }
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        onClick = {
-                            updateState = UpdateState.Checking
-                            scope.launch {
-                                updateState = try {
-                                    val latest = UpdateRepository.fetchLatestRelease(includePreReleases)
-                                    if (latest == null) UpdateState.Error("No releases found.")
-                                    else if (latest.versionName == appVersion) UpdateState.UpToDate
-                                    else UpdateState.Available(latest)
-                                } catch (e: Exception) {
-                                    UpdateState.Error(e.message ?: "Unknown error")
+                }
+
+                // ── Updates ──────────────────────────────────────────────
+                item {
+                    SectionLabel("Updates")
+                    Spacer(Modifier.height(8.dp))
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Include pre-releases", fontSize = 14.sp)
+                                    Text("Check for pre-release updates too", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(
+                                    checked = includePreReleases,
+                                    onCheckedChange = {
+                                        includePreReleases = it
+                                        prefs.edit().putBoolean("update_include_pre", it).apply()
+                                        if (updateState !is UpdateState.Downloading) {
+                                            updateState = UpdateState.Idle
+                                        }
+                                    }
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+
+                            // Check for updates button — hidden while downloading
+                            if (updateState !is UpdateState.Downloading) {
+                                Button(
+                                    onClick = {
+                                        updateState = UpdateState.Checking
+                                        scope.launch {
+                                            updateState = try {
+                                                val latest = UpdateRepository.fetchLatestRelease(includePreReleases)
+                                                if (latest == null) UpdateState.Error("No releases found.")
+                                                else if (latest.versionName == appVersion) UpdateState.UpToDate
+                                                else UpdateState.Available(latest)
+                                            } catch (e: Exception) {
+                                                UpdateState.Error(e.message ?: "Unknown error")
+                                            }
+                                        }
+                                    },
+                                    enabled = updateState !is UpdateState.Checking,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (updateState is UpdateState.Checking) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Checking...")
+                                    } else {
+                                        Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Check for Updates")
+                                    }
                                 }
                             }
-                        },
-                        enabled = updateState !is UpdateState.Checking,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (updateState is UpdateState.Checking) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Checking...")
-                        } else {
-                            Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Check for Updates")
-                        }
-                    }
-                    when (val s = updateState) {
-                        is UpdateState.UpToDate -> {
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("You're up to date (v$appVersion)", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+
+                            // State-specific UI
+                            when (val s = updateState) {
+                                is UpdateState.UpToDate -> {
+                                    Spacer(Modifier.height(10.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("You're up to date (v$appVersion)", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+
+                                is UpdateState.Error -> {
+                                    Spacer(Modifier.height(10.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(s.message, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+
+                                is UpdateState.Available -> {
+                                    Spacer(Modifier.height(12.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = MaterialTheme.shapes.medium
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.NewReleases, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
+                                                Spacer(Modifier.width(8.dp))
+                                                Column {
+                                                    Text("Update available", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                                    Text(
+                                                        "${s.release.tagName}${if (s.release.isPreRelease) " (pre-release)" else ""}",
+                                                        fontSize = 12.sp,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.height(4.dp))
+                                            Text("Installed: v$appVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                                            Spacer(Modifier.height(12.dp))
+
+                                            if (s.release.apkUrl != null) {
+                                                Button(
+                                                    onClick = {
+                                                        val release = s.release
+                                                        updateState = UpdateState.Downloading(0f, release)
+                                                        val job = scope.launch {
+                                                            try {
+                                                                val file = UpdateRepository.downloadApk(context, release.apkUrl) { progress ->
+                                                                    updateState = UpdateState.Downloading(progress, release)
+                                                                }
+                                                                UpdateRepository.installApk(context, file)
+                                                                updateState = UpdateState.Idle
+                                                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                                                updateState = UpdateState.Available(release)
+                                                            } catch (e: Exception) {
+                                                                updateState = UpdateState.Error("Download failed: ${e.message ?: "Unknown error"}")
+                                                            }
+                                                        }
+                                                        downloadJob = job
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(18.dp))
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("Download & Install")
+                                                }
+                                                Spacer(Modifier.height(6.dp))
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    runCatching {
+                                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.release.htmlUrl)))
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("View on GitHub")
+                                            }
+                                        }
+                                    }
+                                }
+
+                                is UpdateState.Downloading -> {
+                                    Spacer(Modifier.height(12.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = MaterialTheme.shapes.medium
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Spacer(Modifier.width(10.dp))
+                                                Text(
+                                                    if (s.progress > 0f) "Downloading… ${(s.progress * 100).toInt()}%"
+                                                    else "Downloading…",
+                                                    fontSize = 13.sp,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                            Spacer(Modifier.height(8.dp))
+                                            LinearProgressIndicator(
+                                                progress = { s.progress },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            TextButton(
+                                                onClick = {
+                                                    downloadJob?.cancel()
+                                                    downloadJob = null
+                                                },
+                                                modifier = Modifier.align(Alignment.End)
+                                            ) {
+                                                Text("Cancel", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                else -> {}
                             }
                         }
-                        is UpdateState.Error -> {
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(s.message, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                        else -> {}
                     }
                 }
-            }
 
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onOpenBackupManager, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Backup, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Backup Manager")
-            }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { runCatching { context.startActivity(Intent("android.intent.action.VIEW_DOWNLOADS")) } },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Open Downloads Folder")
+                // ── Utilities ────────────────────────────────────────────
+                item {
+                    OutlinedButton(onClick = onOpenBackupManager, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Backup, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Backup Manager")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { runCatching { context.startActivity(Intent("android.intent.action.VIEW_DOWNLOADS")) } },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Open Downloads Folder")
+                    }
+                }
             }
         }
     }
+}
 
-    // Update available dialog
-    val s = updateState
-    if (s is UpdateState.Available) {
-        AlertDialog(
-            onDismissRequest = { updateState = UpdateState.Idle },
-            icon = { Icon(Icons.Default.SystemUpdate, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Update Available") },
-            text = {
-                Column {
-                    Text("A new version is available:")
-                    Spacer(Modifier.height(8.dp))
-                    Surface(color = MaterialTheme.colorScheme.background, shape = MaterialTheme.shapes.small) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Installed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("v$appVersion", fontSize = 12.sp)
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Available", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    s.release.tagName + if (s.release.isPreRelease) " (pre-release)" else "",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.release.htmlUrl))) }
-                    updateState = UpdateState.Idle
-                }) { Text("Open GitHub Release") }
-            },
-            dismissButton = {
-                TextButton(onClick = { updateState = UpdateState.Idle }) { Text("Later") }
-            }
-        )
-    }
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -352,12 +458,10 @@ private fun HsvColorWheelPicker(
 ) {
     val context = LocalContext.current
 
-    // Use explicit MutableState objects to avoid delegate-capture issues in lambdas
     val hueState = remember { mutableStateOf(0f) }
     val satState = remember { mutableStateOf(0f) }
     val briState = remember { mutableStateOf(1f) }
 
-    // Sync wheel state when an external color change arrives (e.g., preset swatch clicked)
     LaunchedEffect(color) {
         val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(color.toArgb(), hsv)
@@ -392,11 +496,9 @@ private fun HsvColorWheelPicker(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // HSV color wheel disc
         Canvas(
             modifier = Modifier
                 .size(wheelDp)
-                // Tap to pick color
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
                         updateFromOffset(offset)
@@ -404,7 +506,6 @@ private fun HsvColorWheelPicker(
                         hexInput = colorFromHsv().toHex()
                     }
                 }
-                // Drag to pick color continuously
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { offset -> updateFromOffset(offset) },
@@ -425,8 +526,6 @@ private fun HsvColorWheelPicker(
             drawIntoCanvas { canvas ->
                 val nc = canvas.nativeCanvas
 
-                // Hue: SweepGradient clockwise from right
-                // 0° = Red, 60° = Yellow, 120° = Green, 180° = Cyan, 240° = Blue, 300° = Magenta
                 val sweepPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                     shader = android.graphics.SweepGradient(
                         cx, cy,
@@ -439,7 +538,6 @@ private fun HsvColorWheelPicker(
                 }
                 nc.drawCircle(cx, cy, radius, sweepPaint)
 
-                // Saturation: white center fading to transparent at edge
                 val satPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                     shader = android.graphics.RadialGradient(
                         cx, cy, radius,
@@ -449,7 +547,6 @@ private fun HsvColorWheelPicker(
                 }
                 nc.drawCircle(cx, cy, radius, satPaint)
 
-                // Brightness: black overlay controlled by value slider
                 val darkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
                 darkPaint.color = android.graphics.Color.argb(
                     ((1f - briState.value) * 255).toInt(), 0, 0, 0
@@ -457,7 +554,6 @@ private fun HsvColorWheelPicker(
                 nc.drawCircle(cx, cy, radius, darkPaint)
             }
 
-            // Thumb indicator at current hue/saturation position
             val angle = hueState.value * (PI.toFloat() / 180f)
             val thumbDist = satState.value * (size.minDimension / 2f)
             val tx = size.width / 2f + thumbDist * cos(angle)
@@ -468,17 +564,8 @@ private fun HsvColorWheelPicker(
 
         Spacer(Modifier.height(16.dp))
 
-        // Brightness slider
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Brightness",
-                fontSize = 12.sp,
-                modifier = Modifier.width(72.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Brightness", fontSize = 12.sp, modifier = Modifier.width(72.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Slider(
                 value = briState.value,
                 onValueChange = { v ->
@@ -493,7 +580,6 @@ private fun HsvColorWheelPicker(
 
         Spacer(Modifier.height(8.dp))
 
-        // Hex input (secondary)
         OutlinedTextField(
             value = hexInput,
             onValueChange = { hexInput = it; hexError = false },

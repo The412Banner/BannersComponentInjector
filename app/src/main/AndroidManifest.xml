@@ -12,6 +12,9 @@
     <!-- Required to persist and use SAF URI grants across sessions -->
     <uses-permission android:name="android.permission.MANAGE_DOCUMENTS" />
 
+    <!-- Required to sideload APK updates via the system installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <queries>
         <package android:name="gamehub.lite" />
         <package android:name="emuready.gamehub.lite" />
@@ -40,6 +43,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- FileProvider for serving the downloaded update APK to the system installer -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>
