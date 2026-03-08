@@ -450,11 +450,10 @@ private fun HsvColorWheelPicker(
                 nc.drawCircle(cx, cy, radius, satPaint)
 
                 // Brightness: black overlay controlled by value slider
-                val darkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = android.graphics.Color.argb(
-                        ((1f - briState.value) * 255).toInt(), 0, 0, 0
-                    )
-                }
+                val darkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                darkPaint.color = android.graphics.Color.argb(
+                    ((1f - briState.value) * 255).toInt(), 0, 0, 0
+                )
                 nc.drawCircle(cx, cy, radius, darkPaint)
             }
 
