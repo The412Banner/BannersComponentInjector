@@ -2,6 +2,19 @@
 
 ---
 
+### [pre-release] — v1.3.6-pre — Default Tab Selection & Settings Reorganization (2026-03-08)
+**Tag:** v1.3.6-pre
+
+#### What changed
+- **Default Start Tab**: Added a new "General" section to the app settings menu containing a segmented button control. Users can now choose whether the app opens to the "Inject Components" or "Download Components" tab by default upon launch. This preference is saved to SharedPreferences.
+- **Settings Reorganization**: To reduce clutter on the main Settings page, the "Appearance" (Theme & Accent Color) options have been moved into their own dedicated sub-menu. Tapping "Appearance" now opens a child page with a back arrow to return to the main settings.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/SettingsSheet.kt`
+
+---
+
 ### [pre-release] — v1.3.5-pre — Repository Deletion Confirmation (2026-03-08)
 **Tag:** v1.3.5-pre
 

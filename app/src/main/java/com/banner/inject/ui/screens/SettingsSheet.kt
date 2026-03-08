@@ -74,6 +74,10 @@ private fun parseHex(hex: String): Color? {
     } catch (_: NumberFormatException) { null }
 }
 
+enum class SettingsPage {
+    MAIN, APPEARANCE
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
@@ -87,6 +91,8 @@ fun SettingsSheet(
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
 
+    var currentPage by remember { mutableStateOf(SettingsPage.MAIN) }
+
     var includePreReleases by remember {
         mutableStateOf(prefs.getBoolean("update_include_pre", false))
     }
@@ -95,12 +101,22 @@ fun SettingsSheet(
     var warnBeforeReplace by remember {
         mutableStateOf(!prefs.getBoolean("skip_backup_warning", false))
     }
+    
+    var defaultStartTab by remember {
+        mutableStateOf(prefs.getString("default_start_tab", "INJECT") ?: "INJECT")
+    }
 
     val isCustom = ThemePrefs.PRESETS.none { it.second == accentColor }
     var showCustomInput by remember(isCustom) { mutableStateOf(isCustom) }
 
     // Intercept device back button
-    BackHandler(onBack = onDismiss)
+    BackHandler(onBack = {
+        if (currentPage == SettingsPage.APPEARANCE) {
+            currentPage = SettingsPage.MAIN
+        } else {
+            onDismiss()
+        }
+    })
 
     // Full-screen overlay — drawn on top of the calling screen
     Box(modifier = Modifier.fillMaxSize()) {
@@ -109,13 +125,25 @@ fun SettingsSheet(
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text("Settings", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            if (currentPage == SettingsPage.MAIN) {
+                                Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text("Settings", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            } else {
+                                Icon(Icons.Default.Palette, null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text("Appearance", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = onDismiss) {
+                        IconButton(onClick = {
+                            if (currentPage == SettingsPage.APPEARANCE) {
+                                currentPage = SettingsPage.MAIN
+                            } else {
+                                onDismiss()
+                            }
+                        }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                     },
@@ -125,319 +153,390 @@ fun SettingsSheet(
                 )
             }
         ) { padding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
+            if (currentPage == SettingsPage.MAIN) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
 
-                // ── About ────────────────────────────────────────────────
-                item {
-                    SectionLabel("About")
-                    Spacer(Modifier.height(8.dp))
-                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("BannersComponentInjector", fontSize = 14.sp)
-                            Text("v$appVersion", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-
-                // ── Appearance ───────────────────────────────────────────
-                item {
-                    SectionLabel("Appearance")
-                    Spacer(Modifier.height(8.dp))
-                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                            Text("Accent Color", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.height(14.dp))
-
-                            val rows = ThemePrefs.PRESETS.chunked(4)
-                            rows.forEach { row ->
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                    row.forEach { (name, color) ->
-                                        ColorSwatch(
-                                            color = color,
-                                            isSelected = accentColor == color,
-                                            label = name,
-                                            onClick = {
-                                                onAccentColorChanged(color)
-                                                ThemePrefs.save(context, color)
-                                                showCustomInput = false
-                                            }
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(10.dp))
-                            }
-
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                ColorSwatch(
-                                    color = if (isCustom) accentColor else Color(0xFF707070),
-                                    isSelected = isCustom,
-                                    label = "Custom",
-                                    onClick = { showCustomInput = !showCustomInput }
-                                )
-                                repeat(3) { Spacer(Modifier.width(56.dp)) }
-                            }
-
-                            if (showCustomInput) {
-                                Spacer(Modifier.height(12.dp))
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                                Spacer(Modifier.height(12.dp))
-                                HsvColorWheelPicker(
-                                    color = accentColor,
-                                    onColorChanged = { color -> onAccentColorChanged(color) },
-                                    onApply = { color ->
-                                        onAccentColorChanged(color)
-                                        ThemePrefs.save(context, color)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── Prompts ──────────────────────────────────────────────
-                item {
-                    SectionLabel("Prompts")
-                    Spacer(Modifier.height(8.dp))
-                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Backup warning", fontSize = 14.sp)
-                                Text("Warn before replacing without a backup", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(
-                                checked = warnBeforeReplace,
-                                onCheckedChange = {
-                                    warnBeforeReplace = it
-                                    prefs.edit().putBoolean("skip_backup_warning", !it).apply()
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // ── Updates ──────────────────────────────────────────────
-                item {
-                    SectionLabel("Updates")
-                    Spacer(Modifier.height(8.dp))
-                    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                    // ── About ────────────────────────────────────────────────
+                    item {
+                        SectionLabel("About")
+                        Spacer(Modifier.height(8.dp))
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("BannersComponentInjector", fontSize = 14.sp)
+                                Text("v$appVersion", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    // ── General ──────────────────────────────────────────────
+                    item {
+                        SectionLabel("General")
+                        Spacer(Modifier.height(8.dp))
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                Text("Default Start Tab", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(8.dp))
+                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                    SegmentedButton(
+                                        selected = defaultStartTab == "INJECT",
+                                        onClick = {
+                                            defaultStartTab = "INJECT"
+                                            prefs.edit().putString("default_start_tab", "INJECT").apply()
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                                    ) {
+                                        Text("Inject Components", fontSize = 12.sp)
+                                    }
+                                    SegmentedButton(
+                                        selected = defaultStartTab == "DOWNLOAD",
+                                        onClick = {
+                                            defaultStartTab = "DOWNLOAD"
+                                            prefs.edit().putString("default_start_tab", "DOWNLOAD").apply()
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                                    ) {
+                                        Text("Download Components", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Appearance Menu ──────────────────────────────────────
+                    item {
+                        SectionLabel("Appearance")
+                        Spacer(Modifier.height(8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier.fillMaxWidth().clickable { currentPage = SettingsPage.APPEARANCE }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(accentColor)
+                                            .border(1.dp, Color(0xFF444444), CircleShape)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("Theme & Accent Color", fontSize = 14.sp)
+                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    // ── Prompts ──────────────────────────────────────────────
+                    item {
+                        SectionLabel("Prompts")
+                        Spacer(Modifier.height(8.dp))
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Include pre-releases", fontSize = 14.sp)
-                                    Text("Check for pre-release updates too", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Backup warning", fontSize = 14.sp)
+                                    Text("Warn before replacing without a backup", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Switch(
-                                    checked = includePreReleases,
+                                    checked = warnBeforeReplace,
                                     onCheckedChange = {
-                                        includePreReleases = it
-                                        prefs.edit().putBoolean("update_include_pre", it).apply()
-                                        if (updateState !is UpdateState.Downloading) {
-                                            updateState = UpdateState.Idle
-                                        }
+                                        warnBeforeReplace = it
+                                        prefs.edit().putBoolean("skip_backup_warning", !it).apply()
                                     }
                                 )
                             }
-                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
 
-                            // Check for updates button — hidden while downloading
-                            if (updateState !is UpdateState.Downloading) {
-                                Button(
-                                    onClick = {
-                                        updateState = UpdateState.Checking
-                                        scope.launch {
-                                            updateState = try {
-                                                val latest = UpdateRepository.fetchLatestRelease(includePreReleases)
-                                                if (latest == null) UpdateState.Error("No releases found.")
-                                                else if (latest.versionName == appVersion) UpdateState.UpToDate
-                                                else UpdateState.Available(latest)
-                                            } catch (e: Exception) {
-                                                UpdateState.Error(e.message ?: "Unknown error")
+                    // ── Updates ──────────────────────────────────────────────
+                    item {
+                        SectionLabel("Updates")
+                        Spacer(Modifier.height(8.dp))
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Include pre-releases", fontSize = 14.sp)
+                                        Text("Check for pre-release updates too", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Switch(
+                                        checked = includePreReleases,
+                                        onCheckedChange = {
+                                            includePreReleases = it
+                                            prefs.edit().putBoolean("update_include_pre", it).apply()
+                                            if (updateState !is UpdateState.Downloading) {
+                                                updateState = UpdateState.Idle
                                             }
                                         }
-                                    },
-                                    enabled = updateState !is UpdateState.Checking,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    if (updateState is UpdateState.Checking) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Checking...")
-                                    } else {
-                                        Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Check for Updates")
-                                    }
+                                    )
                                 }
-                            }
+                                Spacer(Modifier.height(12.dp))
 
-                            // State-specific UI
-                            when (val s = updateState) {
-                                is UpdateState.UpToDate -> {
-                                    Spacer(Modifier.height(10.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("You're up to date (v$appVersion)", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
-
-                                is UpdateState.Error -> {
-                                    Spacer(Modifier.height(10.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(s.message, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
-                                    }
-                                }
-
-                                is UpdateState.Available -> {
-                                    Spacer(Modifier.height(12.dp))
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        shape = MaterialTheme.shapes.medium
-                                    ) {
-                                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.NewReleases, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
-                                                Spacer(Modifier.width(8.dp))
-                                                Column {
-                                                    Text("Update available", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                                    Text(
-                                                        "${s.release.tagName}${if (s.release.isPreRelease) " (pre-release)" else ""}",
-                                                        fontSize = 12.sp,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                                    )
+                                // Check for updates button — hidden while downloading
+                                if (updateState !is UpdateState.Downloading) {
+                                    Button(
+                                        onClick = {
+                                            updateState = UpdateState.Checking
+                                            scope.launch {
+                                                updateState = try {
+                                                    val latest = UpdateRepository.fetchLatestRelease(includePreReleases)
+                                                    if (latest == null) UpdateState.Error("No releases found.")
+                                                    else if (latest.versionName == appVersion) UpdateState.UpToDate
+                                                    else UpdateState.Available(latest)
+                                                } catch (e: Exception) {
+                                                    UpdateState.Error(e.message ?: "Unknown error")
                                                 }
                                             }
-                                            Spacer(Modifier.height(4.dp))
-                                            Text("Installed: v$appVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                                            Spacer(Modifier.height(12.dp))
+                                        },
+                                        enabled = updateState !is UpdateState.Checking,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (updateState is UpdateState.Checking) {
+                                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Checking...")
+                                        } else {
+                                            Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(18.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Check for Updates")
+                                        }
+                                    }
+                                }
 
-                                            if (s.release.apkUrl != null) {
-                                                Button(
-                                                    onClick = {
-                                                        val release = s.release
-                                                        updateState = UpdateState.Downloading(0f, release)
-                                                        val job = scope.launch {
-                                                            try {
-                                                                val file = UpdateRepository.downloadApk(context, release.apkUrl) { progress ->
-                                                                    updateState = UpdateState.Downloading(progress, release)
+                                // State-specific UI
+                                when (val s = updateState) {
+                                    is UpdateState.UpToDate -> {
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("You're up to date (v$appVersion)", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+
+                                    is UpdateState.Error -> {
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(s.message, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+
+                                    is UpdateState.Available -> {
+                                        Spacer(Modifier.height(12.dp))
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = MaterialTheme.shapes.medium
+                                        ) {
+                                            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.NewReleases, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Column {
+                                                        Text("Update available", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                                        Text(
+                                                            "${s.release.tagName}${if (s.release.isPreRelease) " (pre-release)" else ""}",
+                                                            fontSize = 12.sp,
+                                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(Modifier.height(4.dp))
+                                                Text("Installed: v$appVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                                                Spacer(Modifier.height(12.dp))
+
+                                                if (s.release.apkUrl != null) {
+                                                    Button(
+                                                        onClick = {
+                                                            val release = s.release
+                                                            updateState = UpdateState.Downloading(0f, release)
+                                                            val job = scope.launch {
+                                                                try {
+                                                                    val file = UpdateRepository.downloadApk(context, release.apkUrl) { progress ->
+                                                                        updateState = UpdateState.Downloading(progress, release)
+                                                                    }
+                                                                    UpdateRepository.installApk(context, file)
+                                                                    updateState = UpdateState.Idle
+                                                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                                                    updateState = UpdateState.Available(release)
+                                                                } catch (e: Exception) {
+                                                                    updateState = UpdateState.Error("Download failed: ${e.message ?: "Unknown error"}")
                                                                 }
-                                                                UpdateRepository.installApk(context, file)
-                                                                updateState = UpdateState.Idle
-                                                            } catch (e: kotlinx.coroutines.CancellationException) {
-                                                                updateState = UpdateState.Available(release)
-                                                            } catch (e: Exception) {
-                                                                updateState = UpdateState.Error("Download failed: ${e.message ?: "Unknown error"}")
                                                             }
+                                                            downloadJob = job
+                                                        },
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(18.dp))
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Text("Download & Install")
+                                                    }
+                                                    Spacer(Modifier.height(6.dp))
+                                                }
+
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        runCatching {
+                                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.release.htmlUrl)))
                                                         }
-                                                        downloadJob = job
                                                     },
                                                     modifier = Modifier.fillMaxWidth()
                                                 ) {
-                                                    Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(18.dp))
-                                                    Spacer(Modifier.width(8.dp))
-                                                    Text("Download & Install")
+                                                    Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text("View on GitHub")
                                                 }
-                                                Spacer(Modifier.height(6.dp))
-                                            }
-
-                                            OutlinedButton(
-                                                onClick = {
-                                                    runCatching {
-                                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.release.htmlUrl)))
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text("View on GitHub")
                                             }
                                         }
                                     }
-                                }
 
-                                is UpdateState.Downloading -> {
-                                    Spacer(Modifier.height(12.dp))
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        shape = MaterialTheme.shapes.medium
-                                    ) {
-                                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(16.dp),
-                                                    strokeWidth = 2.dp,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    is UpdateState.Downloading -> {
+                                        Spacer(Modifier.height(12.dp))
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = MaterialTheme.shapes.medium
+                                        ) {
+                                            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(16.dp),
+                                                        strokeWidth = 2.dp,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                    Spacer(Modifier.width(10.dp))
+                                                    Text(
+                                                        if (s.progress > 0f) "Downloading… ${(s.progress * 100).toInt()}%"
+                                                        else "Downloading…",
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                }
+                                                Spacer(Modifier.height(8.dp))
+                                                LinearProgressIndicator(
+                                                    progress = { s.progress },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
                                                 )
-                                                Spacer(Modifier.width(10.dp))
-                                                Text(
-                                                    if (s.progress > 0f) "Downloading… ${(s.progress * 100).toInt()}%"
-                                                    else "Downloading…",
-                                                    fontSize = 13.sp,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                            }
-                                            Spacer(Modifier.height(8.dp))
-                                            LinearProgressIndicator(
-                                                progress = { s.progress },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
-                                            )
-                                            Spacer(Modifier.height(8.dp))
-                                            TextButton(
-                                                onClick = {
-                                                    downloadJob?.cancel()
-                                                    downloadJob = null
-                                                },
-                                                modifier = Modifier.align(Alignment.End)
-                                            ) {
-                                                Text("Cancel", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                                Spacer(Modifier.height(8.dp))
+                                                TextButton(
+                                                    onClick = {
+                                                        downloadJob?.cancel()
+                                                        downloadJob = null
+                                                    },
+                                                    modifier = Modifier.align(Alignment.End)
+                                                ) {
+                                                    Text("Cancel", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                else -> {}
+                                    else -> {}
+                                }
                             }
                         }
                     }
-                }
 
-                // ── Utilities ────────────────────────────────────────────
-                item {
-                    OutlinedButton(onClick = onOpenBackupManager, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Backup, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Backup Manager")
+                    // ── Utilities ────────────────────────────────────────────
+                    item {
+                        OutlinedButton(onClick = onOpenBackupManager, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Backup, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Backup Manager")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { runCatching { context.startActivity(Intent("android.intent.action.VIEW_DOWNLOADS")) } },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Open Downloads Folder")
+                        }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { runCatching { context.startActivity(Intent("android.intent.action.VIEW_DOWNLOADS")) } },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Open Downloads Folder")
+                }
+            } else {
+                // ── Appearance Page ──────────────────────────────────────────
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+                ) {
+                    item {
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                Text("Accent Color", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(14.dp))
+
+                                val rows = ThemePrefs.PRESETS.chunked(4)
+                                rows.forEach { row ->
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                        row.forEach { (name, color) ->
+                                            ColorSwatch(
+                                                color = color,
+                                                isSelected = accentColor == color,
+                                                label = name,
+                                                onClick = {
+                                                    onAccentColorChanged(color)
+                                                    ThemePrefs.save(context, color)
+                                                    showCustomInput = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                }
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                    ColorSwatch(
+                                        color = if (isCustom) accentColor else Color(0xFF707070),
+                                        isSelected = isCustom,
+                                        label = "Custom",
+                                        onClick = { showCustomInput = !showCustomInput }
+                                    )
+                                    repeat(3) { Spacer(Modifier.width(56.dp)) }
+                                }
+
+                                if (showCustomInput) {
+                                    Spacer(Modifier.height(12.dp))
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                                    Spacer(Modifier.height(12.dp))
+                                    HsvColorWheelPicker(
+                                        color = accentColor,
+                                        onColorChanged = { color -> onAccentColorChanged(color) },
+                                        onApply = { color ->
+                                            onAccentColorChanged(color)
+                                            ThemePrefs.save(context, color)
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

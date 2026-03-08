@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -44,10 +45,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             BannersComponentInjectorTheme(accentColor = accentColor) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var currentTab by remember { mutableStateOf(MainTab.INJECT) }
+                    val prefs = remember { getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
+                    var currentTab by remember {
+                        val savedTab = prefs.getString("default_start_tab", "INJECT") ?: "INJECT"
+                        val initialTab = if (savedTab == "DOWNLOAD") MainTab.DOWNLOAD else MainTab.INJECT
+                        mutableStateOf(initialTab)
+                    }
                     val vm: MainViewModel = viewModel()
                     val uiState by vm.uiState.collectAsState()
-                    val repo = remember { RemoteSourceRepository(this) }
+                    val repo = remember { RemoteSourceRepository(this@MainActivity) }
 
                     val appVersion = remember {
                         packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
