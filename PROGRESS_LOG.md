@@ -2,6 +2,124 @@
 
 ---
 
+### [pre-release] — v1.2.8-pre-3 — Don't-ask-again backup warning + HSV color wheel (2026-03-08)
+**Tag:** v1.2.8-pre-3
+
+#### What changed
+- **"Don't ask again"** checkbox added to the No Backup Found dialog in `ComponentDetailSheet`. When checked + Replace Anyway, saves `skip_backup_warning=true` to `bci_settings` SharedPreferences; future replaces bypass the dialog.
+- **Settings → Prompts section** (new): toggle *Warn before replacing without a backup* to re-enable or suppress the dialog. Inverts the `skip_backup_warning` pref.
+- **HSV Color Wheel** replaces the plain hex input for custom accent color in Settings → Appearance:
+  - 240 dp circular disc drawn with `SweepGradient` (hue) + `RadialGradient` (saturation) + black overlay (brightness).
+  - Tap or drag the disc to pick hue + saturation; white/black thumb shows selection.
+  - Brightness `Slider` below the disc controls the value channel; saves on drag end.
+  - Hex field remains as secondary input with Apply button.
+  - Live theme preview while dragging; `LaunchedEffect(color)` syncs external preset changes back to wheel state.
+- **Fix notes:** Two compile errors caught by CI — `awaitFirstDown`/`awaitPointerEvent` have wrong import paths (solved by switching to `detectDragGestures`/`detectTapGestures`); Kotlin resolved `color = android.graphics.Color.argb(...)` inside `apply {}` as the outer composable `val color: Color` parameter instead of `Paint.color` — fixed with `darkPaint.color = ...` direct assignment.
+
+#### Files touched
+- `ui/screens/ComponentDetailSheet.kt`
+- `ui/screens/SettingsSheet.kt`
+
+---
+
+### [pre-release] — v1.2.7-pre — Settings on all screens + theme customization (2026-03-08)
+**Tag:** v1.2.7-pre
+
+#### What changed
+- Settings cog added to ComponentListScreen top bar (was only on AppListScreen before).
+- `SettingsSheet` extracted to its own file (`SettingsSheet.kt`) shared by both screens.
+- **Appearance section** added to Settings:
+  - 8 preset accent color swatches (Orange default, Blue, Purple, Green, Red, Teal, Pink, Amber).
+  - Custom swatch opens a hex input field (`#RRGGBB`) with live preview and validation.
+  - Color persisted in SharedPreferences, restored on launch.
+  - Full theme dynamically derived from accent color (container, secondary, onPrimary all auto-computed).
+  - `onPrimary` switches black/white based on luminance for readable text on any accent.
+- Fixed `parseHex` to use `Float` components instead of `Int` (compile bug caught pre-push).
+
+#### Files touched
+- `ui/theme/ThemePrefs.kt` (new)
+- `ui/theme/Theme.kt`
+- `ui/screens/SettingsSheet.kt` (new)
+- `ui/screens/AppListScreen.kt`
+- `ui/screens/HomeScreen.kt`
+- `MainActivity.kt`
+
+---
+
+### [pre-release] — v1.2.6-pre — Stable signing key + in-app update checker (2026-03-08)
+**Tag:** v1.2.6-pre
+
+#### What changed
+- **Stable keystore** (`app/keystore.jks`) committed to repo. All builds now signed with the same key — APKs are installable as updates over previous v1.2.6-pre+ builds without uninstalling first.
+- **CI** now passes `-PversionName` from the git tag to Gradle so each APK embeds the correct version string.
+- **In-app update checker** added to Settings sheet:
+  - "Check for Updates" button — hits GitHub releases API, compares latest vs installed.
+  - "Include pre-releases" toggle (off by default, persisted in SharedPreferences).
+  - Inline "up to date" message or dialog showing installed vs available version with "Open GitHub Release" button.
+
+#### Files touched
+- `app/keystore.jks` (new)
+- `app/build.gradle.kts`
+- `.github/workflows/release.yml`
+- `data/UpdateRepository.kt` (new)
+- `ui/screens/AppListScreen.kt`
+
+---
+
+### [pre-release] — v1.2.5-pre — Replace broken Arihany JSON with WinlatorWCPHub releases (2026-03-08)
+**Tag:** v1.2.5-pre
+
+#### What changed
+- Replaced the failing `arihany/wcp-json` JSON endpoint with two entries from `Arihany/WinlatorWCPHub` GitHub releases.
+- **Arihany WCPHub** (`GITHUB_RELEASES_WCP`) → dxvk, vkd3d, box64, fex, fexcore. Covers DXVK (6 variants), VKD3D-Proton, FEXCore + nightly, BOX64-Bionic + nightly, WOWBOX64 + nightly, WINE.
+- **Arihany WCPHub (Turnip)** (`GITHUB_RELEASES_TURNIP`) → turnip, adreno.
+
+#### Files touched
+- `data/RemoteSourceRepository.kt`
+
+---
+
+### [pre-release] — v1.2.4-pre — Add StevenMXZ Adreno-Tools-Drivers + whitebelyash freedreno_turnip-CI sources (2026-03-08)
+**Tag:** v1.2.4-pre
+
+#### What changed
+- New `GITHUB_RELEASES_ZIP` source format: fetches all `.zip` assets from GitHub releases (no name filter).
+- Added **Adreno Tools Drivers (StevenMXZ)** — `StevenMXZ/Adreno-Tools-Drivers` via `GITHUB_RELEASES_ZIP`.
+- Added **freedreno Turnip CI (whitebelyash)** — `whitebelyash/freedreno_turnip-CI` via `GITHUB_RELEASES_TURNIP`.
+- Both sources scoped to `turnip`/`adreno` component types.
+
+#### Files touched
+- `data/RemoteSourceRepository.kt`
+
+---
+
+### [pre-release] — v1.2.3-pre — Fix NPE crash (LazyColumn snapshot race) in online sources wizard (2026-03-08)
+**Tag:** v1.2.3-pre
+
+#### What changed
+- Fixed NPE crash at RemoteSourceSheet.kt:219 (`items!!` in LazyColumn) caused by a Compose snapshot race condition.
+- The `items != null` when-branch condition evaluated as true, but LazyColumn's lazy content lambda ran after a concurrent state write set `items = null`.
+- Fix: replaced `items != null ->` with `else ->`, captured `items` into a local `val currentItems`, and use `return@Column` if it's null to exit cleanly.
+
+#### Files touched
+- `ui/screens/RemoteSourceSheet.kt`
+
+---
+
+### [pre-release] — v1.2.2-pre — Fix back-navigation crash in online sources wizard (2026-03-08)
+**Tag:** v1.2.2-pre
+
+#### What changed
+- Fixed crash/stuck-spinner when pressing Back during or after component-type selection in the online sources wizard.
+- Back button now cancels the active fetch job and resets `isLoading = false` immediately.
+- `selectedSource` is captured as a local val before launching the coroutine to avoid stale MutableState reads.
+- `items` is cleared to null before each new fetch begins.
+
+#### Files touched
+- `ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.2.1-pre — GameHub Lite Package Support (2026-03-08)
 **Tag:** v1.2.1-pre
 
