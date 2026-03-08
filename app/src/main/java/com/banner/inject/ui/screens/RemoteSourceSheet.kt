@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,8 +40,9 @@ fun RemoteSourceSheet(
     
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf("") }
-    
+
     val scope = rememberCoroutineScope()
+    var fetchJob by remember { mutableStateOf<Job?>(null) }
     
     // Fixed list of common component types users can select when source allows anything
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d")
@@ -59,10 +61,13 @@ fun RemoteSourceSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (selectedSource != null) {
                     IconButton(
-                        onClick = { 
+                        onClick = {
                             if (selectedType != null) {
+                                fetchJob?.cancel()
+                                fetchJob = null
                                 selectedType = null
                                 items = null
+                                isLoading = false
                                 errorMessage = null
                             } else if (selectedSource != null) {
                                 selectedSource = null
@@ -160,13 +165,16 @@ fun RemoteSourceSheet(
                     ) {
                         items(typesToShow) { type ->
                             Card(
-                                modifier = Modifier.fillMaxWidth().clickable { 
-                                    selectedType = type 
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    fetchJob?.cancel()
+                                    val source = selectedSource ?: return@clickable
+                                    selectedType = type
+                                    items = null
                                     isLoading = true
                                     errorMessage = null
-                                    scope.launch {
+                                    fetchJob = scope.launch {
                                         try {
-                                            val fetched = repo.fetchFromSource(selectedSource!!, type)
+                                            val fetched = repo.fetchFromSource(source, type)
                                             items = fetched
                                             if (fetched.isEmpty()) {
                                                 errorMessage = "No components found for $type in this repository."
