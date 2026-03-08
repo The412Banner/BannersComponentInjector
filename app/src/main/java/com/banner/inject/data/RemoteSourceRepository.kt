@@ -27,7 +27,8 @@ class RemoteSourceRepository(private val context: Context) {
     enum class SourceFormat {
         WCP_JSON,
         GITHUB_RELEASES_TURNIP,
-        GITHUB_RELEASES_WCP
+        GITHUB_RELEASES_WCP,
+        GITHUB_RELEASES_ZIP   // All .zip assets from each release, no name filter
     }
 
     // Default built-in sources mapped strictly to the components they provide
@@ -35,7 +36,9 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
         RemoteSource("Arihany", "https://raw.githubusercontent.com/arihany/wcp-json/main/wcp.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
         RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
-        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno"))
+        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
+        RemoteSource("Adreno Tools Drivers (StevenMXZ)", "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")),
+        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno"))
     )
 
     suspend fun fetchFromSource(
@@ -46,6 +49,7 @@ class RemoteSourceRepository(private val context: Context) {
             SourceFormat.WCP_JSON -> fetchWcpJson(source.url, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(source.url, source.name)
             SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(source.url, componentType, source.name)
+            SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(source.url, source.name)
         }
     }
 
@@ -125,6 +129,33 @@ class RemoteSourceRepository(private val context: Context) {
                         )
                     )
                 }
+            }
+        }
+        result
+    }
+
+    private suspend fun fetchGithubReleasesZip(url: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val array = JSONArray(json)
+        val result = mutableListOf<RemoteItem>()
+        for (i in 0 until array.length()) {
+            val release = array.getJSONObject(i)
+            val releaseName = release.getString("name").trim()
+            val assets = release.getJSONArray("assets")
+            val zipAssets = (0 until assets.length())
+                .map { assets.getJSONObject(it) }
+                .filter { it.getString("name").endsWith(".zip", ignoreCase = true) }
+            for (asset in zipAssets) {
+                val assetName = asset.getString("name")
+                val displayName = if (zipAssets.size > 1) "$releaseName — ${assetName.removeSuffix(".zip")}" else releaseName
+                result.add(
+                    RemoteItem(
+                        displayName = displayName,
+                        versionName = assetName.removeSuffix(".zip"),
+                        downloadUrl = asset.getString("browser_download_url"),
+                        sourceName = sourceName
+                    )
+                )
             }
         }
         result
