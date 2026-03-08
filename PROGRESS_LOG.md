@@ -2,93 +2,21 @@
 
 ---
 
-### [pre-release] — v1.3.6-pre — Default Tab Selection & Settings Reorganization (2026-03-08)
-**Tag:** v1.3.6-pre
+### [release] — v1.4.0 — Global Navigation & Custom Repositories (2026-03-08)
+**Tag:** v1.4.0
 
 #### What changed
-- **Default Start Tab**: Added a new "General" section to the app settings menu containing a segmented button control. Users can now choose whether the app opens to the "Inject Components" or "Download Components" tab by default upon launch. This preference is saved to SharedPreferences.
-- **Settings Reorganization**: To reduce clutter on the main Settings page, the "Appearance" (Theme & Accent Color) options have been moved into their own dedicated sub-menu. Tapping "Appearance" now opens a child page with a back arrow to return to the main settings.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/MainActivity.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/SettingsSheet.kt`
+- Official stable release promoting all v1.3.1-pre through v1.3.6-pre features.
+- **Global Tab Navigation**: Transformed the primary UX by introducing a `TabRow` at the top of the app toolbar present at all times. Users can easily switch between "Inject Components" (the existing flow) and the new "Download Components" tab.
+- **Dedicated Download Screen**: Replicated the remote sources drill-down wizard as a permanent, full-screen UI. Users can browse online repositories, select component types, and directly download `.wcp` or `.zip` files to their device's Downloads folder for later use.
+- **Custom Repositories**: Users can now add their own custom online repositories directly within the app.
+- **Smart Auto-Detection**: Removed the confusing "Format" dropdown when adding a repo. The app now automatically fetches the URL in the background, inspects its JSON, and intelligently detects if it's a `WCP_JSON`, `GITHUB_RELEASES_WCP`, `GITHUB_RELEASES_TURNIP`, or standard `GITHUB_RELEASES_ZIP`. Automatically converts standard GitHub release links into proper API endpoints.
+- **Universal Deletion**: Users can remove *any* repository from their list, including the built-in defaults (e.g., Arihany, StevenMXZ). Includes a safety confirmation dialog to prevent accidental deletions.
+- **Restore Defaults**: Added a "Restore Default Repositories" button to easily recover the original built-in sources.
+- **Default Start Tab Setting**: Added a "General" section to settings to choose whether the app opens to the "Inject Components" or "Download Components" tab by default upon launch.
+- **Settings Reorganization**: Appearance options (Theme & Accent Color) have been moved into a dedicated sub-menu within Settings to reduce clutter.
 
 ---
-
-### [pre-release] — v1.3.5-pre — Repository Deletion Confirmation (2026-03-08)
-**Tag:** v1.3.5-pre
-
-#### What changed
-- **Deletion Confirmation**: Added a safety `AlertDialog` that pops up when a user taps the trash can icon next to any repository (custom or default). It prompts the user with "Are you sure you want to remove '[Repo Name]' from your list?" to prevent accidental deletions.
-- **State Management**: Introduced `sourceToDelete` state variable in both `DownloadScreen` and `RemoteSourceSheet` to handle the delayed deletion flow upon user confirmation.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
-
----
-
-### [pre-release] — v1.3.4-pre — Universal Repository Removal (2026-03-08)
-**Tag:** v1.3.4-pre
-
-#### What changed
-- **Universal Deletion**: Users can now remove *any* repository from their list, including the built-in default repositories (like Arihany or StevenMXZ), not just custom ones they added themselves. This allows for complete customization of the repository list.
-- **Removed Defaults Persistence**: The removal of default sources is saved to `SharedPreferences` so the app remembers the user's preference across restarts.
-- **Restore Defaults**: Added a convenient "Restore Default Repositories" button at the bottom of the repository list to easily recover the original built-in sources if needed.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
-
----
-
-### [pre-release] — v1.3.3-pre — Smart Custom Repository Auto-Detection (2026-03-08)
-**Tag:** v1.3.3-pre
-
-#### What changed
-- **Automatic Format Detection**: Removed the confusing "Format" dropdown from the Add Custom Repository dialog. The app now automatically fetches the repository URL in the background, inspects its JSON content, and smartly detects if it's a `WCP_JSON`, `GITHUB_RELEASES_WCP`, `GITHUB_RELEASES_TURNIP`, or standard `GITHUB_RELEASES_ZIP`.
-- **Smart URL Conversion**: Users can now copy/paste standard GitHub release page URLs (e.g., `https://github.com/user/repo/releases`). The app automatically sanitizes and converts them into the correct API endpoints (`https://api.github.com/repos/user/repo/releases`).
-- **Loading UI**: Added a loading spinner with a "Detecting repository format..." indicator during the brief detection phase.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt`
-
----
-
-### [pre-release] — v1.3.2-pre — Custom Repository Management (2026-03-08)
-**Tag:** v1.3.2-pre
-
-#### What changed
-- **Custom Repositories**: Users can now add their own custom online repositories directly within the app on both the "Download Components" screen and the "Select Online Source" injection sheet.
-- **Repository Dialog**: Added an `AddRepoDialog` that allows users to input a custom repository name, URL, and select the source format (`WCP_JSON`, `GITHUB_RELEASES_WCP`, `GITHUB_RELEASES_TURNIP`, etc.).
-- **State Persistence**: Custom repositories are securely saved to `SharedPreferences` (`remote_sources_prefs`) via `RemoteSourceRepository` so they persist across app restarts.
-- **Deletion Support**: Custom repositories can be easily removed directly from the list using a dedicated delete icon button.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt` (new)
-- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
-
----
-
-### [pre-release] — v1.3.1-pre — Top-Level Tab Navigation & Dedicated Download Screen (2026-03-08)
-**Tag:** v1.3.1-pre
-
-#### What changed
-- **Global Tab Navigation**: Transformed the primary UX by introducing a `TabRow` at the top of the app toolbar present at all times. Users can now easily switch between "Inject Components" (the existing flow) and the new "Download Components" tab.
-- **Dedicated Download Components Screen**: Replicated the remote sources drill-down wizard as a permanent, full-screen UI (`DownloadScreen.kt`). Users can browse online repositories, select component types, and directly download `.wcp` or `.zip` files to their device's `Downloads/BannersComponentInjector/Downloads/` folder for later use.
-- Architectural Refactor: Modified `MainActivity.kt`, `AppListScreen.kt`, and `HomeScreen.kt` to share a common `MainTabRow` component while maintaining their specific contextual Top App Bar actions.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/MainActivity.kt`
-- `app/src/main/java/com/banner/inject/model/Models.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
-- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt` (new)
-- `app/src/main/java/com/banner/inject/ui/screens/MainTabRow.kt` (new)
-
 
 ### [release] — v1.3.0 — Full-Screen Settings, In-App Updates, Color Wheel & More (2026-03-08)
 **Tag:** v1.3.0
