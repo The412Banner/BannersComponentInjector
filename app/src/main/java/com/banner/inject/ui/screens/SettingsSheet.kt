@@ -7,6 +7,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,9 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.ui.input.pointer.awaitFirstDown
-import androidx.compose.ui.input.pointer.awaitPointerEvent
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -172,9 +172,7 @@ fun SettingsSheet(
                         Spacer(Modifier.height(12.dp))
                         HsvColorWheelPicker(
                             color = accentColor,
-                            onColorChanged = { color ->
-                                onAccentColorChanged(color)
-                            },
+                            onColorChanged = { color -> onAccentColorChanged(color) },
                             onApply = { color ->
                                 onAccentColorChanged(color)
                                 ThemePrefs.save(context, color)
@@ -353,29 +351,36 @@ private fun HsvColorWheelPicker(
     onApply: (Color) -> Unit
 ) {
     val context = LocalContext.current
-    val hsv = remember { FloatArray(3) }
-    var hue by remember { mutableStateOf(0f) }
-    var sat by remember { mutableStateOf(0f) }
-    var bri by remember { mutableStateOf(1f) }
 
-    // Sync from external color changes (e.g., preset swatch clicked)
+    // Use explicit MutableState objects to avoid delegate-capture issues in lambdas
+    val hueState = remember { mutableStateOf(0f) }
+    val satState = remember { mutableStateOf(0f) }
+    val briState = remember { mutableStateOf(1f) }
+
+    // Sync wheel state when an external color change arrives (e.g., preset swatch clicked)
     LaunchedEffect(color) {
+        val hsv = FloatArray(3)
         android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-        hue = hsv[0]; sat = hsv[1]; bri = hsv[2]
+        hueState.value = hsv[0]
+        satState.value = hsv[1]
+        briState.value = hsv[2]
     }
 
-    fun colorFromHsv(): Color = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, bri)))
+    fun colorFromHsv(): Color = Color(
+        android.graphics.Color.HSVToColor(floatArrayOf(hueState.value, satState.value, briState.value))
+    )
 
     val density = LocalDensity.current
     val wheelDp = 240.dp
     val wheelPx = with(density) { wheelDp.toPx() }
 
     fun updateFromOffset(offset: Offset) {
-        val cx = wheelPx / 2f; val cy = wheelPx / 2f
-        val dx = offset.x - cx; val dy = offset.y - cy
-        val dist = sqrt(dx * dx + dy * dy)
-        hue = ((atan2(dy, dx) * 180f / PI.toFloat()) + 360f) % 360f
-        sat = (dist / (wheelPx / 2f)).coerceIn(0f, 1f)
+        val cx = wheelPx / 2f
+        val cy = wheelPx / 2f
+        val dx = offset.x - cx
+        val dy = offset.y - cy
+        hueState.value = ((atan2(dy, dx) * 180f / PI.toFloat()) + 360f) % 360f
+        satState.value = (sqrt(dx * dx + dy * dy) / (wheelPx / 2f)).coerceIn(0f, 1f)
         onColorChanged(colorFromHsv())
     }
 
@@ -387,29 +392,30 @@ private fun HsvColorWheelPicker(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // HSV color wheel
+        // HSV color wheel disc
         Canvas(
             modifier = Modifier
                 .size(wheelDp)
+                // Tap to pick color
                 .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        updateFromOffset(down.position)
-                        var stillDown = true
-                        while (stillDown) {
-                            val event = awaitPointerEvent()
-                            event.changes.forEach { change ->
-                                if (change.positionChanged()) {
-                                    updateFromOffset(change.position)
-                                    change.consume()
-                                }
-                            }
-                            if (event.changes.none { it.pressed }) {
-                                stillDown = false
-                                ThemePrefs.save(context, colorFromHsv())
-                            }
-                        }
+                    detectTapGestures { offset ->
+                        updateFromOffset(offset)
+                        ThemePrefs.save(context, colorFromHsv())
+                        hexInput = colorFromHsv().toHex()
                     }
+                }
+                // Drag to pick color continuously
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { offset -> updateFromOffset(offset) },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            updateFromOffset(change.position)
+                            hexInput = colorFromHsv().toHex()
+                        },
+                        onDragEnd = { ThemePrefs.save(context, colorFromHsv()) },
+                        onDragCancel = { ThemePrefs.save(context, colorFromHsv()) }
+                    )
                 }
         ) {
             val radius = size.minDimension / 2f
@@ -419,7 +425,8 @@ private fun HsvColorWheelPicker(
             drawIntoCanvas { canvas ->
                 val nc = canvas.nativeCanvas
 
-                // Hue sweep gradient (clockwise from right: red→yellow→green→cyan→blue→magenta→red)
+                // Hue: SweepGradient clockwise from right
+                // 0° = Red, 60° = Yellow, 120° = Green, 180° = Cyan, 240° = Blue, 300° = Magenta
                 val sweepPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                     shader = android.graphics.SweepGradient(
                         cx, cy,
@@ -432,7 +439,7 @@ private fun HsvColorWheelPicker(
                 }
                 nc.drawCircle(cx, cy, radius, sweepPaint)
 
-                // White radial gradient: white at center → transparent at edge (saturation axis)
+                // Saturation: white center fading to transparent at edge
                 val satPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                     shader = android.graphics.RadialGradient(
                         cx, cy, radius,
@@ -442,16 +449,18 @@ private fun HsvColorWheelPicker(
                 }
                 nc.drawCircle(cx, cy, radius, satPaint)
 
-                // Black overlay for brightness (value)
+                // Brightness: black overlay controlled by value slider
                 val darkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = android.graphics.Color.argb(((1f - bri) * 255).toInt(), 0, 0, 0)
+                    color = android.graphics.Color.argb(
+                        ((1f - briState.value) * 255).toInt(), 0, 0, 0
+                    )
                 }
                 nc.drawCircle(cx, cy, radius, darkPaint)
             }
 
-            // Thumb indicator
-            val angle = hue * (PI.toFloat() / 180f)
-            val thumbDist = sat * (size.minDimension / 2f)
+            // Thumb indicator at current hue/saturation position
+            val angle = hueState.value * (PI.toFloat() / 180f)
+            val thumbDist = satState.value * (size.minDimension / 2f)
             val tx = size.width / 2f + thumbDist * cos(angle)
             val ty = size.height / 2f + thumbDist * sin(angle)
             drawCircle(Color.White, 12.dp.toPx(), Offset(tx, ty))
@@ -465,10 +474,19 @@ private fun HsvColorWheelPicker(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Brightness", fontSize = 12.sp, modifier = Modifier.width(72.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Brightness",
+                fontSize = 12.sp,
+                modifier = Modifier.width(72.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Slider(
-                value = bri,
-                onValueChange = { bri = it; hexInput = colorFromHsv().toHex(); onColorChanged(colorFromHsv()) },
+                value = briState.value,
+                onValueChange = { v ->
+                    briState.value = v
+                    hexInput = colorFromHsv().toHex()
+                    onColorChanged(colorFromHsv())
+                },
                 onValueChangeFinished = { ThemePrefs.save(context, colorFromHsv()) },
                 modifier = Modifier.weight(1f)
             )
