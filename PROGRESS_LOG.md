@@ -2,6 +2,27 @@
 
 ---
 
+### [pre-release] — v1.2.9-pre — Full-screen Settings + in-app update downloader (2026-03-08)
+**Tag:** v1.2.9-pre
+
+#### What changed
+- **Full-screen Settings**: replaced `ModalBottomSheet` with a full-screen `Scaffold` + `LazyColumn`. All sections (About, Appearance, Prompts, Updates, utilities) are scrollable and never cut off. Back arrow + device back button dismiss. `BackHandler` intercepts device back.
+- **In-app update download**: when an update is available, user can now tap "Download & Install" to stream the APK directly into the app's cache dir, with a live `LinearProgressIndicator` + percentage. On completion, `FileProvider` + `ACTION_VIEW` hands it to the system installer — no browser needed.
+- "View on GitHub" remains as an outlined button alongside Download & Install.
+- Download is cancellable mid-stream; pressing Cancel returns to the "Update available" state (restores `UpdateState.Available`).
+- `UpdateState.Downloading(progress, release)` added; `UpdateState.Available` now shows inline card with buttons instead of an AlertDialog.
+- `UpdateRepository` gains `downloadApk()` (streams with `ensureActive()` for cancellation) and `installApk()` (FileProvider intent).
+- `AndroidManifest.xml`: added `REQUEST_INSTALL_PACKAGES` permission + `FileProvider` provider declaration.
+- `res/xml/file_paths.xml` (new): exposes `<cache-path>` for FileProvider.
+
+#### Files touched
+- `ui/screens/SettingsSheet.kt`
+- `data/UpdateRepository.kt`
+- `AndroidManifest.xml`
+- `res/xml/file_paths.xml` (new)
+
+---
+
 ### [pre-release] — v1.2.8-pre-3 — Don't-ask-again backup warning + HSV color wheel (2026-03-08)
 **Tag:** v1.2.8-pre-3
 
