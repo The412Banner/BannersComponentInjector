@@ -3,6 +3,7 @@ package com.banner.inject.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,8 +18,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -27,6 +37,11 @@ import androidx.compose.ui.unit.sp
 import com.banner.inject.data.UpdateRepository
 import com.banner.inject.ui.theme.ThemePrefs
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 sealed class UpdateState {
     object Idle : UpdateState()
@@ -67,17 +82,17 @@ fun SettingsSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
-    val keyboard = LocalSoftwareKeyboardController.current
 
     var includePreReleases by remember {
         mutableStateOf(prefs.getBoolean("update_include_pre", false))
     }
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+    var warnBeforeReplace by remember {
+        mutableStateOf(!prefs.getBoolean("skip_backup_warning", false))
+    }
 
     val isCustom = ThemePrefs.PRESETS.none { it.second == accentColor }
     var showCustomInput by remember(isCustom) { mutableStateOf(isCustom) }
-    var hexInput by remember(accentColor) { mutableStateOf(accentColor.toHex()) }
-    var hexError by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -147,55 +162,50 @@ fun SettingsSheet(
                             label = "Custom",
                             onClick = { showCustomInput = !showCustomInput }
                         )
-                        // spacers to keep alignment with rows above (4-column grid)
                         repeat(3) { Spacer(Modifier.width(56.dp)) }
                     }
 
-                    // Custom hex input
+                    // Custom color wheel picker
                     if (showCustomInput) {
                         Spacer(Modifier.height(12.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = hexInput,
-                            onValueChange = { hexInput = it; hexError = false },
-                            label = { Text("Hex color") },
-                            placeholder = { Text("#FF6D00") },
-                            singleLine = true,
-                            isError = hexError,
-                            supportingText = if (hexError) {{ Text("Enter a valid 6-digit hex e.g. #FF6D00") }} else null,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),
-                            modifier = Modifier.fillMaxWidth(),
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(parseHex(hexInput) ?: accentColor)
-                                )
+                        HsvColorWheelPicker(
+                            color = accentColor,
+                            onColorChanged = { color ->
+                                onAccentColorChanged(color)
+                            },
+                            onApply = { color ->
+                                onAccentColorChanged(color)
+                                ThemePrefs.save(context, color)
                             }
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                val color = parseHex(hexInput)
-                                if (color != null) {
-                                    onAccentColorChanged(color)
-                                    ThemePrefs.save(context, color)
-                                    hexError = false
-                                    keyboard?.hide()
-                                } else {
-                                    hexError = true
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Palette, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Apply Custom Color")
-                        }
                     }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Prompts ────────────────────────────────────────────────────
+            Text("Prompts", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Backup warning", fontSize = 14.sp)
+                        Text("Warn before replacing without a backup", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = warnBeforeReplace,
+                        onCheckedChange = {
+                            warnBeforeReplace = it
+                            prefs.edit().putBoolean("skip_backup_warning", !it).apply()
+                        }
+                    )
                 }
             }
 
@@ -333,6 +343,178 @@ fun SettingsSheet(
                 TextButton(onClick = { updateState = UpdateState.Idle }) { Text("Later") }
             }
         )
+    }
+}
+
+@Composable
+private fun HsvColorWheelPicker(
+    color: Color,
+    onColorChanged: (Color) -> Unit,
+    onApply: (Color) -> Unit
+) {
+    val context = LocalContext.current
+    val hsv = remember { FloatArray(3) }
+    var hue by remember { mutableStateOf(0f) }
+    var sat by remember { mutableStateOf(0f) }
+    var bri by remember { mutableStateOf(1f) }
+
+    // Sync from external color changes (e.g., preset swatch clicked)
+    LaunchedEffect(color) {
+        android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+        hue = hsv[0]; sat = hsv[1]; bri = hsv[2]
+    }
+
+    fun colorFromHsv(): Color = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, bri)))
+
+    val density = LocalDensity.current
+    val wheelDp = 240.dp
+    val wheelPx = with(density) { wheelDp.toPx() }
+
+    fun updateFromOffset(offset: Offset) {
+        val cx = wheelPx / 2f; val cy = wheelPx / 2f
+        val dx = offset.x - cx; val dy = offset.y - cy
+        val dist = sqrt(dx * dx + dy * dy)
+        hue = ((atan2(dy, dx) * 180f / PI.toFloat()) + 360f) % 360f
+        sat = (dist / (wheelPx / 2f)).coerceIn(0f, 1f)
+        onColorChanged(colorFromHsv())
+    }
+
+    var hexInput by remember(color) { mutableStateOf(color.toHex()) }
+    var hexError by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // HSV color wheel
+        Canvas(
+            modifier = Modifier
+                .size(wheelDp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        updateFromOffset(down.position)
+                        var stillDown = true
+                        while (stillDown) {
+                            val event = awaitPointerEvent()
+                            event.changes.forEach { change ->
+                                if (change.positionChanged()) {
+                                    updateFromOffset(change.position)
+                                    change.consume()
+                                }
+                            }
+                            if (event.changes.none { it.pressed }) {
+                                stillDown = false
+                                ThemePrefs.save(context, colorFromHsv())
+                            }
+                        }
+                    }
+                }
+        ) {
+            val radius = size.minDimension / 2f
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+
+            drawIntoCanvas { canvas ->
+                val nc = canvas.nativeCanvas
+
+                // Hue sweep gradient (clockwise from right: red→yellow→green→cyan→blue→magenta→red)
+                val sweepPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = android.graphics.SweepGradient(
+                        cx, cy,
+                        intArrayOf(
+                            0xFFFF0000.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(),
+                            0xFF00FFFF.toInt(), 0xFF0000FF.toInt(), 0xFFFF00FF.toInt(),
+                            0xFFFF0000.toInt()
+                        ), null
+                    )
+                }
+                nc.drawCircle(cx, cy, radius, sweepPaint)
+
+                // White radial gradient: white at center → transparent at edge (saturation axis)
+                val satPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = android.graphics.RadialGradient(
+                        cx, cy, radius,
+                        intArrayOf(0xFFFFFFFF.toInt(), 0x00FFFFFF), null,
+                        android.graphics.Shader.TileMode.CLAMP
+                    )
+                }
+                nc.drawCircle(cx, cy, radius, satPaint)
+
+                // Black overlay for brightness (value)
+                val darkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.argb(((1f - bri) * 255).toInt(), 0, 0, 0)
+                }
+                nc.drawCircle(cx, cy, radius, darkPaint)
+            }
+
+            // Thumb indicator
+            val angle = hue * (PI.toFloat() / 180f)
+            val thumbDist = sat * (size.minDimension / 2f)
+            val tx = size.width / 2f + thumbDist * cos(angle)
+            val ty = size.height / 2f + thumbDist * sin(angle)
+            drawCircle(Color.White, 12.dp.toPx(), Offset(tx, ty))
+            drawCircle(Color.Black, 12.dp.toPx(), Offset(tx, ty), style = Stroke(2.dp.toPx()))
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Brightness slider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Brightness", fontSize = 12.sp, modifier = Modifier.width(72.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Slider(
+                value = bri,
+                onValueChange = { bri = it; hexInput = colorFromHsv().toHex(); onColorChanged(colorFromHsv()) },
+                onValueChangeFinished = { ThemePrefs.save(context, colorFromHsv()) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // Hex input (secondary)
+        OutlinedTextField(
+            value = hexInput,
+            onValueChange = { hexInput = it; hexError = false },
+            label = { Text("Hex color") },
+            placeholder = { Text("#FF6D00") },
+            singleLine = true,
+            isError = hexError,
+            supportingText = if (hexError) {{ Text("Enter a valid 6-digit hex e.g. #FF6D00") }} else null,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),
+            modifier = Modifier.fillMaxWidth(),
+            leadingIcon = {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(parseHex(hexInput) ?: color)
+                )
+            }
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val c = parseHex(hexInput)
+                if (c != null) {
+                    onApply(c)
+                    hexError = false
+                    keyboard?.hide()
+                } else {
+                    hexError = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Palette, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Apply Custom Color")
+        }
     }
 }
 

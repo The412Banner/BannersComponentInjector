@@ -1,5 +1,6 @@
 package com.banner.inject.ui.screens
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,8 +37,11 @@ fun ComponentDetailSheet(
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showDeleteBackupConfirm by remember { mutableStateOf(false) }
     var showRemoteSourceSheet by remember { mutableStateOf(false) }
+    var dontAskAgain by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
+    val skipWarning = remember { prefs.getBoolean("skip_backup_warning", false) }
     val remoteRepo = remember { RemoteSourceRepository(context) }
 
     val wcpPicker = rememberLauncherForActivityResult(
@@ -47,7 +51,7 @@ fun ComponentDetailSheet(
     }
 
     fun onReplaceRequested(isRemote: Boolean) {
-        if (!component.hasBackup) {
+        if (!component.hasBackup && !skipWarning) {
             pendingReplaceIsRemote = isRemote
             showNoBackupWarning = true
         } else {
@@ -224,13 +228,31 @@ fun ComponentDetailSheet(
     // No backup warning
     if (showNoBackupWarning) {
         AlertDialog(
-            onDismissRequest = { showNoBackupWarning = false },
+            onDismissRequest = { showNoBackupWarning = false; dontAskAgain = false },
             icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text("No Backup Found") },
-            text = { Text("You haven't backed up ${component.folderName} yet. If you replace it now you won't be able to restore the originals.") },
+            text = {
+                Column {
+                    Text("You haven't backed up ${component.folderName} yet. If you replace it now you won't be able to restore the originals.")
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = dontAskAgain,
+                            onCheckedChange = { dontAskAgain = it }
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Don't ask again", fontSize = 13.sp)
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
+                    if (dontAskAgain) prefs.edit().putBoolean("skip_backup_warning", true).apply()
                     showNoBackupWarning = false
+                    dontAskAgain = false
                     if (pendingReplaceIsRemote == true) {
                         showRemoteSourceSheet = true
                     } else {
@@ -240,8 +262,9 @@ fun ComponentDetailSheet(
                 }) { Text("Replace Anyway", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { 
+                TextButton(onClick = {
                     showNoBackupWarning = false
+                    dontAskAgain = false
                     pendingReplaceIsRemote = null
                 }) { Text("Cancel") }
             }
