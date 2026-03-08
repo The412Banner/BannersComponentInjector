@@ -51,6 +51,7 @@ fun DownloadScreen(
     var fetchJob by remember { mutableStateOf<Job?>(null) }
     
     var showAddRepoDialog by remember { mutableStateOf(false) }
+    var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
 
@@ -193,10 +194,7 @@ fun DownloadScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                     IconButton(
-                                        onClick = {
-                                            repo.removeSource(source)
-                                            sources = repo.getAllSources()
-                                        },
+                                        onClick = { sourceToDelete = source },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
@@ -343,6 +341,30 @@ fun DownloadScreen(
                 repo.addCustomSource(customSource)
                 sources = repo.getAllSources()
                 showAddRepoDialog = false
+            }
+        )
+    }
+
+    sourceToDelete?.let { source ->
+        AlertDialog(
+            onDismissRequest = { sourceToDelete = null },
+            title = { Text("Remove Repository") },
+            text = { Text("Are you sure you want to remove '${source.name}' from your list?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        repo.removeSource(source)
+                        sources = repo.getAllSources()
+                        sourceToDelete = null
+                    }
+                ) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sourceToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }

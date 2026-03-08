@@ -2,6 +2,19 @@
 
 ---
 
+### [pre-release] — v1.3.5-pre — Repository Deletion Confirmation (2026-03-08)
+**Tag:** v1.3.5-pre
+
+#### What changed
+- **Deletion Confirmation**: Added a safety `AlertDialog` that pops up when a user taps the trash can icon next to any repository (custom or default). It prompts the user with "Are you sure you want to remove '[Repo Name]' from your list?" to prevent accidental deletions.
+- **State Management**: Introduced `sourceToDelete` state variable in both `DownloadScreen` and `RemoteSourceSheet` to handle the delayed deletion flow upon user confirmation.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.3.4-pre — Universal Repository Removal (2026-03-08)
 **Tag:** v1.3.4-pre
 
