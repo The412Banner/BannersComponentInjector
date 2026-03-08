@@ -42,7 +42,13 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ -z "$TAG" ] || [ "$TAG" = "refs/heads/main" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          VERSION="${TAG#v}"
+          ./gradlew assembleDebug -PversionName="$VERSION"
 
       - name: Rename APK
         run: |

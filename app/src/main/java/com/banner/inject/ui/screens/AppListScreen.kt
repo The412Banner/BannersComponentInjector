@@ -1,5 +1,6 @@
 package com.banner.inject.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.BackupManager
+import com.banner.inject.data.UpdateRepository
 import com.banner.inject.model.GameHubApp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -185,10 +188,26 @@ fun AppListScreen(
     }
 }
 
+private sealed class UpdateState {
+    object Idle : UpdateState()
+    object Checking : UpdateState()
+    data class Available(val release: UpdateRepository.ReleaseInfo) : UpdateState()
+    object UpToDate : UpdateState()
+    data class Error(val message: String) : UpdateState()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit, onOpenBackupManager: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
+
+    var includePreReleases by remember {
+        mutableStateOf(prefs.getBoolean("update_include_pre", false))
+    }
+    var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -210,6 +229,7 @@ private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit, onOpenBacku
             }
             Spacer(Modifier.height(24.dp))
 
+            // ── About ──────────────────────────────────────────────────────
             Text(
                 "About",
                 fontSize = 12.sp,
@@ -232,6 +252,122 @@ private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit, onOpenBacku
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Updates ────────────────────────────────────────────────────
+            Text(
+                "Updates",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Include pre-releases", fontSize = 14.sp)
+                            Text(
+                                "Check for pre-release updates too",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = includePreReleases,
+                            onCheckedChange = {
+                                includePreReleases = it
+                                prefs.edit().putBoolean("update_include_pre", it).apply()
+                                updateState = UpdateState.Idle
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            updateState = UpdateState.Checking
+                            scope.launch {
+                                updateState = try {
+                                    val latest = UpdateRepository.fetchLatestRelease(includePreReleases)
+                                    if (latest == null) {
+                                        UpdateState.Error("No releases found.")
+                                    } else if (latest.versionName == appVersion) {
+                                        UpdateState.UpToDate
+                                    } else {
+                                        UpdateState.Available(latest)
+                                    }
+                                } catch (e: Exception) {
+                                    UpdateState.Error(e.message ?: "Unknown error")
+                                }
+                            }
+                        },
+                        enabled = updateState !is UpdateState.Checking,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        if (updateState is UpdateState.Checking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Checking...")
+                        } else {
+                            Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Check for Updates")
+                        }
+                    }
+                    when (val state = updateState) {
+                        is UpdateState.UpToDate -> {
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "You're up to date (v$appVersion)",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        is UpdateState.Error -> {
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    state.message,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        else -> {}
                     }
                 }
             }
@@ -259,6 +395,67 @@ private fun SettingsSheet(appVersion: String, onDismiss: () -> Unit, onOpenBacku
                 Text("Open Downloads Folder")
             }
         }
+    }
+
+    // Update available dialog
+    val state = updateState
+    if (state is UpdateState.Available) {
+        AlertDialog(
+            onDismissRequest = { updateState = UpdateState.Idle },
+            icon = {
+                Icon(
+                    Icons.Default.SystemUpdate, null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Update Available") },
+            text = {
+                Column {
+                    Text("A new version is available:")
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.background,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Installed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("v$appVersion", fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Available", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    state.release.tagName + if (state.release.isPreRelease) " (pre-release)" else "",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(state.release.htmlUrl))
+                        )
+                    }
+                    updateState = UpdateState.Idle
+                }) { Text("Open GitHub Release") }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateState = UpdateState.Idle }) { Text("Later") }
+            }
+        )
     }
 }
 

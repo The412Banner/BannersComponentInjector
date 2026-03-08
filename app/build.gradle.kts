@@ -8,17 +8,30 @@ android {
     namespace = "com.banner.inject"
     compileSdk = 34
 
+    signingConfigs {
+        create("stable") {
+            storeFile = file("keystore.jks")
+            storePassword = "bci_keystore"
+            keyAlias = "bci"
+            keyPassword = "bci_keystore"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.banner.inject"
         minSdk = 29
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = (project.findProperty("versionName") as String?) ?: "1.2.5"
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stable")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stable")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -34,6 +47,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
