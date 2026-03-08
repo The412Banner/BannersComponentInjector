@@ -48,7 +48,31 @@ class RemoteSourceRepository(private val context: Context) {
     )
 
     fun getAllSources(): List<RemoteSource> {
-        return defaultSources + getCustomSources()
+        val removedDefaults = getRemovedDefaultSources()
+        val filteredDefaults = defaultSources.filter { it.name !in removedDefaults }
+        return filteredDefaults + getCustomSources()
+    }
+
+    private fun getRemovedDefaultSources(): List<String> {
+        val jsonStr = prefs.getString("removed_defaults", "[]") ?: "[]"
+        val removed = mutableListOf<String>()
+        try {
+            val array = JSONArray(jsonStr)
+            for (i in 0 until array.length()) {
+                removed.add(array.getString(i))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return removed
+    }
+
+    private fun saveRemovedDefaultSources(removed: List<String>) {
+        val array = JSONArray()
+        for (name in removed) {
+            array.put(name)
+        }
+        prefs.edit().putString("removed_defaults", array.toString()).apply()
     }
 
     private fun getCustomSources(): List<RemoteSource> {
@@ -94,10 +118,22 @@ class RemoteSourceRepository(private val context: Context) {
         saveCustomSources(current)
     }
 
-    fun removeCustomSource(source: RemoteSource) {
-        val current = getCustomSources().toMutableList()
-        current.removeAll { it.name == source.name && it.url == source.url }
-        saveCustomSources(current)
+    fun removeSource(source: RemoteSource) {
+        if (source.isCustom) {
+            val current = getCustomSources().toMutableList()
+            current.removeAll { it.name == source.name && it.url == source.url }
+            saveCustomSources(current)
+        } else {
+            val removed = getRemovedDefaultSources().toMutableList()
+            if (!removed.contains(source.name)) {
+                removed.add(source.name)
+                saveRemovedDefaultSources(removed)
+            }
+        }
+    }
+
+    fun restoreDefaultSources() {
+        prefs.edit().remove("removed_defaults").apply()
     }
 
     private fun saveCustomSources(sources: List<RemoteSource>) {

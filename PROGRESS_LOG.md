@@ -2,6 +2,21 @@
 
 ---
 
+### [pre-release] — v1.3.4-pre — Universal Repository Removal (2026-03-08)
+**Tag:** v1.3.4-pre
+
+#### What changed
+- **Universal Deletion**: Users can now remove *any* repository from their list, including the built-in default repositories (like Arihany or StevenMXZ), not just custom ones they added themselves. This allows for complete customization of the repository list.
+- **Removed Defaults Persistence**: The removal of default sources is saved to `SharedPreferences` so the app remembers the user's preference across restarts.
+- **Restore Defaults**: Added a convenient "Restore Default Repositories" button at the bottom of the repository list to easily recover the original built-in sources if needed.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.3.3-pre — Smart Custom Repository Auto-Detection (2026-03-08)
 **Tag:** v1.3.3-pre
 

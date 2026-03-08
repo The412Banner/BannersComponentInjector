@@ -192,18 +192,28 @@ fun DownloadScreen(
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    if (source.isCustom) {
-                                        IconButton(
-                                            onClick = {
-                                                repo.removeCustomSource(source)
-                                                sources = repo.getAllSources()
-                                            },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                                        }
+                                    IconButton(
+                                        onClick = {
+                                            repo.removeSource(source)
+                                            sources = repo.getAllSources()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
+                            }
+                        }
+                        
+                        item {
+                            TextButton(
+                                onClick = {
+                                    repo.restoreDefaultSources()
+                                    sources = repo.getAllSources()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Restore Default Repositories")
                             }
                         }
                     }
