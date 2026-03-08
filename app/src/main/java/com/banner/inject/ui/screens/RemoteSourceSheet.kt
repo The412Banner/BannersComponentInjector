@@ -23,6 +23,9 @@ import com.banner.inject.model.ComponentEntry
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteSourceSheet(
@@ -43,6 +46,9 @@ fun RemoteSourceSheet(
 
     val scope = rememberCoroutineScope()
     var fetchJob by remember { mutableStateOf<Job?>(null) }
+    
+    var showAddRepoDialog by remember { mutableStateOf(false) }
+    var sources by remember { mutableStateOf(repo.getAllSources()) }
     
     // Fixed list of common component types users can select when source allows anything
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d")
@@ -87,8 +93,18 @@ fun RemoteSourceSheet(
                     },
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
                 )
+                
+                if (selectedSource == null && !isDownloading && !isLoading) {
+                    IconButton(
+                        onClick = { showAddRepoDialog = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Repository", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
             Spacer(Modifier.height(16.dp))
 
@@ -129,7 +145,7 @@ fun RemoteSourceSheet(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(repo.defaultSources) { source ->
+                        items(sources) { source ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { selectedSource = source },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -149,8 +165,20 @@ fun RemoteSourceSheet(
                                         text = source.name,
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 15.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
                                     )
+                                    if (source.isCustom) {
+                                        IconButton(
+                                            onClick = {
+                                                repo.removeCustomSource(source)
+                                                sources = repo.getAllSources()
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -269,5 +297,16 @@ fun RemoteSourceSheet(
                 }
             }
         }
+    }
+
+    if (showAddRepoDialog) {
+        AddRepoDialog(
+            onDismiss = { showAddRepoDialog = false },
+            onAdd = { customSource ->
+                repo.addCustomSource(customSource)
+                sources = repo.getAllSources()
+                showAddRepoDialog = false
+            }
+        )
     }
 }

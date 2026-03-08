@@ -2,6 +2,23 @@
 
 ---
 
+### [pre-release] — v1.3.2-pre — Custom Repository Management (2026-03-08)
+**Tag:** v1.3.2-pre
+
+#### What changed
+- **Custom Repositories**: Users can now add their own custom online repositories directly within the app on both the "Download Components" screen and the "Select Online Source" injection sheet.
+- **Repository Dialog**: Added an `AddRepoDialog` that allows users to input a custom repository name, URL, and select the source format (`WCP_JSON`, `GITHUB_RELEASES_WCP`, `GITHUB_RELEASES_TURNIP`, etc.).
+- **State Persistence**: Custom repositories are securely saved to `SharedPreferences` (`remote_sources_prefs`) via `RemoteSourceRepository` so they persist across app restarts.
+- **Deletion Support**: Custom repositories can be easily removed directly from the list using a dedicated delete icon button.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt` (new)
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.3.1-pre — Top-Level Tab Navigation & Dedicated Download Screen (2026-03-08)
 **Tag:** v1.3.1-pre
 

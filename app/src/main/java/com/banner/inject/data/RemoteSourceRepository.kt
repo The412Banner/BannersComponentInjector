@@ -1,14 +1,18 @@
 package com.banner.inject.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
 class RemoteSourceRepository(private val context: Context) {
+
+    private val prefs: SharedPreferences = context.getSharedPreferences("remote_sources_prefs", Context.MODE_PRIVATE)
 
     data class RemoteItem(
         val displayName: String,
@@ -21,7 +25,8 @@ class RemoteSourceRepository(private val context: Context) {
         val name: String,
         val url: String,
         val format: SourceFormat,
-        val supportedTypes: List<String> = emptyList() // Empty implies all types
+        val supportedTypes: List<String> = emptyList(), // Empty implies all types
+        val isCustom: Boolean = false
     )
 
     enum class SourceFormat {
@@ -32,7 +37,7 @@ class RemoteSourceRepository(private val context: Context) {
     }
 
     // Default built-in sources mapped strictly to the components they provide
-    val defaultSources = listOf(
+    private val defaultSources = listOf(
         RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
         RemoteSource("Arihany WCPHub", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
         RemoteSource("Arihany WCPHub (Turnip)", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
@@ -41,6 +46,77 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("Adreno Tools Drivers (StevenMXZ)", "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno"))
     )
+
+    fun getAllSources(): List<RemoteSource> {
+        return defaultSources + getCustomSources()
+    }
+
+    private fun getCustomSources(): List<RemoteSource> {
+        val jsonStr = prefs.getString("custom_sources", "[]") ?: "[]"
+        val customSources = mutableListOf<RemoteSource>()
+        try {
+            val array = JSONArray(jsonStr)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val format = try {
+                    SourceFormat.valueOf(obj.getString("format"))
+                } catch (e: Exception) {
+                    SourceFormat.WCP_JSON
+                }
+                
+                val typesArray = obj.optJSONArray("supportedTypes")
+                val typesList = mutableListOf<String>()
+                if (typesArray != null) {
+                    for (j in 0 until typesArray.length()) {
+                        typesList.add(typesArray.getString(j))
+                    }
+                }
+                
+                customSources.add(
+                    RemoteSource(
+                        name = obj.getString("name"),
+                        url = obj.getString("url"),
+                        format = format,
+                        supportedTypes = typesList,
+                        isCustom = true
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return customSources
+    }
+
+    fun addCustomSource(source: RemoteSource) {
+        val current = getCustomSources().toMutableList()
+        current.add(source.copy(isCustom = true))
+        saveCustomSources(current)
+    }
+
+    fun removeCustomSource(source: RemoteSource) {
+        val current = getCustomSources().toMutableList()
+        current.removeAll { it.name == source.name && it.url == source.url }
+        saveCustomSources(current)
+    }
+
+    private fun saveCustomSources(sources: List<RemoteSource>) {
+        val array = JSONArray()
+        for (source in sources) {
+            val obj = JSONObject()
+            obj.put("name", source.name)
+            obj.put("url", source.url)
+            obj.put("format", source.format.name)
+            
+            val typesArray = JSONArray()
+            for (type in source.supportedTypes) {
+                typesArray.put(type)
+            }
+            obj.put("supportedTypes", typesArray)
+            array.put(obj)
+        }
+        prefs.edit().putString("custom_sources", array.toString()).apply()
+    }
 
     suspend fun fetchFromSource(
         source: RemoteSource,

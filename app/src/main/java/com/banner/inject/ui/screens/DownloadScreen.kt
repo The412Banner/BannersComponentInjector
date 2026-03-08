@@ -49,6 +49,10 @@ fun DownloadScreen(
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf("") }
     var fetchJob by remember { mutableStateOf<Job?>(null) }
+    
+    var showAddRepoDialog by remember { mutableStateOf(false) }
+    // Force recomposition when sources change
+    var sources by remember { mutableStateOf(repo.getAllSources()) }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno")
 
@@ -112,8 +116,18 @@ fun DownloadScreen(
                     },
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
                 )
+                
+                if (selectedSource == null && !isDownloading && !isLoading) {
+                    IconButton(
+                        onClick = { showAddRepoDialog = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Repository", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
 
             when {
@@ -155,7 +169,7 @@ fun DownloadScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(repo.defaultSources) { source ->
+                        items(sources) { source ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { selectedSource = source },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -175,8 +189,20 @@ fun DownloadScreen(
                                         text = source.name,
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 15.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
                                     )
+                                    if (source.isCustom) {
+                                        IconButton(
+                                            onClick = {
+                                                repo.removeCustomSource(source)
+                                                sources = repo.getAllSources()
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -298,6 +324,17 @@ fun DownloadScreen(
                 }
             }
         }
+    }
+    
+    if (showAddRepoDialog) {
+        AddRepoDialog(
+            onDismiss = { showAddRepoDialog = false },
+            onAdd = { customSource ->
+                repo.addCustomSource(customSource)
+                sources = repo.getAllSources()
+                showAddRepoDialog = false
+            }
+        )
     }
 }
 
