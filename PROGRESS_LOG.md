@@ -2,6 +2,23 @@
 
 ---
 
+### [release] — v1.3.0 — Full-Screen Settings, In-App Updates, Color Wheel & More (2026-03-08)
+**Tag:** v1.3.0
+
+#### What changed
+- Official stable release promoting all v1.2.1-pre through v1.2.9-pre features.
+- GameHub Lite `emuready.gamehub.lite` package support.
+- Fixed two online sources wizard back-navigation crashes (job cancellation + LazyColumn NPE race).
+- Added StevenMXZ Adreno-Tools-Drivers, whitebelyash freedreno_turnip-CI sources.
+- Replaced broken Arihany JSON with two entries from `Arihany/WinlatorWCPHub` GitHub releases.
+- Stable signing keystore — APKs update over previous v1.2.6+ installs.
+- In-app update checker with Download & Install (streams APK, progress bar, system installer).
+- Settings available on all screens as a full-screen scrollable page.
+- Full theme customization: 8 preset swatches + HSV color wheel + hex input.
+- "Don't ask again" on backup warning + Settings toggle to re-enable.
+
+---
+
 ### [pre-release] — v1.2.9-pre — Full-screen Settings + in-app update downloader (2026-03-08)
 **Tag:** v1.2.9-pre
 
