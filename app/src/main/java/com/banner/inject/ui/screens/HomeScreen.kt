@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,10 +35,14 @@ fun ComponentListScreen(
     onDeleteBackup: (ComponentEntry) -> Unit,
     onClearOpState: () -> Unit,
     onListBackups: () -> List<BackupManager.BackupInfo>,
-    onDeleteBackupByName: (String) -> Unit
+    onDeleteBackupByName: (String) -> Unit,
+    appVersion: String,
+    accentColor: Color,
+    onAccentColorChanged: (Color) -> Unit
 ) {
     var selectedComponent by remember { mutableStateOf<ComponentEntry?>(null) }
     var showBackupManager by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(opState) {
@@ -69,6 +74,9 @@ fun ComponentListScreen(
                     }
                     IconButton(onClick = { showBackupManager = true }) {
                         Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
+                    }
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -173,6 +181,16 @@ fun ComponentListScreen(
             onDismiss = { showBackupManager = false },
             onListBackups = onListBackups,
             onDeleteBackup = onDeleteBackupByName
+        )
+    }
+
+    if (showSettings) {
+        SettingsSheet(
+            appVersion = appVersion,
+            accentColor = accentColor,
+            onAccentColorChanged = onAccentColorChanged,
+            onDismiss = { showSettings = false },
+            onOpenBackupManager = { showSettings = false; showBackupManager = true }
         )
     }
 }

@@ -12,13 +12,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.banner.inject.ui.screens.AppListScreen
 import com.banner.inject.ui.screens.ComponentListScreen
 import com.banner.inject.ui.theme.BannersComponentInjectorTheme
+import com.banner.inject.ui.theme.ThemePrefs
 import com.banner.inject.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
@@ -31,16 +35,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestStoragePermissionsIfNeeded()
         enableEdgeToEdge()
+        var accentColor by mutableStateOf(ThemePrefs.load(this))
         setContent {
-            BannersComponentInjectorTheme {
+            BannersComponentInjectorTheme(accentColor = accentColor) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val vm: MainViewModel = viewModel()
                     val uiState by vm.uiState.collectAsState()
 
+                    val appVersion = remember {
+                        packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+                    }
+
                     if (uiState.selectedApp == null) {
-                        val appVersion = remember {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
-                        }
                         AppListScreen(
                             apps = uiState.apps,
                             onAppSelected = { vm.selectApp(it) },
@@ -50,7 +56,9 @@ class MainActivity : ComponentActivity() {
                             initialUriHintFor = { vm.initialUriHintFor(it) },
                             onListBackups = { vm.listAllBackups() },
                             onDeleteBackupByName = { vm.deleteBackupByName(it) },
-                            appVersion = appVersion
+                            appVersion = appVersion,
+                            accentColor = accentColor,
+                            onAccentColorChanged = { accentColor = it }
                         )
                     } else {
                         ComponentListScreen(
@@ -66,7 +74,10 @@ class MainActivity : ComponentActivity() {
                             onDeleteBackup = { vm.deleteBackup(it) },
                             onClearOpState = { vm.clearOpState() },
                             onListBackups = { vm.listAllBackups() },
-                            onDeleteBackupByName = { vm.deleteBackupByName(it) }
+                            onDeleteBackupByName = { vm.deleteBackupByName(it) },
+                            appVersion = appVersion,
+                            accentColor = accentColor,
+                            onAccentColorChanged = { accentColor = it }
                         )
                     }
                 }
