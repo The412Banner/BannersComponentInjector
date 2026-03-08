@@ -6,7 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 data class KnownApp(val displayName: String, val packageNames: List<String>)
 
 val KNOWN_GAMEHUB_APPS = listOf(
-    KnownApp("GameHub Lite",          listOf("gamehub.lite")),
+    KnownApp("GameHub (Lite)",        listOf("gamehub.lite", "emuready.gamehub.lite")),
     KnownApp("GameHub Lite PuBG",     listOf("com.tencent.ig")),
     KnownApp("GameHub Lite AnTuTu",   listOf("com.antutu.ABenchMark", "com.antutu.benchmark.full")),
     KnownApp("GameHub Lite Ludashi",  listOf("com.ludashi.aibench", "com.ludashi.benchmark")),

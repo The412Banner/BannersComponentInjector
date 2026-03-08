@@ -2,6 +2,14 @@
 
 ---
 
+### [pre-release] — v1.2.1-pre — GameHub Lite Package Support (2026-03-08)
+**Tag:** v1.2.1-pre
+
+#### What changed
+- App Detection: Updated GameHub Lite detection to include the `emuready.gamehub.lite` package name alongside `gamehub.lite`, and updated its display name to "GameHub (Lite)".
+
+---
+
 ### [release] — v1.2.0 — Stable Remote Repositories & Fast Scanner (2026-03-07)
 **Tag:** v1.2.0
 

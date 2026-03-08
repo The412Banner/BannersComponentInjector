@@ -14,6 +14,7 @@
 
     <queries>
         <package android:name="gamehub.lite" />
+        <package android:name="emuready.gamehub.lite" />
         <package android:name="com.tencent.ig" />
         <package android:name="com.ludashi.aibench" />
         <package android:name="com.antutu.ABenchMark" />
