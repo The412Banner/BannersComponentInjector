@@ -22,9 +22,13 @@ import androidx.compose.ui.unit.sp
 import com.banner.inject.data.BackupManager
 import com.banner.inject.model.GameHubApp
 
+import com.banner.inject.model.MainTab
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListScreen(
+    currentTab: MainTab,
+    onTabSelected: (MainTab) -> Unit,
     apps: List<GameHubApp>,
     onAppSelected: (GameHubApp) -> Unit,       // app already has access
     onAccessGranted: (GameHubApp, Uri) -> Unit, // user just picked the SAF folder
@@ -54,25 +58,28 @@ fun AppListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("Component Injector", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                },
-                actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                    IconButton(onClick = { showBackupManager = true }) {
-                        Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
-                    }
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+            Column {
+                TopAppBar(
+                    title = {
+                        Text("Component Injector", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    },
+                    actions = {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
+                        IconButton(onClick = { showBackupManager = true }) {
+                            Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
+                        }
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 )
-            )
+                MainTabRow(currentTab = currentTab, onTabSelected = onTabSelected)
+            }
         }
     ) { padding ->
         LazyColumn(

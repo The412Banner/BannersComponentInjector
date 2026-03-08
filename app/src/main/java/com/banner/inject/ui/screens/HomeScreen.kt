@@ -20,9 +20,13 @@ import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.OpState
 
+import com.banner.inject.model.MainTab
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComponentListScreen(
+    currentTab: MainTab,
+    onTabSelected: (MainTab) -> Unit,
     app: GameHubApp,
     components: List<ComponentEntry>,
     isLoading: Boolean,
@@ -56,33 +60,36 @@ fun ComponentListScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                title = {
-                    Column {
-                        Text(app.known.displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("Components", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                    IconButton(onClick = { showBackupManager = true }) {
-                        Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
-                    }
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+            Column {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    title = {
+                        Column {
+                            Text(app.known.displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Components", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
+                        IconButton(onClick = { showBackupManager = true }) {
+                            Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
+                        }
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 )
-            )
+                MainTabRow(currentTab = currentTab, onTabSelected = onTabSelected)
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {

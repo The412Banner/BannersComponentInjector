@@ -19,8 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.banner.inject.data.RemoteSourceRepository
+import com.banner.inject.model.MainTab
 import com.banner.inject.ui.screens.AppListScreen
+import com.banner.inject.ui.screens.BackupManagerSheet
 import com.banner.inject.ui.screens.ComponentListScreen
+import com.banner.inject.ui.screens.DownloadScreen
+import com.banner.inject.ui.screens.SettingsSheet
 import com.banner.inject.ui.theme.BannersComponentInjectorTheme
 import com.banner.inject.ui.theme.ThemePrefs
 import com.banner.inject.viewmodel.MainViewModel
@@ -39,46 +44,86 @@ class MainActivity : ComponentActivity() {
         setContent {
             BannersComponentInjectorTheme(accentColor = accentColor) {
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    var currentTab by remember { mutableStateOf(MainTab.INJECT) }
                     val vm: MainViewModel = viewModel()
                     val uiState by vm.uiState.collectAsState()
+                    val repo = remember { RemoteSourceRepository(this) }
 
                     val appVersion = remember {
                         packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
                     }
 
-                    if (uiState.selectedApp == null) {
-                        AppListScreen(
-                            apps = uiState.apps,
-                            onAppSelected = { vm.selectApp(it) },
-                            onAccessGranted = { app, uri -> vm.grantAccess(app, uri) },
-                            onRevokeAccess = { vm.revokeAccess(it) },
-                            onRefresh = { vm.refreshAppList() },
-                            initialUriHintFor = { vm.initialUriHintFor(it) },
-                            onListBackups = { vm.listAllBackups() },
-                            onDeleteBackupByName = { vm.deleteBackupByName(it) },
-                            appVersion = appVersion,
-                            accentColor = accentColor,
-                            onAccentColorChanged = { accentColor = it }
-                        )
-                    } else {
-                        ComponentListScreen(
-                            app = uiState.selectedApp!!,
-                            components = uiState.components,
-                            isLoading = uiState.isLoadingComponents,
-                            opState = uiState.opState,
-                            onBack = { vm.clearSelectedApp() },
-                            onRefresh = { vm.refresh() },
-                            onBackupComponent = { vm.backupComponent(it) },
-                            onReplaceWcp = { comp, uri -> vm.replaceWithWcp(comp, uri) },
-                            onRestoreComponent = { vm.restoreComponent(it) },
-                            onDeleteBackup = { vm.deleteBackup(it) },
-                            onClearOpState = { vm.clearOpState() },
-                            onListBackups = { vm.listAllBackups() },
-                            onDeleteBackupByName = { vm.deleteBackupByName(it) },
-                            appVersion = appVersion,
-                            accentColor = accentColor,
-                            onAccentColorChanged = { accentColor = it }
-                        )
+                    when (currentTab) {
+                        MainTab.INJECT -> {
+                            if (uiState.selectedApp == null) {
+                                AppListScreen(
+                                    currentTab = currentTab,
+                                    onTabSelected = { currentTab = it },
+                                    apps = uiState.apps,
+                                    onAppSelected = { vm.selectApp(it) },
+                                    onAccessGranted = { app, uri -> vm.grantAccess(app, uri) },
+                                    onRevokeAccess = { vm.revokeAccess(it) },
+                                    onRefresh = { vm.refreshAppList() },
+                                    initialUriHintFor = { vm.initialUriHintFor(it) },
+                                    onListBackups = { vm.listAllBackups() },
+                                    onDeleteBackupByName = { vm.deleteBackupByName(it) },
+                                    appVersion = appVersion,
+                                    accentColor = accentColor,
+                                    onAccentColorChanged = { accentColor = it }
+                                )
+                            } else {
+                                ComponentListScreen(
+                                    currentTab = currentTab,
+                                    onTabSelected = { currentTab = it },
+                                    app = uiState.selectedApp!!,
+                                    components = uiState.components,
+                                    isLoading = uiState.isLoadingComponents,
+                                    opState = uiState.opState,
+                                    onBack = { vm.clearSelectedApp() },
+                                    onRefresh = { vm.refresh() },
+                                    onBackupComponent = { vm.backupComponent(it) },
+                                    onReplaceWcp = { comp, uri -> vm.replaceWithWcp(comp, uri) },
+                                    onRestoreComponent = { vm.restoreComponent(it) },
+                                    onDeleteBackup = { vm.deleteBackup(it) },
+                                    onClearOpState = { vm.clearOpState() },
+                                    onListBackups = { vm.listAllBackups() },
+                                    onDeleteBackupByName = { vm.deleteBackupByName(it) },
+                                    appVersion = appVersion,
+                                    accentColor = accentColor,
+                                    onAccentColorChanged = { accentColor = it }
+                                )
+                            }
+                        }
+                        MainTab.DOWNLOAD -> {
+                            var showBackupManager by remember { mutableStateOf(false) }
+                            var showSettings by remember { mutableStateOf(false) }
+
+                            DownloadScreen(
+                                currentTab = currentTab,
+                                onTabSelected = { currentTab = it },
+                                repo = repo,
+                                onShowBackupManager = { showBackupManager = true },
+                                onShowSettings = { showSettings = true }
+                            )
+
+                            if (showBackupManager) {
+                                BackupManagerSheet(
+                                    onDismiss = { showBackupManager = false },
+                                    onListBackups = { vm.listAllBackups() },
+                                    onDeleteBackup = { vm.deleteBackupByName(it) }
+                                )
+                            }
+
+                            if (showSettings) {
+                                SettingsSheet(
+                                    appVersion = appVersion,
+                                    accentColor = accentColor,
+                                    onAccentColorChanged = { accentColor = it },
+                                    onDismiss = { showSettings = false },
+                                    onOpenBackupManager = { showSettings = false; showBackupManager = true }
+                                )
+                            }
+                        }
                     }
                 }
             }

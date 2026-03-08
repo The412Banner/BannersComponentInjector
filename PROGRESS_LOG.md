@@ -2,6 +2,23 @@
 
 ---
 
+### [pre-release] — v1.3.1-pre — Top-Level Tab Navigation & Dedicated Download Screen (2026-03-08)
+**Tag:** v1.3.1-pre
+
+#### What changed
+- **Global Tab Navigation**: Transformed the primary UX by introducing a `TabRow` at the top of the app toolbar present at all times. Users can now easily switch between "Inject Components" (the existing flow) and the new "Download Components" tab.
+- **Dedicated Download Components Screen**: Replicated the remote sources drill-down wizard as a permanent, full-screen UI (`DownloadScreen.kt`). Users can browse online repositories, select component types, and directly download `.wcp` or `.zip` files to their device's `Downloads/BannersComponentInjector/Downloads/` folder for later use.
+- Architectural Refactor: Modified `MainActivity.kt`, `AppListScreen.kt`, and `HomeScreen.kt` to share a common `MainTabRow` component while maintaining their specific contextual Top App Bar actions.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt` (new)
+- `app/src/main/java/com/banner/inject/ui/screens/MainTabRow.kt` (new)
+
+
 ### [release] — v1.3.0 — Full-Screen Settings, In-App Updates, Color Wheel & More (2026-03-08)
 **Tag:** v1.3.0
 

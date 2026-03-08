@@ -55,3 +55,8 @@ fun formatSize(bytes: Long): String = when {
     bytes >= 1024L          -> "%.1f KB".format(bytes / 1024.0)
     else                    -> "$bytes B"
 }
+
+enum class MainTab(val title: String) {
+    INJECT("Inject Components"),
+    DOWNLOAD("Download Components")
+}
