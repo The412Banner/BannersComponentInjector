@@ -2,6 +2,19 @@
 
 ---
 
+### [pre-release] — v1.3.3-pre — Smart Custom Repository Auto-Detection (2026-03-08)
+**Tag:** v1.3.3-pre
+
+#### What changed
+- **Automatic Format Detection**: Removed the confusing "Format" dropdown from the Add Custom Repository dialog. The app now automatically fetches the repository URL in the background, inspects its JSON content, and smartly detects if it's a `WCP_JSON`, `GITHUB_RELEASES_WCP`, `GITHUB_RELEASES_TURNIP`, or standard `GITHUB_RELEASES_ZIP`.
+- **Smart URL Conversion**: Users can now copy/paste standard GitHub release page URLs (e.g., `https://github.com/user/repo/releases`). The app automatically sanitizes and converts them into the correct API endpoints (`https://api.github.com/repos/user/repo/releases`).
+- **Loading UI**: Added a loading spinner with a "Detecting repository format..." indicator during the brief detection phase.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt`
+
+---
+
 ### [pre-release] — v1.3.2-pre — Custom Repository Management (2026-03-08)
 **Tag:** v1.3.2-pre
 
