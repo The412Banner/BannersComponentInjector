@@ -6,6 +6,197 @@
 
 ---
 
+### [pre-release] — v1.5.13-pre — Parity: hamburger menu + tap-to-detail in RemoteSourceSheet (2026-03-09)
+**Commit:** `(pending)`  |  **Tag:** v1.5.13-pre
+
+#### What changed
+- **RemoteSourceSheet repo cards**: replaced plain Delete button with `MoreVert` hamburger dropdown matching DownloadScreen — "Open in Browser", "Edit Repository", "Remove Repository"
+- **RemoteSourceSheet file cards (step 3)**: tap now opens detail sheet instead of immediate download; shows name, source/type chips, published date+size, scrollable "Release Notes", "Download & Replace" button
+- **RemoteSourceSheet search results**: same — tap opens detail sheet instead of immediate download
+- Imports added: `Intent`, `LocalContext`, `rememberScrollState`, `verticalScroll`, `MoreVert`, `OpenInBrowser`, `Edit`, `Download`, `CheckCircle`
+- Implements PARITY RULE: all features from Download Components tab now mirrored in Inject → Online Sources
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
+### [pre-release] — v1.5.12-pre2 — Pull-to-refresh on My Downloads tab (2026-03-09)
+**Commit:** `e1345bf`  |  **Tag:** v1.5.12-pre2
+
+#### What changed
+- Swipe-down pull-to-refresh in My Downloads runs `pruneStaleDownloadRecords`, refreshes `downloads` list, shows snackbar if stale records removed (silent if all up to date)
+- Uses `PullToRefreshContainer` + `rememberPullToRefreshState` from `material3.pulltorefresh`; content wrapped in `Box` with `nestedScroll`
+- Fix: `LaunchedEffect` moved after `var downloads` declaration to avoid "Unresolved reference" compile error
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadManagerScreen.kt`
+
+---
+
+### [pre-release] — v1.5.11-pre — Description field, tap-to-detail, verify downloads in My Downloads (2026-03-09)
+**Commit:** `a66f8e4`  |  **Tag:** v1.5.11-pre
+
+#### What changed
+- **`RemoteItem.description`**: new nullable field; populated from GitHub release `body` for GITHUB_RELEASES_WCP/ZIP/TURNIP; null for WCP JSON and GITHUB_REPO_CONTENTS (no description available in those formats)
+- **Tap-to-detail in Download Components tab**: tapping a file opens a `ModalBottomSheet` detail sheet showing file name, source+type chips, published date+size, scrollable "Release Notes" section (if description non-null), then a "Download to Device" button; same for cross-repo search results
+- **Verify Downloads moved** from Download Components header → My Downloads top bar; pruning now also refreshes `downloads` state live
+- Removed `isVerifying` state from DownloadScreen; `SearchContent` refactored to drop all download logic (now takes `onShowDetail` callback only)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadManagerScreen.kt`
+
+---
+
+### [pre-release] — v1.5.10-pre — Verify Downloads button (2026-03-09)
+**Commit:** `19f1194`  |  **Tag:** v1.5.10-pre
+
+#### What changed
+- **Verify Downloads** (`CloudSync` icon button) in Download Components tab header, next to Refresh All
+- `RemoteSourceRepository.pruneStaleDownloadRecords(context: Context): Int`: checks each download record's URI against the actual filesystem; removes stale records; returns count removed
+- `content://` URIs verified via `ContentResolver.query()` (row count == 0 → stale); file/path URIs via `File.exists()`
+- Snackbar: "Removed X stale download record(s)" or "All download records are up to date"
+- Spinner shown while running; disabled while downloading/loading
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+
+---
+
+### [pre-release] — v1.5.9-pre5 — Cross-repo search at step 1 of online sources (Inject tab) (2026-03-09)
+**Commit:** `c9a56e8`  |  **Tag:** v1.5.9-pre5
+
+#### What changed
+- **Cross-repo search at step 1 of RemoteSourceSheet**: search field at the top of the "Select Online Repository" screen, before any repo is chosen
+- `LaunchedEffect(searchQuery)` triggers `repo.refreshAllCache(sources, componentTypes)` if cache is cold
+- When query is non-empty, shows `RemoteSourceRepository.searchCache(query)` results instead of repo list
+- Result cards show file name + source name + component type; tapping downloads to temp and calls `onDownloadAndReplace`
+- Back handler: clears `searchQuery` before navigating; if already empty, navigates back normally
+- Removed file-level filter that was added at step 3 in pre4
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
+### [pre-release] — v1.5.9-pre4 — Search/filter bar in online sources file list (2026-03-09)
+**Commit:** `fa44359`  |  **Tag:** v1.5.9-pre4
+
+#### What changed
+- **Search/filter bar in RemoteSourceSheet file list (step 3)**: filter field above the file list when browsing online sources to replace a component in the Inject tab
+- Filters files by `displayName` as you type (case-insensitive, trims whitespace)
+- `displayedItems = sortedItems.filter { ... }` — respects current sort order
+- Back button clears `fileSearchQuery` before navigating up to type selection
+- Removed incorrectly placed search bar from local component list (`HomeScreen`)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt` (reverted pre3 search bar)
+
+---
+
+### [pre-release] — v1.5.9-pre3 — Search bar on Inject tab component list (2026-03-09)
+**Commit:** `32326dc`  |  **Tag:** v1.5.9-pre3
+
+#### What changed
+- **Search/filter bar on Inject tab**: always-visible `OutlinedTextField` in the top bar (below tab row) in `ComponentListScreen`
+- Filters the component list by folder name as you type (case-insensitive, trims whitespace)
+- Count label updates to "X of Y components" when a filter is active
+- No-match empty state with `SearchOff` icon and "No components match …" message
+- Hint text ("Tap a component to backup or replace its contents") hidden while search query is active
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+
+---
+
+### [pre-release] — v1.5.9-pre2 — Always-visible search bar on Download tab (2026-03-09)
+**Commit:** `055d75a`  |  **Tag:** v1.5.9-pre2
+
+#### What changed
+- Moved the cross-repo search field from a collapsible icon to an always-visible `OutlinedTextField` above the repo list in `DownloadScreen`
+- Search field is visible at all times (not just in search mode)
+- Pressing Back clears search query before closing
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+
+---
+
+### [pre-release] — v1.5.9-pre — Cross-repo search on Download tab (2026-03-09)
+**Commit:** `5398adb`  |  **Tag:** v1.5.9-pre
+
+#### What changed
+- **Cross-repo search** in the Download Components tab: search field in top bar searches across all cached repositories
+- `RemoteSourceRepository.searchCache(query)`: case-insensitive search across all cached items, returns grouped results by source+type
+- Auto-caches all repos in background when search query is entered and cache is empty
+- `SearchContent` composable: shows spinner while caching, groups results by repo/type, "no results" state
+- `BackHandler` clears search query on back press when search is active
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+
+---
+
+### [pre-release] — v1.5.8-pre-2 — Fix explicit PullToRefresh imports (2026-03-09)
+**Commit:** `4566160`  |  **Tag:** v1.5.8-pre-2
+
+#### What changed
+- Fixed build failure: `PullToRefreshContainer` and `rememberPullToRefreshState` are in `androidx.compose.material3.pulltorefresh` sub-package, not covered by `material3.*` wildcard — added explicit imports to all screens using pull-to-refresh
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- (other screens using PullToRefresh)
+
+---
+
+### [pre-release] — v1.5.8-pre — Pull-to-refresh, batch downloads, file sizes, download resume (2026-03-09)
+**Commit:** `5983c12`  |  **Tag:** v1.5.8-pre
+
+#### What changed
+- **Pull-to-refresh** on Inject tab component list (`ComponentListScreen`) using Material3 `PullToRefreshContainer`
+- **Batch downloads** on Download tab: multi-select mode with checkboxes; "Download X files" button downloads all selected in parallel
+- **File sizes** on download items: size shown in subtitle (from GitHub API `size` field)
+- **Download resume**: skips already-downloaded files in batch mode (checks `isDownloaded`)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+
+---
+
+### [pre-release] — v1.5.7-pre — Streaming component scan with live progress counter (2026-03-09)
+**Commit:** `f55d647`  |  **Tag:** v1.5.7-pre
+
+#### What changed
+- **Live loading counter**: component list shows "Loading X / Y components..." with a small spinner while scanning
+- `ComponentListScreen` gains `totalComponentCount` + `loadedComponentCount` parameters
+- Scan emits each component as it's found (streaming) so the list populates progressively
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/HomeScreen.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+
+---
+
+### [pre-release] — v1.5.6-pre — Parallel component scanning with semaphore (2026-03-09)
+**Commit:** `fbfcd9f`  |  **Tag:** v1.5.6-pre
+
+#### What changed
+- **Parallel scanning**: component folder scans now run concurrently with a semaphore to limit parallelism and avoid ANR
+- Significantly faster load times on large component trees
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+
+---
+
 ### [stable] — v1.5.5 — Repository Merging, Edit Repo, MTR & Multi-URL (2026-03-09)
 **Commit:** `11ca506`  |  **Tag:** v1.5.5
 

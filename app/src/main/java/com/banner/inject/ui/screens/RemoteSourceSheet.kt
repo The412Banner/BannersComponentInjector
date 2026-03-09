@@ -1,7 +1,10 @@
 package com.banner.inject.ui.screens
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,10 +15,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Sort
@@ -25,6 +33,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -56,8 +65,12 @@ fun RemoteSourceSheet(
     val scope = rememberCoroutineScope()
     var fetchJob by remember { mutableStateOf<Job?>(null) }
 
+    val context = LocalContext.current
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var sourceMenuExpanded by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var sourceToEdit by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var detailItem by remember { mutableStateOf<Pair<RemoteSourceRepository.RemoteItem, String>?>(null) }
     var sources by remember { mutableStateOf(repo.getAllSources()) }
     var sortOrder by remember { mutableStateOf(SortOrder.NEWEST_FIRST) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -296,20 +309,7 @@ fun RemoteSourceSheet(
                                     val sizeText = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
                                     Card(
                                         modifier = Modifier.fillMaxWidth().clickable {
-                                            scope.launch {
-                                                isDownloading = true
-                                                downloadProgress = "Downloading..."
-                                                try {
-                                                    val file = repo.downloadToTemp(item.downloadUrl) { progress ->
-                                                        downloadProgress = progress
-                                                    }
-                                                    onDownloadAndReplace(Uri.fromFile(file))
-                                                    onDismiss()
-                                                } catch (e: Exception) {
-                                                    errorMessage = "Download failed: ${e.message}"
-                                                    isDownloading = false
-                                                }
-                                            }
+                                            detailItem = Pair(item, result.componentType)
                                         },
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                                     ) {
@@ -363,11 +363,43 @@ fun RemoteSourceSheet(
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    IconButton(
-                                        onClick = { sourceToDelete = source },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                    Box {
+                                        IconButton(
+                                            onClick = { sourceMenuExpanded = source },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                                        }
+                                        DropdownMenu(
+                                            expanded = sourceMenuExpanded == source,
+                                            onDismissRequest = { sourceMenuExpanded = null }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Open in Browser") },
+                                                leadingIcon = { Icon(Icons.Default.OpenInBrowser, null) },
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    val browseUrl = repo.getBrowseUrl(source)
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(browseUrl)))
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Edit Repository") },
+                                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    sourceToEdit = source
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Remove Repository", color = MaterialTheme.colorScheme.error) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    sourceToDelete = source
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -460,6 +492,7 @@ fun RemoteSourceSheet(
                     // snapshot race where items becomes null between the when-check and
                     // LazyColumn's lazy content evaluation (causes NPE at items!!)
                     val currentItems = items ?: return@Column
+                    val capturedType = selectedType ?: return@Column
                     val sortedItems = remember(currentItems, sortOrder) {
                         when (sortOrder) {
                             SortOrder.NEWEST_FIRST -> currentItems.sortedByDescending { it.publishedAt ?: "" }
@@ -475,19 +508,7 @@ fun RemoteSourceSheet(
                         items(sortedItems) { item ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
-                                    scope.launch {
-                                        isDownloading = true
-                                        try {
-                                            val file = repo.downloadToTemp(item.downloadUrl) { progress ->
-                                                downloadProgress = progress
-                                            }
-                                            onDownloadAndReplace(Uri.fromFile(file))
-                                            onDismiss()
-                                        } catch (e: Exception) {
-                                            errorMessage = "Download failed: ${e.message}"
-                                            isDownloading = false
-                                        }
-                                    }
+                                    detailItem = Pair(item, capturedType)
                                 },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                             ) {
@@ -511,7 +532,7 @@ fun RemoteSourceSheet(
                                         )
                                         val sizeStr = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
                                         Text(
-                                            text = if (item.publishedAt != null) "Uploaded ${item.publishedAt}$sizeStr · Tap to replace" else "Tap to download and replace$sizeStr",
+                                            text = if (item.publishedAt != null) "Published ${item.publishedAt}$sizeStr" else "Tap for details$sizeStr",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -523,6 +544,150 @@ fun RemoteSourceSheet(
                 }
             }
         }
+    }
+
+    detailItem?.let { (dItem, dType) ->
+        ModalBottomSheet(
+            onDismissRequest = { if (!isDownloading) detailItem = null },
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                    Icon(
+                        Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        dItem.displayName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            dItem.sourceName,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            dType.uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+                val metaLine = buildString {
+                    if (dItem.publishedAt != null) append("Published ${dItem.publishedAt}")
+                    if (dItem.publishedAt != null && dItem.sizeBytes != null) append("  ·  ")
+                    if (dItem.sizeBytes != null) append(RemoteSourceRepository.formatFileSize(dItem.sizeBytes))
+                }
+                if (metaLine.isNotEmpty()) {
+                    Text(
+                        metaLine,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+                if (dItem.description != null) {
+                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+                    Text(
+                        "Release Notes",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Text(
+                            dItem.description,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
+                if (isDownloading) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(downloadProgress, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isDownloading = true
+                                try {
+                                    val file = repo.downloadToTemp(dItem.downloadUrl) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    onDownloadAndReplace(Uri.fromFile(file))
+                                    onDismiss()
+                                } catch (e: Exception) {
+                                    errorMessage = "Download failed: ${e.message}"
+                                    isDownloading = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Download & Replace")
+                    }
+                }
+            }
+        }
+    }
+
+    sourceToEdit?.let { source ->
+        EditRepoDialog(
+            source = source,
+            repo = repo,
+            onDismiss = { sourceToEdit = null },
+            onSave = { edited ->
+                repo.editSource(source, edited)
+                sources = repo.getAllSources()
+                sourceToEdit = null
+            }
+        )
     }
 
     if (showAddRepoDialog) {
