@@ -4,22 +4,6 @@
 
 ---
 
-### [pre-release] — v1.5.3-pre — Component list cache for instant re-open (2026-03-09)
-**Commit:** `b91e327`  |  **Tag:** v1.5.3-pre
-
-#### What changed
-- **Component list cache**: after every full scan, serializes component metadata to `"component_cache_prefs"` SharedPreferences keyed by `app.known.packageNames.first()`. Each entry stores: `folderName`, `DocumentFile URI`, `fileCount`, `totalSize`.
-- **Instant load**: `selectApp()` checks cache first. Hit → populates list immediately (`isLoadingComponents = false`). Miss → normal scan with loading indicator.
-- **`hasBackup` and `replacedWith` always live**: re-read from their own prefs on cache hydration, never stale.
-- **Cache update**: `loadComponents()` (full scan) writes cache after every successful scan — so manual Refresh always updates it.
-- **Cache cleared on revoke**: `revokeAccess()` removes `"cache_<packageKey>"` from cachePrefs.
-- No UI changes needed; existing Refresh button and loading indicator work as before.
-
-#### Files touched
-- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
-
----
-
 ### [pre-release] — v1.5.2-pre — Auto-sort newest first + user sort control (2026-03-09)
 **Commit:** `32d9afb`  |  **Tag:** v1.5.2-pre-2
 
