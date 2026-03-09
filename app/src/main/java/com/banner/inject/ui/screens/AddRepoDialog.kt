@@ -105,14 +105,22 @@ fun AddRepoDialog(
 }
 
 private fun sanitizeUrl(input: String): String {
-    var url = input.trim()
+    val url = input.trim()
     // Auto-convert github.com/.../releases to api.github.com/repos/.../releases
     val githubReleasesRegex = Regex("""https://github\.com/([^/]+)/([^/]+)/releases.*""")
-    val match = githubReleasesRegex.find(url)
-    if (match != null) {
-        val owner = match.groupValues[1]
-        val repo = match.groupValues[2]
-        url = "https://api.github.com/repos/$owner/$repo/releases"
+    val releasesMatch = githubReleasesRegex.find(url)
+    if (releasesMatch != null) {
+        val owner = releasesMatch.groupValues[1]
+        val repo = releasesMatch.groupValues[2]
+        return "https://api.github.com/repos/$owner/$repo/releases"
+    }
+    // Auto-convert plain github.com/{owner}/{repo} to api.github.com/repos/{owner}/{repo}/contents
+    val plainRepoRegex = Regex("""https://github\.com/([^/]+)/([^/]+?)/?$""")
+    val repoMatch = plainRepoRegex.find(url)
+    if (repoMatch != null) {
+        val owner = repoMatch.groupValues[1]
+        val repo = repoMatch.groupValues[2]
+        return "https://api.github.com/repos/$owner/$repo/contents"
     }
     return url
 }
@@ -123,6 +131,10 @@ private suspend fun autoDetectFormat(url: String): RemoteSourceRepository.Source
     }
     
     if (url.contains("api.github.com/repos")) {
+        // Contents API URL → GITHUB_REPO_CONTENTS (no network call needed)
+        if (url.endsWith("/contents") || url.contains("/contents/")) {
+            return@withContext RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS
+        }
         try {
             val conn = URL(url).openConnection() as HttpURLConnection
             conn.setRequestProperty("Accept", "application/json")

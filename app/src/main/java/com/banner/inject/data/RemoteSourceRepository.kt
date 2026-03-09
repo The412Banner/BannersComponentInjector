@@ -153,7 +153,8 @@ class RemoteSourceRepository(private val context: Context) {
         WCP_JSON,
         GITHUB_RELEASES_TURNIP,
         GITHUB_RELEASES_WCP,
-        GITHUB_RELEASES_ZIP   // All .zip assets from each release, no name filter
+        GITHUB_RELEASES_ZIP,         // All .zip assets from each release, no name filter
+        GITHUB_REPO_CONTENTS         // GitHub Contents API — folders = types, files inside = components
     }
 
     // Default built-in sources mapped strictly to the components they provide
@@ -165,7 +166,7 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
         RemoteSource("Adreno Tools Drivers (StevenMXZ)", "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
-        RemoteSource("MaxesTechReview (MTR)", "https://raw.githubusercontent.com/maxjivi05/Components/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "drivers", "wine", "proton"))
+        RemoteSource("MaxesTechReview (MTR)", "https://api.github.com/repos/maxjivi05/Components/contents", SourceFormat.GITHUB_REPO_CONTENTS, emptyList())
     )
 
     fun getAllSources(): List<RemoteSource> {
@@ -285,6 +286,7 @@ class RemoteSourceRepository(private val context: Context) {
             SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(source.url, source.name)
             SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(source.url, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(source.url, source.name)
+            SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(source.url, componentType, source.name)
         }
         putToCache(source.name, componentType, result)
         result
@@ -324,6 +326,13 @@ class RemoteSourceRepository(private val context: Context) {
                                 types.forEach { type ->
                                     val items = fetchGithubReleasesWcp(source.url, type, source.name)
                                     putToCache(source.name, type, items)
+                                }
+                            }
+                            SourceFormat.GITHUB_REPO_CONTENTS -> {
+                                val folders = discoverTypes(source)
+                                folders.forEach { folder ->
+                                    val items = fetchGithubRepoContents(source.url, folder, source.name)
+                                    putToCache(source.name, folder, items)
                                 }
                             }
                         }
@@ -505,6 +514,21 @@ class RemoteSourceRepository(private val context: Context) {
                     // ZIP repos often have generic filenames; fall back to full known list if nothing matched
                     if (found.isEmpty()) knownTypes else sortByKnown(found)
                 }
+                SourceFormat.GITHUB_REPO_CONTENTS -> {
+                    // Return the actual folder names from the repo root (case-preserved for API calls)
+                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("Accept", "application/json")
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val array = JSONArray(conn.inputStream.bufferedReader().readText())
+                    val folders = mutableListOf<String>()
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+                        if (item.getString("type") == "dir" && !item.getString("name").startsWith(".")) {
+                            folders.add(item.getString("name")) // preserve original casing
+                        }
+                    }
+                    folders
+                }
             }
         } catch (_: Exception) {
             if (source.supportedTypes.isNotEmpty()) source.supportedTypes else knownTypes
@@ -526,6 +550,32 @@ class RemoteSourceRepository(private val context: Context) {
             removeSource(oldSource)   // marks as removed from defaults
             addCustomSource(newSource)
         }
+    }
+
+    private suspend fun fetchGithubRepoContents(
+        url: String,
+        folderName: String,
+        sourceName: String
+    ): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val folderUrl = "$url/$folderName"
+        val json = openUrl(folderUrl).inputStream.bufferedReader().readText()
+        val array = JSONArray(json)
+        val result = mutableListOf<RemoteItem>()
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            if (item.getString("type") != "file") continue
+            val name = item.getString("name")
+            if (!name.endsWith(".wcp", ignoreCase = true) && !name.endsWith(".zip", ignoreCase = true)) continue
+            val downloadUrl = item.optString("download_url").takeIf { it.isNotEmpty() } ?: continue
+            result.add(RemoteItem(
+                displayName = name.substringBeforeLast("."),
+                versionName = name.substringBeforeLast("."),
+                downloadUrl = downloadUrl,
+                sourceName = sourceName,
+                publishedAt = null
+            ))
+        }
+        result
     }
 
     suspend fun downloadToTemp(

@@ -65,8 +65,24 @@ fun DownloadScreen(
     var sources by remember { mutableStateOf(repo.getAllSources()) }
     var sortOrder by remember { mutableStateOf(SortOrder.NEWEST_FIRST) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var dynamicTypes by remember { mutableStateOf<List<String>?>(null) }
+    var isLoadingTypes by remember { mutableStateOf(false) }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
+
+    // Auto-fetch folder names for GITHUB_REPO_CONTENTS sources when one is selected
+    LaunchedEffect(selectedSource) {
+        val source = selectedSource
+        if (source != null && source.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS) {
+            dynamicTypes = null
+            isLoadingTypes = true
+            try { dynamicTypes = repo.discoverTypes(source) } catch (_: Exception) { dynamicTypes = emptyList() }
+            isLoadingTypes = false
+        } else {
+            dynamicTypes = null
+            isLoadingTypes = false
+        }
+    }
 
     BackHandler(enabled = selectedSource != null && !isDownloading) {
         fetchJob?.cancel()
@@ -324,7 +340,22 @@ fun DownloadScreen(
                     }
                 }
                 selectedType == null -> {
-                    val typesToShow = if (selectedSource!!.supportedTypes.isNotEmpty()) selectedSource!!.supportedTypes else componentTypes
+                    if (isLoadingTypes) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp).weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(16.dp))
+                            Text("Detecting types...", fontSize = 14.sp)
+                        }
+                    } else {
+                    val typesToShow = when {
+                        selectedSource!!.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS -> dynamicTypes ?: emptyList()
+                        selectedSource!!.supportedTypes.isNotEmpty() -> selectedSource!!.supportedTypes
+                        else -> componentTypes
+                    }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -375,6 +406,7 @@ fun DownloadScreen(
                             }
                         }
                     }
+                    } // end else (not isLoadingTypes)
                 }
                 else -> {
                     val currentItems = items ?: return@Column
