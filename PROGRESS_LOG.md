@@ -4,6 +4,19 @@
 
 ---
 
+### [pre-release] — v1.4.4-pre — Organized Download Folder Structure (2026-03-09)
+**Commit:** `18a3a46`  |  **Tag:** v1.4.4-pre
+
+#### What changed
+- Downloads now land in `Downloads/BannersComponentInjector/{RepoName}/{ComponentType}/{file}` instead of a flat `Downloads/` subfolder.
+- `sanitizeFolderName()` helper strips filesystem-unsafe characters (`/ \ : * ? " < > |`) from repo and type names before using them as folder names.
+- Both MediaStore path and legacy fallback use the same structure.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+
+---
+
 ### [pre-release] — v1.4.3-pre — MTR Repository and Drivers Category (2026-03-09)
 **Commit:** `f54e027`  |  **Tag:** v1.4.3-pre
 
