@@ -6,33 +6,34 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Sort
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,17 +45,17 @@ fun RemoteSourceSheet(
 ) {
     var selectedSource by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var selectedType by remember { mutableStateOf<String?>(null) }
-    
+
     var items by remember { mutableStateOf<List<RemoteSourceRepository.RemoteItem>?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    
+
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
     var fetchJob by remember { mutableStateOf<Job?>(null) }
-    
+
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sources by remember { mutableStateOf(repo.getAllSources()) }
@@ -62,7 +63,10 @@ fun RemoteSourceSheet(
     var showSortMenu by remember { mutableStateOf(false) }
     var dynamicTypes by remember { mutableStateOf<List<String>?>(null) }
     var isLoadingTypes by remember { mutableStateOf(false) }
-    var fileSearchQuery by remember { mutableStateOf("") }
+
+    // Cross-repo search state (step 1 — before any repo is selected)
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchCaching by remember { mutableStateOf(false) }
 
     // Fixed list of common component types users can select when source allows anything
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
@@ -81,20 +85,29 @@ fun RemoteSourceSheet(
         }
     }
 
-    BackHandler(enabled = (fileSearchQuery.isNotEmpty() || selectedSource != null) && !isDownloading) {
-        if (fileSearchQuery.isNotEmpty()) {
-            fileSearchQuery = ""
-        } else {
-            fetchJob?.cancel()
-            fetchJob = null
-            items = null
-            isLoading = false
-            errorMessage = null
-            if (selectedType != null) {
+    // Background cache-fill when user starts typing a search query
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty() && !RemoteSourceRepository.hasCache()) {
+            isSearchCaching = true
+            try { repo.refreshAllCache(sources, componentTypes) } catch (_: Exception) {}
+            isSearchCaching = false
+        }
+    }
+
+    BackHandler(enabled = (searchQuery.isNotEmpty() || selectedSource != null) && !isDownloading) {
+        when {
+            searchQuery.isNotEmpty() -> searchQuery = ""
+            selectedType != null -> {
+                fetchJob?.cancel()
+                fetchJob = null
                 selectedType = null
-                fileSearchQuery = ""
-            } else if (selectedSource != null) {
+                items = null
+                isLoading = false
+                errorMessage = null
+            }
+            selectedSource != null -> {
                 selectedSource = null
+                errorMessage = null
             }
         }
     }
@@ -118,7 +131,6 @@ fun RemoteSourceSheet(
                                 fetchJob?.cancel()
                                 fetchJob = null
                                 selectedType = null
-                                fileSearchQuery = ""
                                 items = null
                                 isLoading = false
                                 errorMessage = null
@@ -143,7 +155,7 @@ fun RemoteSourceSheet(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 if (selectedType != null && !isLoading && !isDownloading) {
                     Box {
                         IconButton(
@@ -182,7 +194,28 @@ fun RemoteSourceSheet(
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
+
+            // Cross-repo search field — only shown at step 1 (no repo selected yet)
+            if (selectedSource == null && !isDownloading) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search across all repositories...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {}),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+            }
 
             when {
                 isDownloading -> {
@@ -213,6 +246,92 @@ fun RemoteSourceSheet(
                         Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.height(8.dp))
                         Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                selectedSource == null && searchQuery.isNotEmpty() -> {
+                    // Cross-repo search results
+                    val results = remember(searchQuery) { RemoteSourceRepository.searchCache(searchQuery) }
+                    when {
+                        isSearchCaching && results.isEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.height(12.dp))
+                                Text("Loading repositories into cache...", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                            }
+                        }
+                        results.isEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(Icons.Default.SearchOff, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "No results for \"$searchQuery\"",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (!RemoteSourceRepository.hasCache() || isSearchCaching) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Still loading — try again in a moment", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        else -> {
+                            Text(
+                                "${results.size} result${if (results.size != 1) "s" else ""}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(results) { result ->
+                                    val item = result.item
+                                    val sizeText = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            scope.launch {
+                                                isDownloading = true
+                                                downloadProgress = "Downloading..."
+                                                try {
+                                                    val file = repo.downloadToTemp(item.downloadUrl) { progress ->
+                                                        downloadProgress = progress
+                                                    }
+                                                    onDownloadAndReplace(Uri.fromFile(file))
+                                                    onDismiss()
+                                                } catch (e: Exception) {
+                                                    errorMessage = "Download failed: ${e.message}"
+                                                    isDownloading = false
+                                                }
+                                            }
+                                        },
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                            Spacer(Modifier.width(16.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(item.displayName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Text(
+                                                    "${result.sourceName} · ${result.componentType.uppercase()}$sizeText",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 selectedSource == null -> {
@@ -253,7 +372,7 @@ fun RemoteSourceSheet(
                                 }
                             }
                         }
-                        
+
                         item {
                             TextButton(
                                 onClick = {
@@ -349,32 +468,11 @@ fun RemoteSourceSheet(
                             SortOrder.NAME_DESC -> currentItems.sortedByDescending { it.displayName }
                         }
                     }
-                    val displayedItems = remember(sortedItems, fileSearchQuery) {
-                        if (fileSearchQuery.isBlank()) sortedItems
-                        else sortedItems.filter { it.displayName.contains(fileSearchQuery.trim(), ignoreCase = true) }
-                    }
-                    OutlinedTextField(
-                        value = fileSearchQuery,
-                        onValueChange = { fileSearchQuery = it },
-                        placeholder = { Text("Filter files...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (fileSearchQuery.isNotEmpty()) {
-                                IconButton(onClick = { fileSearchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {}),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                    )
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(displayedItems) { item ->
+                        items(sortedItems) { item ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     scope.launch {
