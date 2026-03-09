@@ -2,7 +2,7 @@
 
 **An external component manager for GameHub (Lite) and its variants — no root required.**
 
-BannersComponentInjector lets you browse, back up, replace, and restore the Windows-emulation components inside GameHub app variants (DXVK, VKD3D-Proton, Box64, FEXCore, Turnip GPU drivers, and more) directly from your Android device. Components can be installed from local files or fetched straight from online repositories — all without needing root access or a PC.
+BannersComponentInjector lets you browse, back up, replace, and restore the Windows-emulation components inside GameHub app variants (DXVK, VKD3D-Proton, Box64, FEXCore, Wine, Turnip GPU drivers, and more) directly from your Android device. Components can be installed from local files or fetched and downloaded straight from online repositories — all without needing root access or a PC.
 
 ---
 
@@ -21,10 +21,13 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - [Installation](#installation)
 - [How to Set Up](#how-to-set-up)
 - [How to Use](#how-to-use)
-  - [Backing Up a Component](#backing-up-a-component)
-  - [Replacing a Component — Local File](#replacing-a-component--local-file)
-  - [Replacing a Component — Online Sources](#replacing-a-component--online-sources)
-  - [Restoring a Component](#restoring-a-component)
+  - [Inject Components Tab](#inject-components-tab)
+    - [Backing Up a Component](#backing-up-a-component)
+    - [Replacing a Component — Local File](#replacing-a-component--local-file)
+    - [Replacing a Component — Online Sources](#replacing-a-component--online-sources)
+    - [Restoring a Component](#restoring-a-component)
+  - [Download Components Tab](#download-components-tab)
+  - [My Downloads Tab](#my-downloads-tab)
   - [Backup Manager](#backup-manager)
   - [In-App Updates](#in-app-updates)
   - [Theme Customization](#theme-customization)
@@ -38,19 +41,43 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 
 ## Features
 
+**Core**
 - **No root required** — uses Android's Storage Access Framework (SAF) for secure folder access.
 - **Multi-app support** — automatically detects all installed GameHub variants side by side.
-- **Component list** — fast, native `ContentResolver`-based scanner shows every component folder with file count and size.
-- **Backup** — backs up any component folder to `Downloads/BannersComponentInjector/<componentName>/` using the MediaStore API.
-- **Replace from local file** — pick a `.wcp` or `.zip` file from your device and inject it directly into the selected component folder.
-- **Replace from online sources** — a multi-step drilldown wizard lets you browse, select, and download components from multiple online repositories without leaving the app.
-- **Restore** — restore any component to its original backed-up state with one tap.
-- **Replacement notes** — the component list remembers what each folder was last replaced with; the note is cleared automatically when you restore.
-- **Backup Manager** — centralised view of all saved backups with one-tap deletion.
-- **In-app update checker** — checks GitHub for new releases, downloads the APK directly inside the app (progress bar + percentage), and hands it to the system installer — no browser needed.
-- **Full theme customization** — 8 preset accent colours plus a full HSV colour wheel with brightness slider and hex input.
-- **Backup warning prompt** — warns before replacing a component that hasn't been backed up yet. Includes a "Don't ask again" option and a toggle in Settings to re-enable.
-- **Settings on every screen** — accessible from the App List and the Component List via the ⚙ icon.
+- **Fast component scanner** — native `ContentResolver`-based scanner shows every component folder with file count and total size.
+- **Three-tab layout** — Inject Components, Download Components, and My Downloads.
+
+**Inject Components**
+- **Backup** — back up any component folder to `Downloads/BannersComponentInjector/<componentName>/` (or a custom location).
+- **Replace from local file** — pick a `.wcp` or `.zip` from your device and inject it into the component folder.
+- **Replace from online source** — browse, select, and download a component from an online repository directly into the component folder, without leaving the app.
+- **Restore** — restore any component to its backed-up state with one tap.
+- **Replacement notes** — the component list remembers what each folder was last replaced with; cleared automatically on restore.
+- **Backup warning** — warns before replacing an unbacked component, with a "Don't ask again" option and a Settings toggle to re-enable.
+
+**Download Components**
+- **8 built-in repositories** — browse StevenMXZ, Arihany WCPHub, AdrenoToolsDrivers (K11MCH1), MaxesTechReview (MTR), and more.
+- **10 component categories** — DXVK, VKD3D, Box64, FEXCore, WineD3D, Turnip, Adreno, Drivers, Wine, Proton.
+- **Upload dates** — each file card shows the date it was uploaded to its repository (from GitHub `published_at`).
+- **Sort control** — default sort is newest first; tap the Sort button to switch between Newest First, Oldest First, Name A→Z, or Name Z→A instantly.
+- **Already-downloaded indicator** — files you've previously saved are marked with a checkmark.
+- **Custom repositories** — add any compatible repository URL; format is auto-detected.
+- **Remove any repository** — including built-in defaults; a Restore Defaults button brings them back.
+- **Hamburger menu per repo** — Open in Browser or Remove Repository.
+- **Refresh All** — pre-fetches all sources × all types in parallel and caches results in memory.
+
+**My Downloads**
+- Browse saved files by Repository → Type → File.
+- Delete individual records or clear all at once.
+- **Backups folder** at the root of My Downloads for quick access to all component backups.
+
+**General**
+- **Backup Manager** — centralised view of all saved backups with per-backup deletion.
+- **Custom storage locations** — independently set a custom folder for Downloads and for Backups via the SAF folder picker.
+- **In-app update checker** — checks GitHub for new releases, downloads the APK with a progress bar, and hands it to the system installer.
+- **Full theme customization** — 8 preset accent colours plus a custom HSV colour wheel with brightness slider and hex input.
+- **Native back button** — steps back through navigation states throughout the app.
+- **Settings on every screen** — accessible via the ⚙ icon from the App List, Component List, and Download screens.
 
 ---
 
@@ -73,9 +100,13 @@ BannersComponentInjector detects the following GameHub variants automatically:
 
 ## Installation
 
-1. Go to the [**Releases**](https://github.com/The412Banner/BannersComponentInjector/releases/latest) page and download the latest APK.
-2. On your Android device, enable **Install from unknown sources** for your file manager or browser (Settings → Apps → Special app access → Install unknown apps).
-3. Open the downloaded APK and tap **Install**.
+1. Go to the [**Releases**](https://github.com/The412Banner/BannersComponentInjector/releases/latest) page.
+2. Download the APK for your device architecture:
+   - **arm64-v8a** — most modern Android phones (64-bit ARM)
+   - **armeabi-v7a** — older 32-bit ARM devices
+   - **x86_64** — x86 emulators / tablets
+3. On your Android device, enable **Install from unknown sources** for your file manager or browser (Settings → Apps → Special app access → Install unknown apps).
+4. Open the downloaded APK and tap **Install**.
 
 > APKs from **v1.2.6 and later** are signed with a stable certificate, so they install as updates over each other without needing to uninstall first.
 
@@ -86,14 +117,14 @@ BannersComponentInjector detects the following GameHub variants automatically:
 ### First Launch
 
 1. Open **BannersComponentInjector**.
-2. The app shows a list of all detected GameHub variants on your device.
+2. The app shows all detected GameHub variants on your device.
 3. Tap the variant you want to manage.
-4. A guide dialog appears explaining which folder to select. Read it, then tap **Open Folder Picker**.
+4. A guide dialog appears explaining which folder to select. Tap **Open Folder Picker**.
 5. In the Android folder picker:
    - Tap the **≡ hamburger menu** (top-left) and select your **GameHub app** from the sidebar.
    - Navigate to: `data` → `files` → `usr` → `home` → `components`
    - Tap **Use this folder** and then **Allow**.
-6. The app now has access. Tap the app card again to see all component folders.
+6. The app now has access. Tap the app card again to open the component list.
 
 > You only need to grant folder access once per app variant. Access is remembered across restarts. To remove access, tap the **🔗 unlink icon** next to the app card.
 
@@ -101,56 +132,92 @@ BannersComponentInjector detects the following GameHub variants automatically:
 
 ## How to Use
 
-### Backing Up a Component
+### Inject Components Tab
 
-1. Tap any component card in the list to open its detail sheet.
+This tab is the main workspace for managing components already installed inside a GameHub variant.
+
+#### Backing Up a Component
+
+1. Tap any component card to open its detail sheet.
 2. Tap **Backup Current Contents**.
-3. The component folder is copied to `Downloads/BannersComponentInjector/<componentName>/`.
+3. The component folder is copied to `Downloads/BannersComponentInjector/<componentName>/` (or your custom Backups location).
 4. The component card shows a **Backup** badge once a backup exists.
 
 > Always back up before replacing — if something goes wrong you can restore instantly.
 
 ---
 
-### Replacing a Component — Local File
+#### Replacing a Component — Local File
 
 1. Tap the component card you want to replace.
 2. Tap **Select Local File**.
-3. If no backup exists, a warning appears asking you to confirm. Tap **Replace Anyway** to proceed (or check **Don't ask again** to skip future warnings for this session).
+3. If no backup exists, a warning appears. Tap **Replace Anyway** to proceed (or check **Don't ask again** to skip future warnings).
 4. In the file picker, select your `.wcp` or `.zip` file.
 5. The app extracts the file into the component folder. A snackbar confirms success.
-6. The component card updates its **Replaced** note with the file name.
+6. The component card shows a **Replaced** note with the file name.
 
 ---
 
-### Replacing a Component — Online Sources
+#### Replacing a Component — Online Sources
 
 1. Tap the component card you want to replace.
 2. Tap **Select Online Source**.
-3. **Step 1 — Choose a repository**: pick the online source to browse (e.g., StevenMXZ, Arihany WCPHub, K11MCH1 AdrenoToolsDrivers, etc.).
-4. **Step 2 — Choose a component type**: select the type you're looking for (e.g., DXVK, VKD3D, Box64, Turnip). Only types available from the selected source are shown.
-5. **Step 3 — Choose a file**: a filtered list of matching packages appears with version info and the source name. Tap any entry to download and install it automatically.
+3. **Step 1 — Choose a repository**: pick the online source to browse.
+4. **Step 2 — Choose a component type**: select the type (DXVK, VKD3D, Box64, Turnip, Wine, etc.).
+5. **Step 3 — Choose a file**: a filtered list of matching packages appears with version info and upload date. Tap any entry to download and install it directly into the component folder.
 6. A progress indicator shows download status. The component folder is updated on completion.
-
-> The online wizard strictly filters results — if you open a `turnip` folder, you only see Turnip/Adreno packages regardless of the repository.
 
 ---
 
-### Restoring a Component
+#### Restoring a Component
 
 1. Tap the component card (must have a **Backup** badge).
 2. Tap **Restore Original Backup**.
-3. Confirm in the dialog. The component folder is restored from the backup copy in Downloads.
+3. Confirm in the dialog. The component folder is restored from the backup copy.
 4. The **Replaced** note is cleared from the component card.
+
+---
+
+### Download Components Tab
+
+This tab lets you browse online repositories and save component files to your device for later use.
+
+1. **Select a repository** from the list. Tap the **≡ menu** on any card to open it in your browser or remove it.
+2. **Select a component type** — only types supported by that repository are shown.
+3. **Browse the file list**:
+   - Each item shows its name, upload date (where available), and a checkmark if you've already downloaded it.
+   - Files are sorted **newest first** by default.
+   - Tap the **Sort** button (top-right of the header) to change sort order: Newest First, Oldest First, Name A→Z, Name Z→A.
+4. **Tap a file** to download it. It is saved to `Downloads/BannersComponentInjector/<Repo>/<Type>/<filename>` (or your custom Downloads location).
+
+**Managing repositories:**
+- Tap **+** in the header to add a custom repository URL — the format is auto-detected.
+- Use the **≡ menu** on any card to remove a repository.
+- Tap **Restore Default Repositories** at the bottom to bring back the built-in list.
+- Tap the **⟳ Refresh** button to pre-fetch all sources and cache the results in memory.
+
+---
+
+### My Downloads Tab
+
+Browse and manage all files previously downloaded via the Download Components tab.
+
+- The list is grouped by **Repository → Type → File**.
+- A **Backups** folder at the root gives quick access to all component backups.
+- Tap the **🗑** icon on any file to remove its download record.
+- Tap **Clear All** in the top bar to remove all records at once.
+
+> Removing a record only removes the tracking entry — it does not delete the file from your device storage.
 
 ---
 
 ### Backup Manager
 
 Access the Backup Manager from:
-- The **☁ icon** in the App List top bar.
 - The **☁ icon** in the Component List top bar.
+- The **☁ icon** in the Download Components top bar.
 - **Settings → Backup Manager** button.
+- The **Backups** folder in the **My Downloads** tab.
 
 The Backup Manager lists every saved backup across all components and apps. Tap the **🗑 delete icon** next to any entry to remove it permanently.
 
@@ -163,9 +230,9 @@ The Backup Manager lists every saved backup across all components and apps. Tap 
 3. Toggle **Include pre-releases** if you want to be notified about pre-release builds.
 4. Tap **Check for Updates**.
 5. If an update is available, two options appear:
-   - **Download & Install** — the APK is downloaded directly inside the app. A progress bar shows the download percentage. When the download completes, the system installer launches automatically.
+   - **Download & Install** — the APK streams directly inside the app with a live progress bar. The system installer launches automatically on completion.
    - **View on GitHub** — opens the GitHub release page in your browser.
-6. You can tap **Cancel** at any time during the download to abort.
+6. Tap **Cancel** at any time during a download to abort.
 
 ---
 
@@ -174,25 +241,27 @@ The Backup Manager lists every saved backup across all components and apps. Tap 
 1. Open **Settings** → **Appearance**.
 2. Choose one of the **8 preset swatches**: Orange (default), Blue, Purple, Green, Red, Teal, Pink, or Amber.
 3. For a fully custom colour, tap **Custom**:
-   - **Drag** anywhere on the colour wheel disc to pick hue and saturation.
+   - **Drag** on the colour wheel disc to pick hue and saturation.
    - Use the **Brightness** slider to control lightness.
-   - Type a hex value in the **Hex color** field and tap **Apply Custom Color** if you prefer to enter a colour manually.
-4. The theme updates live as you interact with the wheel. The chosen colour is saved automatically.
+   - Type a hex value in the **Hex color** field and tap **Apply** to enter a colour manually.
+4. The theme updates live. The chosen colour is saved automatically across restarts.
 
 ---
 
 ## Supported Component Formats
 
 ### WCP (Winlator Component Package)
+
 A tar archive compressed with **Zstandard (zstd)** or **XZ**. Contains:
-- `profile.json` — metadata (type, version, description, file mappings).
+- `profile.json` — metadata: type, version name, description, and file mappings.
 - `system32/` and `syswow64/` subdirectories with DLL files.
 
 **Extraction behaviour:**
-- `FEXCore` type → files extracted flat to the component root.
-- All other types (DXVK, VKD3D, Box64, Wine, etc.) → `system32`/`syswow64` directory structure preserved.
+- `FEXCore` type → files are extracted flat to the component root.
+- All other types (DXVK, VKD3D, Box64, Wine, Proton, etc.) → `system32`/`syswow64` directory structure is preserved.
 
 ### ZIP (Turnip / Adrenotools)
+
 A plain ZIP archive containing a `meta.json` file and flat `.so` library files. Detected automatically by magic bytes (`PK`). Always extracted flat to the component root.
 
 ---
@@ -201,26 +270,32 @@ A plain ZIP archive containing a `meta.json` file and flat `.so` library files. 
 
 | Repository | Format | Component Types |
 |-----------|--------|----------------|
-| StevenMXZ / Winlator-Contents | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore |
-| Arihany / WinlatorWCPHub | GitHub Releases (WCP) | DXVK, VKD3D, Box64, FEX, FEXCore, Wine |
+| StevenMXZ / Winlator-Contents | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
+| Arihany / WinlatorWCPHub | GitHub Releases (WCP) | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
 | Arihany / WinlatorWCPHub | GitHub Releases (Turnip) | Turnip, Adreno |
-| Xnick417x / Winlator-Bionic-Nightly-wcp | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore |
-| K11MCH1 / AdrenoToolsDrivers | GitHub Releases | Turnip, Adreno |
+| Xnick417x / Winlator-Bionic-Nightly-wcp | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
+| K11MCH1 / AdrenoToolsDrivers | GitHub Releases (Turnip) | Turnip, Adreno |
 | StevenMXZ / Adreno-Tools-Drivers | GitHub Releases (ZIP) | Turnip, Adreno |
-| whitebelyash / freedreno_turnip-CI | GitHub Releases | Turnip, Adreno |
+| whitebelyash / freedreno_turnip-CI | GitHub Releases (Turnip) | Turnip, Adreno |
+| maxjivi05 / Components (MTR) | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore, Drivers, Wine, Proton |
+
+> Upload dates are shown for all GitHub Releases sources. WCP JSON sources do not expose a date field.
 
 ---
 
 ## Settings
 
-| Setting | Description |
-|---------|-------------|
-| **Appearance → Accent Color** | Choose from 8 presets or use the HSV colour wheel for a fully custom accent. |
-| **Prompts → Backup warning** | Toggle the "No Backup Found" warning shown before replacing an unbacked component. |
-| **Updates → Include pre-releases** | When enabled, the update checker also considers pre-release builds. |
-| **Updates → Check for Updates** | Checks GitHub for a newer version and offers in-app download + install. |
-| **Backup Manager** | Opens the centralised backup list. |
-| **Open Downloads Folder** | Opens the system Downloads folder where backups are saved. |
+| Section | Setting | Description |
+|---------|---------|-------------|
+| **General** | Default Start Tab | Choose whether the app opens to Inject Components or Download Components. |
+| **Appearance** | Accent Color | 8 preset swatches or a fully custom colour via the HSV colour wheel + hex input. |
+| **Prompts** | Backup warning | Toggle the "No Backup Found" warning shown before replacing an unbacked component. |
+| **Storage** | Downloads Location | Set a custom folder for downloaded component files (SAF folder picker). Defaults to `Downloads/BannersComponentInjector/`. |
+| **Storage** | Backups Location | Set a custom folder for component backups (SAF folder picker). Defaults to `Downloads/BannersComponentInjector/`. |
+| **Updates** | Include pre-releases | When enabled, the update checker also considers pre-release builds. |
+| **Updates** | Check for Updates | Checks GitHub for a newer version and offers in-app download + install. |
+| **Utilities** | Backup Manager | Opens the centralised backup list. |
+| **Utilities** | Open Downloads Folder | Opens the system Downloads folder. |
 
 ---
 
@@ -244,9 +319,9 @@ cd BannersComponentInjector
 The APK is output to `app/build/outputs/apk/debug/`.
 
 **Dependencies** (all resolved via Gradle):
-- Jetpack Compose + Material 3 (BOM 2024.02.00)
-- AndroidX Activity, Lifecycle ViewModel
-- Apache Commons Compress — WCP extraction
+- Jetpack Compose + Material 3
+- AndroidX Activity, Lifecycle ViewModel, DocumentFile (SAF)
+- Apache Commons Compress — WCP/tar extraction
 - `com.github.luben:zstd-jni` — Zstandard decompression
 - `org.tukaani:xz` — XZ decompression
 - Material Icons Extended
