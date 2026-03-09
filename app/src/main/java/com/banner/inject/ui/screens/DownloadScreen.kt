@@ -333,13 +333,15 @@ fun DownloadScreen(
                                             val file = repo.downloadToTemp(item.downloadUrl) { progress ->
                                                 downloadProgress = progress
                                             }
-                                            
+
                                             // Extract a sensible filename from the downloadUrl
                                             val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
                                                 .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
-                                            
-                                            saveToDownloads(context, file, fileName)
-                                            
+
+                                            val sourceName = selectedSource?.name ?: "Unknown"
+                                            val componentType = selectedType ?: "misc"
+                                            saveToDownloads(context, file, fileName, sourceName, componentType)
+
                                             snackbarHostState.showSnackbar("Saved $fileName to Downloads")
                                         } catch (e: Exception) {
                                             errorMessage = "Download failed: ${e.message}"
@@ -419,15 +421,25 @@ fun DownloadScreen(
     }
 }
 
-private suspend fun saveToDownloads(context: Context, tempFile: File, fileName: String) = withContext(Dispatchers.IO) {
-    val relPath = "${Environment.DIRECTORY_DOWNLOADS}/BannersComponentInjector/Downloads/"
+private fun sanitizeFolderName(name: String): String =
+    name.replace(Regex("""[/\\:*?"<>|]"""), "_").trim()
+
+private suspend fun saveToDownloads(
+    context: Context,
+    tempFile: File,
+    fileName: String,
+    sourceName: String,
+    componentType: String
+) = withContext(Dispatchers.IO) {
+    val safeSource = sanitizeFolderName(sourceName)
+    val safeType = sanitizeFolderName(componentType)
+    val relPath = "${Environment.DIRECTORY_DOWNLOADS}/BannersComponentInjector/$safeSource/$safeType/"
     val values = ContentValues().apply {
         put(MediaStore.Downloads.DISPLAY_NAME, fileName)
         put(MediaStore.Downloads.RELATIVE_PATH, relPath)
         put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
     }
-    
-    // Fallback if resolver fails for some reason
+
     try {
         val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
         if (uri != null) {
@@ -441,7 +453,10 @@ private suspend fun saveToDownloads(context: Context, tempFile: File, fileName: 
         }
     } catch (e: Exception) {
         // Fallback to legacy path
-        val fallbackDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "BannersComponentInjector/Downloads")
+        val fallbackDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "BannersComponentInjector/$safeSource/$safeType"
+        )
         fallbackDir.mkdirs()
         val destFile = File(fallbackDir, fileName)
         tempFile.copyTo(destFile, overwrite = true)
