@@ -6,6 +6,21 @@
 
 ---
 
+### [pre-release] — v1.6.1-pre — Add Qualcomm component category (2026-03-09)
+**Commit:** `a29802e`  |  **Tag:** v1.6.1-pre
+
+#### What changed
+- Added "qualcomm" to all GPU-driver repo `supportedTypes` (StevenMXZ, Arihany, K11MCH1, freedreno Turnip CI) and their extraEndpoints
+- Added "qualcomm" to `knownTypes` and `GITHUB_RELEASES_TURNIP` default type return in `RemoteSourceRepository`
+- Added "qualcomm" to `componentTypes` fallback list in `DownloadScreen` and `RemoteSourceSheet`
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [stable] — v1.6.0 — Cross-repo search, batch downloads, detail sheets, pull-to-refresh, parity (2026-03-09)
 **Commit:** `cd38edd`  |  **Tag:** v1.6.0
 
