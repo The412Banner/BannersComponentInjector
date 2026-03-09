@@ -395,6 +395,7 @@ fun RemoteSourceSheet(
 
     if (showAddRepoDialog) {
         AddRepoDialog(
+            repo = repo,
             onDismiss = { showAddRepoDialog = false },
             onAdd = { customSource ->
                 repo.addCustomSource(customSource)
