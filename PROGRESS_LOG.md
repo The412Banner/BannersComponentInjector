@@ -4,6 +4,23 @@
 
 ---
 
+### [pre-release] — v1.5.2-pre — Auto-sort newest first + user sort control (2026-03-09)
+**Commit:** `32d9afb`  |  **Tag:** v1.5.2-pre-2
+
+#### What changed
+- Component file lists default to **newest first** (by `publishedAt` descending; items with no date fall to bottom)
+- **Sort button** (`Icons.Default.Sort`) appears in the breadcrumb header when at the file list step in both `DownloadScreen` and `RemoteSourceSheet`
+- Dropdown offers 4 options with active checkmark: Newest First, Oldest First, Name A→Z, Name Z→A
+- `SortOrder` enum declared at package level in `DownloadScreen.kt`, shared with `RemoteSourceSheet`
+- Sorting is `remember(currentItems, sortOrder)` — instant, no re-fetch
+- Fix: added explicit `Sort` and `Check` icon imports to `RemoteSourceSheet.kt` (it uses per-icon imports, not wildcard)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.5.1-pre — Wine/Proton categories + upload dates (2026-03-09)
 **Commit:** `7613e24`  |  **Tag:** v1.5.1-pre
 
