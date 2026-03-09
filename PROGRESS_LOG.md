@@ -4,6 +4,20 @@
 
 ---
 
+### [pre-release] — v1.4.2-pre — Browser Button, Refresh, and API Caching (2026-03-09)
+**Commit:** `7904d4b`  |  **Tag:** v1.4.2-pre
+
+#### What changed
+- **Open in Browser**: Each source card in the Download tab now has a browser icon button. Tapping it opens the repo's GitHub page (API/raw URLs are auto-converted to `github.com` links).
+- **Refresh All Button**: A refresh icon in the source list header fetches all sources × all supported types in parallel and populates the cache. Shows a spinner while running; snackbars on completion. TURNIP/ZIP sources are fetched once and stored under all their supported types to avoid redundant API calls.
+- **API Result Caching**: Results stored in a `ConcurrentHashMap` (companion object, lives for the app session). After the first browse or a manual refresh, re-entering any source/type returns instantly from cache with no network hit.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+
+---
+
 ### [pre-release] — v1.4.1-pre — Native Back Button Support (2026-03-09)
 **Commit:** `504b7a2`  |  **Tag:** v1.4.1-pre
 
