@@ -7,11 +7,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,6 +62,7 @@ fun RemoteSourceSheet(
     var showSortMenu by remember { mutableStateOf(false) }
     var dynamicTypes by remember { mutableStateOf<List<String>?>(null) }
     var isLoadingTypes by remember { mutableStateOf(false) }
+    var fileSearchQuery by remember { mutableStateOf("") }
 
     // Fixed list of common component types users can select when source allows anything
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
@@ -75,16 +81,21 @@ fun RemoteSourceSheet(
         }
     }
 
-    BackHandler(enabled = selectedSource != null && !isDownloading) {
-        fetchJob?.cancel()
-        fetchJob = null
-        items = null
-        isLoading = false
-        errorMessage = null
-        if (selectedType != null) {
-            selectedType = null
-        } else if (selectedSource != null) {
-            selectedSource = null
+    BackHandler(enabled = (fileSearchQuery.isNotEmpty() || selectedSource != null) && !isDownloading) {
+        if (fileSearchQuery.isNotEmpty()) {
+            fileSearchQuery = ""
+        } else {
+            fetchJob?.cancel()
+            fetchJob = null
+            items = null
+            isLoading = false
+            errorMessage = null
+            if (selectedType != null) {
+                selectedType = null
+                fileSearchQuery = ""
+            } else if (selectedSource != null) {
+                selectedSource = null
+            }
         }
     }
 
@@ -107,6 +118,7 @@ fun RemoteSourceSheet(
                                 fetchJob?.cancel()
                                 fetchJob = null
                                 selectedType = null
+                                fileSearchQuery = ""
                                 items = null
                                 isLoading = false
                                 errorMessage = null
@@ -337,11 +349,32 @@ fun RemoteSourceSheet(
                             SortOrder.NAME_DESC -> currentItems.sortedByDescending { it.displayName }
                         }
                     }
+                    val displayedItems = remember(sortedItems, fileSearchQuery) {
+                        if (fileSearchQuery.isBlank()) sortedItems
+                        else sortedItems.filter { it.displayName.contains(fileSearchQuery.trim(), ignoreCase = true) }
+                    }
+                    OutlinedTextField(
+                        value = fileSearchQuery,
+                        onValueChange = { fileSearchQuery = it },
+                        placeholder = { Text("Filter files...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (fileSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { fileSearchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {}),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    )
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(sortedItems) { item ->
+                        items(displayedItems) { item ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     scope.launch {
