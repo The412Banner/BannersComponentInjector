@@ -146,7 +146,12 @@ class RemoteSourceRepository(private val context: Context) {
         val url: String,
         val format: SourceFormat,
         val supportedTypes: List<String> = emptyList(), // Empty implies all types
-        val isCustom: Boolean = false
+        val isCustom: Boolean = false,
+        // Optional secondary endpoint — types in secondaryTypes are fetched from secondaryUrl
+        // using secondaryFormat instead of the primary url/format (composite sources only)
+        val secondaryUrl: String? = null,
+        val secondaryFormat: SourceFormat? = null,
+        val secondaryTypes: List<String> = emptyList()
     )
 
     enum class SourceFormat {
@@ -159,12 +164,26 @@ class RemoteSourceRepository(private val context: Context) {
 
     // Default built-in sources mapped strictly to the components they provide
     private val defaultSources = listOf(
-        RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
-        RemoteSource("Arihany WCPHub", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
-        RemoteSource("Arihany WCPHub (Turnip)", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
+        RemoteSource(
+            name = "StevenMXZ",
+            url = "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json",
+            format = SourceFormat.WCP_JSON,
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno"),
+            secondaryUrl = "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases",
+            secondaryFormat = SourceFormat.GITHUB_RELEASES_ZIP,
+            secondaryTypes = listOf("turnip", "adreno")
+        ),
+        RemoteSource(
+            name = "Arihany WCPHub",
+            url = "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases",
+            format = SourceFormat.GITHUB_RELEASES_WCP,
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno"),
+            secondaryUrl = "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases",
+            secondaryFormat = SourceFormat.GITHUB_RELEASES_TURNIP,
+            secondaryTypes = listOf("turnip", "adreno")
+        ),
         RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
-        RemoteSource("Adreno Tools Drivers (StevenMXZ)", "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
         RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList())
     )
@@ -281,12 +300,16 @@ class RemoteSourceRepository(private val context: Context) {
         componentType: String
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
         getFromCache(source.name, componentType)?.let { return@withContext it }
-        val result = when (source.format) {
-            SourceFormat.WCP_JSON -> fetchWcpJson(source.url, componentType, source.name)
-            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(source.url, source.name)
-            SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(source.url, componentType, source.name)
-            SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(source.url, source.name)
-            SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(source.url, componentType, source.name)
+        // Route to secondary endpoint when this type belongs to the secondary group
+        val useSecondary = source.secondaryUrl != null && componentType in source.secondaryTypes
+        val activeUrl = if (useSecondary) source.secondaryUrl!! else source.url
+        val activeFormat = if (useSecondary) source.secondaryFormat ?: source.format else source.format
+        val result = when (activeFormat) {
+            SourceFormat.WCP_JSON -> fetchWcpJson(activeUrl, componentType, source.name)
+            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(activeUrl, source.name)
+            SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(activeUrl, componentType, source.name)
+            SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(activeUrl, source.name)
+            SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(activeUrl, componentType, source.name)
         }
         putToCache(source.name, componentType, result)
         result
@@ -303,27 +326,28 @@ class RemoteSourceRepository(private val context: Context) {
             sources.forEach { source ->
                 launch(Dispatchers.IO) {
                     try {
+                        // For composite sources, split primary and secondary types
+                        val primaryTypes = if (source.supportedTypes.isNotEmpty())
+                            source.supportedTypes.filter { it !in source.secondaryTypes }
+                        else allTypes.filter { it !in source.secondaryTypes }
+
                         when (source.format) {
                             SourceFormat.GITHUB_RELEASES_TURNIP -> {
                                 val items = fetchTurnipReleases(source.url, source.name)
-                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
-                                types.forEach { putToCache(source.name, it, items) }
+                                primaryTypes.forEach { putToCache(source.name, it, items) }
                             }
                             SourceFormat.GITHUB_RELEASES_ZIP -> {
                                 val items = fetchGithubReleasesZip(source.url, source.name)
-                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
-                                types.forEach { putToCache(source.name, it, items) }
+                                primaryTypes.forEach { putToCache(source.name, it, items) }
                             }
                             SourceFormat.WCP_JSON -> {
-                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
-                                types.forEach { type ->
+                                primaryTypes.forEach { type ->
                                     val items = fetchWcpJson(source.url, type, source.name)
                                     putToCache(source.name, type, items)
                                 }
                             }
                             SourceFormat.GITHUB_RELEASES_WCP -> {
-                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
-                                types.forEach { type ->
+                                primaryTypes.forEach { type ->
                                     val items = fetchGithubReleasesWcp(source.url, type, source.name)
                                     putToCache(source.name, type, items)
                                 }
@@ -334,6 +358,27 @@ class RemoteSourceRepository(private val context: Context) {
                                     val items = fetchGithubRepoContents(source.url, folder, source.name)
                                     putToCache(source.name, folder, items)
                                 }
+                            }
+                        }
+
+                        // Fetch secondary endpoint (if any) and cache under secondary types
+                        if (source.secondaryUrl != null && source.secondaryFormat != null && source.secondaryTypes.isNotEmpty()) {
+                            when (source.secondaryFormat) {
+                                SourceFormat.GITHUB_RELEASES_TURNIP -> {
+                                    val items = fetchTurnipReleases(source.secondaryUrl, source.name)
+                                    source.secondaryTypes.forEach { putToCache(source.name, it, items) }
+                                }
+                                SourceFormat.GITHUB_RELEASES_ZIP -> {
+                                    val items = fetchGithubReleasesZip(source.secondaryUrl, source.name)
+                                    source.secondaryTypes.forEach { putToCache(source.name, it, items) }
+                                }
+                                SourceFormat.GITHUB_RELEASES_WCP -> {
+                                    source.secondaryTypes.forEach { type ->
+                                        val items = fetchGithubReleasesWcp(source.secondaryUrl, type, source.name)
+                                        putToCache(source.name, type, items)
+                                    }
+                                }
+                                else -> { /* other secondary formats not expected */ }
                             }
                         }
                     } catch (_: Exception) { /* skip failed sources silently */ }
@@ -466,6 +511,10 @@ class RemoteSourceRepository(private val context: Context) {
     suspend fun discoverTypes(source: RemoteSource): List<String> = withContext(Dispatchers.IO) {
         val knownTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
         fun sortByKnown(set: Set<String>) = set.sortedBy { t -> knownTypes.indexOf(t).let { if (it == -1) Int.MAX_VALUE else it } }
+        // Composite sources have all their types explicitly listed — no network scan needed
+        if (source.secondaryUrl != null && source.supportedTypes.isNotEmpty()) {
+            return@withContext source.supportedTypes
+        }
         try {
             when (source.format) {
                 SourceFormat.WCP_JSON -> {
