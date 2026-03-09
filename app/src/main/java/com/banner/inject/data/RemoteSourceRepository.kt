@@ -53,7 +53,32 @@ class RemoteSourceRepository(private val context: Context) {
             bytes >= 1_024L         -> "%.1f KB".format(bytes / 1_024f)
             else                    -> "$bytes B"
         }
+
+        /** Search all cached items across every source and type. */
+        fun searchCache(query: String): List<SearchResult> {
+            if (query.isBlank()) return emptyList()
+            val q = query.lowercase().trim()
+            val results = mutableListOf<SearchResult>()
+            cache.forEach { (key, items) ->
+                val parts = key.split("::")
+                if (parts.size != 2) return@forEach
+                val (sourceName, componentType) = parts
+                items.filter {
+                    it.displayName.lowercase().contains(q) ||
+                    it.versionName.lowercase().contains(q)
+                }.forEach { item ->
+                    results.add(SearchResult(sourceName, componentType, item))
+                }
+            }
+            return results.sortedBy { it.item.displayName.lowercase() }
+        }
     }
+
+    data class SearchResult(
+        val sourceName: String,
+        val componentType: String,
+        val item: RemoteItem
+    )
 
     data class DownloadedFile(
         val sourceName: String,

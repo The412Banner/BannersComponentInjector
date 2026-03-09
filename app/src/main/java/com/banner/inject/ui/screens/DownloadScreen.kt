@@ -18,10 +18,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.MainTab
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +77,10 @@ fun DownloadScreen(
     var batchSelected by remember { mutableStateOf(emptySet<String>()) } // set of downloadUrls
     var lastFailedItem by remember { mutableStateOf<RemoteSourceRepository.RemoteItem?>(null) }
     var downloadedSet: Set<String> by remember { mutableStateOf(emptySet()) }
+    var searchMode by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchCaching by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
 
@@ -88,7 +98,26 @@ fun DownloadScreen(
         }
     }
 
-    BackHandler(enabled = selectedSource != null && !isDownloading) {
+    // Auto-focus search field when search mode opens + kick off background cache refresh
+    LaunchedEffect(searchMode) {
+        if (searchMode) {
+            delay(100)
+            searchFocusRequester.requestFocus()
+            if (!RemoteSourceRepository.hasCache()) {
+                isSearchCaching = true
+                try { repo.refreshAllCache(sources, componentTypes) } catch (_: Exception) {}
+                isSearchCaching = false
+            }
+        } else {
+            searchQuery = ""
+        }
+    }
+
+    BackHandler(enabled = searchMode || (selectedSource != null && !isDownloading)) {
+        if (searchMode) {
+            searchMode = false
+            return@BackHandler
+        }
         if (batchMode) {
             batchMode = false
             batchSelected = emptySet()
@@ -112,26 +141,81 @@ fun DownloadScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
-                TopAppBar(
-                    title = {
-                        Text("Download Components", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    },
-                    actions = {
-                        IconButton(onClick = onShowBackupManager) {
-                            Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
-                        }
-                        IconButton(onClick = onShowSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                if (searchMode) {
+                    TopAppBar(
+                        navigationIcon = {
+                            IconButton(onClick = { searchMode = false }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Close search")
+                            }
+                        },
+                        title = {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search all repositories...", fontSize = 14.sp) },
+                                modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { /* keep keyboard open */ }),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                                )
+                            )
+                        },
+                        actions = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
-                )
+                } else {
+                    TopAppBar(
+                        title = {
+                            Text("Download Components", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        },
+                        actions = {
+                            IconButton(onClick = { searchMode = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "Search repositories")
+                            }
+                            IconButton(onClick = onShowBackupManager) {
+                                Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
+                            }
+                            IconButton(onClick = onShowSettings) {
+                                Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                }
                 MainTabRow(currentTab = currentTab, onTabSelected = onTabSelected)
             }
         }
     ) { padding ->
+        if (searchMode) {
+            SearchContent(
+                query = searchQuery,
+                isCaching = isSearchCaching,
+                isDownloading = isDownloading,
+                downloadProgress = downloadProgress,
+                repo = repo,
+                context = context,
+                scope = scope,
+                snackbarHostState = snackbarHostState,
+                onDownloadingChanged = { isDownloading = it },
+                onProgressChanged = { downloadProgress = it },
+                modifier = Modifier.fillMaxSize().padding(padding)
+            )
+        } else
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -695,6 +779,151 @@ fun DownloadScreen(
                 sourceToEdit = null
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchContent(
+    query: String,
+    isCaching: Boolean,
+    isDownloading: Boolean,
+    downloadProgress: String,
+    repo: RemoteSourceRepository,
+    context: android.content.Context,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+    onDownloadingChanged: (Boolean) -> Unit,
+    onProgressChanged: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var localDownloading by remember { mutableStateOf(false) }
+    var localProgress by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val results = remember(query) { RemoteSourceRepository.searchCache(query) }
+
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
+        when {
+            isDownloading || localDownloading -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(16.dp))
+                    Text(if (localDownloading) localProgress else downloadProgress, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            query.isBlank() -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Default.Search, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (isCaching) "Loading repositories into cache..." else "Type to search across all repositories",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    if (isCaching) {
+                        Spacer(Modifier.height(12.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    }
+                }
+            }
+            results.isEmpty() -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Default.SearchOff, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "No results for \"$query\"",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    if (!RemoteSourceRepository.hasCache() || isCaching) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("Still loading — try again in a moment", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            else -> {
+                Text(
+                    "${results.size} result${if (results.size != 1) "s" else ""}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                if (localError != null) {
+                    Text(localError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+                }
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(results) { result ->
+                        val item = result.item
+                        val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
+                            .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
+                        val alreadyDownloaded = RemoteSourceRepository.isDownloaded(result.sourceName, result.componentType, fileName)
+                        val sizeText = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                scope.launch {
+                                    localDownloading = true
+                                    localError = null
+                                    try {
+                                        val file = repo.downloadToTemp(item.downloadUrl) { progress ->
+                                            localProgress = progress
+                                        }
+                                        val (uriString, fileSize) = saveToDownloads(
+                                            context, file, fileName, result.sourceName, result.componentType
+                                        )
+                                        repo.recordDownload(result.sourceName, result.componentType, fileName, fileSize, uriString)
+                                        snackbarHostState.showSnackbar("Saved $fileName to Downloads")
+                                    } catch (e: Exception) {
+                                        localError = "Download failed: ${e.message}"
+                                    } finally {
+                                        localDownloading = false
+                                    }
+                                }
+                            },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (alreadyDownloaded) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    tint = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.displayName,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${result.sourceName} · ${result.componentType.uppercase()}$sizeText",
+                                        fontSize = 12.sp,
+                                        color = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
