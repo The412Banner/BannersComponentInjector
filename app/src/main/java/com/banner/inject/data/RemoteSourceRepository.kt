@@ -166,7 +166,7 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
         RemoteSource("Adreno Tools Drivers (StevenMXZ)", "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
-        RemoteSource("MaxesTechReview (MTR)", "https://api.github.com/repos/maxjivi05/Components/contents", SourceFormat.GITHUB_REPO_CONTENTS, emptyList())
+        RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList())
     )
 
     fun getAllSources(): List<RemoteSource> {
@@ -516,7 +516,7 @@ class RemoteSourceRepository(private val context: Context) {
                 }
                 SourceFormat.GITHUB_REPO_CONTENTS -> {
                     // Return the actual folder names from the repo root (case-preserved for API calls)
-                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    val conn = URL(normalizeContentsUrl(source.url)).openConnection() as java.net.HttpURLConnection
                     conn.setRequestProperty("Accept", "application/json")
                     conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
                     val array = JSONArray(conn.inputStream.bufferedReader().readText())
@@ -552,12 +552,19 @@ class RemoteSourceRepository(private val context: Context) {
         }
     }
 
+    /** Convert plain https://github.com/{owner}/{repo} to the GitHub Contents API URL. */
+    private fun normalizeContentsUrl(url: String): String {
+        val match = Regex("""https://github\.com/([^/]+)/([^/]+?)/?$""").find(url) ?: return url
+        return "https://api.github.com/repos/${match.groupValues[1]}/${match.groupValues[2]}/contents"
+    }
+
     private suspend fun fetchGithubRepoContents(
         url: String,
         folderName: String,
         sourceName: String
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
-        val folderUrl = "$url/$folderName"
+        val apiUrl = normalizeContentsUrl(url)
+        val folderUrl = "$apiUrl/$folderName"
         val json = openUrl(folderUrl).inputStream.bufferedReader().readText()
         val array = JSONArray(json)
         val result = mutableListOf<RemoteItem>()
