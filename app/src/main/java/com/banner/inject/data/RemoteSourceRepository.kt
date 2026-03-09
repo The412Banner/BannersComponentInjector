@@ -221,7 +221,8 @@ class RemoteSourceRepository(private val context: Context) {
         GITHUB_RELEASES_TURNIP,
         GITHUB_RELEASES_WCP,
         GITHUB_RELEASES_ZIP,         // All .zip assets from each release, no name filter
-        GITHUB_REPO_CONTENTS         // GitHub Contents API — folders = types, files inside = components
+        GITHUB_REPO_CONTENTS,        // GitHub Contents API — folders = types, files inside = components
+        RANKING_EMULATORS_JSON       // HUB Emulators rankings.json — manifestDrivers (WCP) + results Drivers (GPU)
     }
 
     // Default built-in sources mapped strictly to the components they provide
@@ -243,7 +244,8 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
-        RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList())
+        RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList()),
+        RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList())
     )
 
     fun getAllSources(): List<RemoteSource> {
@@ -390,6 +392,7 @@ class RemoteSourceRepository(private val context: Context) {
             SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(activeUrl, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(activeUrl, source.name)
             SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(activeUrl, componentType, source.name)
+            SourceFormat.RANKING_EMULATORS_JSON -> fetchRankingEmulators(activeUrl, componentType, source.name)
         }
         putToCache(source.name, componentType, result)
         result
@@ -445,6 +448,9 @@ class RemoteSourceRepository(private val context: Context) {
                                     val items = fetchGithubRepoContents(source.url, folder, source.name)
                                     putToCache(source.name, folder, items)
                                 }
+                            }
+                            SourceFormat.RANKING_EMULATORS_JSON -> {
+                                cacheAllRankingEmulators(source.url, source.name)
                             }
                         }
 
@@ -686,6 +692,35 @@ class RemoteSourceRepository(private val context: Context) {
                     }
                     folders
                 }
+                SourceFormat.RANKING_EMULATORS_JSON -> {
+                    val conn = URL(rankingJsonUrl(source.url)).openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val root = JSONObject(conn.inputStream.bufferedReader().readText())
+                    val types = mutableListOf<String>()
+                    // WCP types from manifestDrivers keys
+                    val md = root.optJSONObject("manifestDrivers")
+                    md?.keys()?.forEach { types.add(it.lowercase()) }
+                    // GPU driver types from results Drivers assets
+                    val gpuFound = mutableSetOf<String>()
+                    val results = root.optJSONArray("results")
+                    if (results != null) {
+                        for (i in 0 until results.length()) {
+                            val proj = results.getJSONObject(i)
+                            if (!proj.optString("category").equals("Drivers", ignoreCase = true)) continue
+                            val releases = proj.optJSONArray("releases") ?: continue
+                            for (r in 0 until releases.length()) {
+                                val assets = releases.getJSONObject(r).optJSONArray("assets") ?: continue
+                                for (a in 0 until assets.length()) {
+                                    val name = assets.getJSONObject(a).optString("name").lowercase()
+                                    listOf("turnip", "adreno", "qualcomm").forEach { kw ->
+                                        if (name.contains(kw)) gpuFound.add(kw)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    types + gpuFound.toList()
+                }
             }
         } catch (_: Exception) {
             if (source.supportedTypes.isNotEmpty()) source.supportedTypes else knownTypes
@@ -710,6 +745,137 @@ class RemoteSourceRepository(private val context: Context) {
     }
 
     /** Convert plain https://github.com/{owner}/{repo} to the GitHub Contents API URL. */
+    private fun rankingJsonUrl(url: String): String {
+        val base = url.trimEnd('/')
+        return if (base.endsWith("rankings.json")) base else "$base/data/rankings.json"
+    }
+
+    private suspend fun fetchRankingEmulators(url: String, componentType: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(rankingJsonUrl(url)).inputStream.bufferedReader().readText()
+        val root = JSONObject(json)
+        val result = mutableListOf<RemoteItem>()
+
+        // manifestDrivers section — WCP components (dxvk, vkd3d, box64, fexcore, wine, etc.)
+        val md = root.optJSONObject("manifestDrivers")
+        if (md != null) {
+            val matchKey = md.keys().asSequence().firstOrNull { it.equals(componentType, ignoreCase = true) }
+            if (matchKey != null) {
+                val items = md.getJSONArray(matchKey)
+                for (i in 0 until items.length()) {
+                    val item = items.getJSONObject(i)
+                    val dlUrl = item.optString("url")
+                    if (dlUrl.isNotEmpty()) {
+                        result.add(RemoteItem(
+                            displayName = item.optString("name"),
+                            versionName = item.optString("version"),
+                            downloadUrl = dlUrl,
+                            sourceName = sourceName,
+                            publishedAt = item.optString("date").substringBefore("T").takeIf { it.isNotEmpty() }
+                        ))
+                    }
+                }
+                return@withContext result
+            }
+        }
+
+        // results section — Drivers category (turnip, adreno, qualcomm)
+        val results = root.optJSONArray("results") ?: return@withContext result
+        for (i in 0 until results.length()) {
+            val proj = results.getJSONObject(i)
+            if (!proj.optString("category").equals("Drivers", ignoreCase = true)) continue
+            val projName = proj.optString("name")
+            val releases = proj.optJSONArray("releases") ?: continue
+            for (r in 0 until releases.length()) {
+                val release = releases.getJSONObject(r)
+                val tag = release.optString("tag")
+                val date = release.optString("date").substringBefore("T").takeIf { it.isNotEmpty() }
+                val assets = release.optJSONArray("assets") ?: continue
+                for (a in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(a)
+                    val assetName = asset.optString("name")
+                    if (!assetName.contains(componentType, ignoreCase = true)) continue
+                    val dlUrl = asset.optString("url")
+                    val size = asset.optLong("size", 0).takeIf { it > 0 }
+                    result.add(RemoteItem(
+                        displayName = "$projName $tag — ${assetName.removeSuffix(".zip")}",
+                        versionName = tag,
+                        downloadUrl = dlUrl,
+                        sourceName = sourceName,
+                        publishedAt = date,
+                        sizeBytes = size
+                    ))
+                }
+            }
+        }
+        result
+    }
+
+    /** Fetches rankings.json once and populates the cache for all available types. */
+    private suspend fun cacheAllRankingEmulators(url: String, sourceName: String) = withContext(Dispatchers.IO) {
+        val json = openUrl(rankingJsonUrl(url)).inputStream.bufferedReader().readText()
+        val root = JSONObject(json)
+
+        // manifestDrivers — one cache entry per category key
+        val md = root.optJSONObject("manifestDrivers")
+        md?.keys()?.forEach { key ->
+            val type = key.lowercase()
+            val items = md.getJSONArray(key)
+            val list = mutableListOf<RemoteItem>()
+            for (i in 0 until items.length()) {
+                val item = items.getJSONObject(i)
+                val dlUrl = item.optString("url")
+                if (dlUrl.isNotEmpty()) {
+                    list.add(RemoteItem(
+                        displayName = item.optString("name"),
+                        versionName = item.optString("version"),
+                        downloadUrl = dlUrl,
+                        sourceName = sourceName,
+                        publishedAt = item.optString("date").substringBefore("T").takeIf { it.isNotEmpty() }
+                    ))
+                }
+            }
+            putToCache(sourceName, type, list)
+        }
+
+        // results Drivers — bucket assets by GPU driver keyword
+        val gpuMap = mutableMapOf<String, MutableList<RemoteItem>>()
+        val results = root.optJSONArray("results")
+        if (results != null) {
+            for (i in 0 until results.length()) {
+                val proj = results.getJSONObject(i)
+                if (!proj.optString("category").equals("Drivers", ignoreCase = true)) continue
+                val projName = proj.optString("name")
+                val releases = proj.optJSONArray("releases") ?: continue
+                for (r in 0 until releases.length()) {
+                    val release = releases.getJSONObject(r)
+                    val tag = release.optString("tag")
+                    val date = release.optString("date").substringBefore("T").takeIf { it.isNotEmpty() }
+                    val assets = release.optJSONArray("assets") ?: continue
+                    for (a in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(a)
+                        val assetName = asset.optString("name")
+                        val dlUrl = asset.optString("url")
+                        val size = asset.optLong("size", 0).takeIf { it > 0 }
+                        val item = RemoteItem(
+                            displayName = "$projName $tag — ${assetName.removeSuffix(".zip")}",
+                            versionName = tag,
+                            downloadUrl = dlUrl,
+                            sourceName = sourceName,
+                            publishedAt = date,
+                            sizeBytes = size
+                        )
+                        listOf("turnip", "adreno", "qualcomm").forEach { kw ->
+                            if (assetName.contains(kw, ignoreCase = true)) {
+                                gpuMap.getOrPut(kw) { mutableListOf() }.add(item)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        gpuMap.forEach { (type, items) -> putToCache(sourceName, type, items) }
+    }
+
     private fun normalizeContentsUrl(url: String): String {
         val match = Regex("""https://github\.com/([^/]+)/([^/]+?)/?$""").find(url) ?: return url
         return "https://api.github.com/repos/${match.groupValues[1]}/${match.groupValues[2]}/contents"

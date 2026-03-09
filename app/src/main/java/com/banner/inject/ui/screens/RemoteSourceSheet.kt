@@ -87,7 +87,7 @@ fun RemoteSourceSheet(
     // Auto-fetch folder names for GITHUB_REPO_CONTENTS sources when one is selected
     LaunchedEffect(selectedSource) {
         val source = selectedSource
-        if (source != null && source.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS) {
+        if (source != null && (source.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS || source.format == RemoteSourceRepository.SourceFormat.RANKING_EMULATORS_JSON)) {
             dynamicTypes = null
             isLoadingTypes = true
             try { dynamicTypes = repo.discoverTypes(source) } catch (_: Exception) { dynamicTypes = emptyList() }
@@ -431,7 +431,8 @@ fun RemoteSourceSheet(
                         }
                     } else {
                     val typesToShow = when {
-                        selectedSource!!.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS -> dynamicTypes ?: emptyList()
+                        selectedSource!!.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS ||
+                        selectedSource!!.format == RemoteSourceRepository.SourceFormat.RANKING_EMULATORS_JSON -> dynamicTypes ?: emptyList()
                         selectedSource!!.supportedTypes.isNotEmpty() -> selectedSource!!.supportedTypes
                         else -> componentTypes
                     }

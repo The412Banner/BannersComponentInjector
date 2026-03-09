@@ -223,6 +223,9 @@ private fun sanitizeUrl(input: String): String {
 
 private suspend fun autoDetectFormat(url: String): RemoteSourceRepository.SourceFormat =
     withContext(Dispatchers.IO) {
+        if (url.contains("t3st31.github.io") || url.contains("rankings.json", ignoreCase = true)) {
+            return@withContext RemoteSourceRepository.SourceFormat.RANKING_EMULATORS_JSON
+        }
         if (url.endsWith(".json", ignoreCase = true) || url.contains("raw.githubusercontent.com")) {
             return@withContext RemoteSourceRepository.SourceFormat.WCP_JSON
         }
