@@ -386,7 +386,7 @@ class RemoteSourceRepository(private val context: Context) {
         val activeFormat = extra?.format ?: source.format
         val result = when (activeFormat) {
             SourceFormat.WCP_JSON -> fetchWcpJson(activeUrl, componentType, source.name)
-            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(activeUrl, source.name)
+            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(activeUrl, source.name, componentType)
             SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(activeUrl, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(activeUrl, source.name)
             SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(activeUrl, componentType, source.name)
@@ -414,8 +414,14 @@ class RemoteSourceRepository(private val context: Context) {
 
                         when (source.format) {
                             SourceFormat.GITHUB_RELEASES_TURNIP -> {
-                                val items = fetchTurnipReleases(source.url, source.name)
-                                primaryTypes.forEach { putToCache(source.name, it, items) }
+                                val allItems = fetchTurnipReleases(source.url, source.name)
+                                primaryTypes.forEach { type ->
+                                    val filtered = allItems.filter {
+                                        it.displayName.contains(type, ignoreCase = true) ||
+                                        it.versionName.contains(type, ignoreCase = true)
+                                    }
+                                    putToCache(source.name, type, filtered)
+                                }
                             }
                             SourceFormat.GITHUB_RELEASES_ZIP -> {
                                 val items = fetchGithubReleasesZip(source.url, source.name)
@@ -446,8 +452,14 @@ class RemoteSourceRepository(private val context: Context) {
                         source.extraEndpoints.forEach { ep ->
                             when (ep.format) {
                                 SourceFormat.GITHUB_RELEASES_TURNIP -> {
-                                    val items = fetchTurnipReleases(ep.url, source.name)
-                                    ep.types.forEach { putToCache(source.name, it, items) }
+                                    val allItems = fetchTurnipReleases(ep.url, source.name)
+                                    ep.types.forEach { type ->
+                                        val filtered = allItems.filter {
+                                            it.displayName.contains(type, ignoreCase = true) ||
+                                            it.versionName.contains(type, ignoreCase = true)
+                                        }
+                                        putToCache(source.name, type, filtered)
+                                    }
                                 }
                                 SourceFormat.GITHUB_RELEASES_ZIP -> {
                                     val items = fetchGithubReleasesZip(ep.url, source.name)
@@ -495,7 +507,7 @@ class RemoteSourceRepository(private val context: Context) {
         filtered.reversed()
     }
 
-    private suspend fun fetchTurnipReleases(url: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {
+    private suspend fun fetchTurnipReleases(url: String, sourceName: String, filterKeyword: String = ""): List<RemoteItem> = withContext(Dispatchers.IO) {
         val json = openUrl(url).inputStream.bufferedReader().readText()
         val array = JSONArray(json)
         val result = mutableListOf<RemoteItem>()
@@ -505,12 +517,12 @@ class RemoteSourceRepository(private val context: Context) {
             val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
             val description = release.optString("body").takeIf { it.isNotBlank() }
             val assets = release.getJSONArray("assets")
-            val turnipAssets = (0 until assets.length())
-                .map { assets.getJSONObject(it) }
-                .filter { it.getString("name").contains("turnip", ignoreCase = true) }
-            for (asset in turnipAssets) {
+            val allAssets = (0 until assets.length()).map { assets.getJSONObject(it) }
+            val matchedAssets = if (filterKeyword.isBlank()) allAssets
+                else allAssets.filter { it.getString("name").contains(filterKeyword, ignoreCase = true) }
+            for (asset in matchedAssets) {
                 val assetName = asset.getString("name")
-                val displayName = if (turnipAssets.size > 1) {
+                val displayName = if (matchedAssets.size > 1) {
                     "$releaseName — ${assetName.removeSuffix(".zip")}"
                 } else {
                     releaseName
