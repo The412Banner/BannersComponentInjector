@@ -49,6 +49,10 @@ fun DownloadManagerScreen(
     var isVerifying by remember { mutableStateOf(false) }
 
     val pullRefreshState = rememberPullToRefreshState()
+
+    // Downloads navigation state
+    var downloads by remember { mutableStateOf(repo.getAllDownloads()) }
+
     LaunchedEffect(pullRefreshState.isRefreshing) {
         if (pullRefreshState.isRefreshing) {
             val removed = withContext(Dispatchers.IO) { repo.pruneStaleDownloadRecords(context) }
@@ -59,9 +63,6 @@ fun DownloadManagerScreen(
             )
         }
     }
-
-    // Downloads navigation state
-    var downloads by remember { mutableStateOf(repo.getAllDownloads()) }
     var selectedRepo by remember { mutableStateOf<String?>(null) }
     var selectedType by remember { mutableStateOf<String?>(null) }
     var recordToDelete by remember { mutableStateOf<RemoteSourceRepository.DownloadedFile?>(null) }
