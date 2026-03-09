@@ -2,6 +2,8 @@ package com.banner.inject.ui.screens
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
@@ -51,6 +53,7 @@ fun DownloadScreen(
     var downloadProgress by remember { mutableStateOf("") }
     var fetchJob by remember { mutableStateOf<Job?>(null) }
     
+    var isRefreshing by remember { mutableStateOf(false) }
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     // Force recomposition when sources change
@@ -136,6 +139,28 @@ fun DownloadScreen(
                 )
                 
                 if (selectedSource == null && !isDownloading && !isLoading) {
+                    if (isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        IconButton(
+                            onClick = {
+                                isRefreshing = true
+                                scope.launch {
+                                    repo.refreshAllCache(sources, componentTypes)
+                                    isRefreshing = false
+                                    snackbarHostState.showSnackbar("All repositories refreshed and cached")
+                                }
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh All", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
                     IconButton(
                         onClick = { showAddRepoDialog = true },
                         modifier = Modifier.size(28.dp)
@@ -207,6 +232,16 @@ fun DownloadScreen(
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
+                                    IconButton(
+                                        onClick = {
+                                            val browseUrl = repo.getBrowseUrl(source)
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(browseUrl)))
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.OpenInBrowser, contentDescription = "Open in Browser", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Spacer(Modifier.width(4.dp))
                                     IconButton(
                                         onClick = { sourceToDelete = source },
                                         modifier = Modifier.size(24.dp)

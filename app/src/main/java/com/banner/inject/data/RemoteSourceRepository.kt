@@ -3,16 +3,48 @@ package com.banner.inject.data
 import android.content.Context
 import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
 class RemoteSourceRepository(private val context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("remote_sources_prefs", Context.MODE_PRIVATE)
+
+    companion object {
+        // In-memory cache: "sourceName::componentType" → items
+        // ConcurrentHashMap for safe parallel writes during refresh
+        private val cache = ConcurrentHashMap<String, List<RemoteItem>>()
+
+        fun clearCache() = cache.clear()
+        fun hasCache(): Boolean = cache.isNotEmpty()
+        fun getFromCache(sourceName: String, componentType: String): List<RemoteItem>? =
+            cache["$sourceName::$componentType"]
+        fun putToCache(sourceName: String, componentType: String, items: List<RemoteItem>) {
+            cache["$sourceName::$componentType"] = items
+        }
+    }
+
+    /** Convert an API or raw URL to a human-readable browser URL. */
+    fun getBrowseUrl(source: RemoteSource): String {
+        val url = source.url
+        if (url.contains("api.github.com/repos/")) {
+            val path = url.substringAfter("api.github.com/repos/")
+                .substringBefore("/releases").substringBefore("/contents")
+            return "https://github.com/$path"
+        }
+        if (url.contains("raw.githubusercontent.com/")) {
+            val parts = url.substringAfter("raw.githubusercontent.com/").split("/")
+            if (parts.size >= 2) return "https://github.com/${parts[0]}/${parts[1]}"
+        }
+        return url
+    }
 
     data class RemoteItem(
         val displayName: String,
@@ -158,11 +190,57 @@ class RemoteSourceRepository(private val context: Context) {
         source: RemoteSource,
         componentType: String
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
-        when (source.format) {
+        getFromCache(source.name, componentType)?.let { return@withContext it }
+        val result = when (source.format) {
             SourceFormat.WCP_JSON -> fetchWcpJson(source.url, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(source.url, source.name)
             SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(source.url, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(source.url, source.name)
+        }
+        putToCache(source.name, componentType, result)
+        result
+    }
+
+    /**
+     * Refresh the entire cache by fetching all sources × all relevant component types in parallel.
+     * Formats that don't filter by type (TURNIP, ZIP) are fetched once and cached under all
+     * their supported types to avoid redundant API hits.
+     */
+    suspend fun refreshAllCache(sources: List<RemoteSource>, allTypes: List<String>) {
+        clearCache()
+        coroutineScope {
+            sources.forEach { source ->
+                launch(Dispatchers.IO) {
+                    try {
+                        when (source.format) {
+                            SourceFormat.GITHUB_RELEASES_TURNIP -> {
+                                val items = fetchTurnipReleases(source.url, source.name)
+                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
+                                types.forEach { putToCache(source.name, it, items) }
+                            }
+                            SourceFormat.GITHUB_RELEASES_ZIP -> {
+                                val items = fetchGithubReleasesZip(source.url, source.name)
+                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
+                                types.forEach { putToCache(source.name, it, items) }
+                            }
+                            SourceFormat.WCP_JSON -> {
+                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
+                                types.forEach { type ->
+                                    val items = fetchWcpJson(source.url, type, source.name)
+                                    putToCache(source.name, type, items)
+                                }
+                            }
+                            SourceFormat.GITHUB_RELEASES_WCP -> {
+                                val types = if (source.supportedTypes.isNotEmpty()) source.supportedTypes else allTypes
+                                types.forEach { type ->
+                                    val items = fetchGithubReleasesWcp(source.url, type, source.name)
+                                    putToCache(source.name, type, items)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) { /* skip failed sources silently */ }
+                }
+            }
         }
     }
 
