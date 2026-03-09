@@ -192,7 +192,8 @@ class RemoteSourceRepository(private val context: Context) {
         val downloadUrl: String,
         val sourceName: String,
         val publishedAt: String? = null,  // "YYYY-MM-DD" from GitHub releases; null for WCP JSON sources
-        val sizeBytes: Long? = null       // asset size in bytes; null when not available
+        val sizeBytes: Long? = null,      // asset size in bytes; null when not available
+        val description: String? = null   // release body/notes from GitHub; null for WCP JSON / Contents sources
     )
 
     /**
@@ -502,6 +503,7 @@ class RemoteSourceRepository(private val context: Context) {
             val release = array.getJSONObject(i)
             val releaseName = release.getString("name").trim()
             val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
+            val description = release.optString("body").takeIf { it.isNotBlank() }
             val assets = release.getJSONArray("assets")
             val turnipAssets = (0 until assets.length())
                 .map { assets.getJSONObject(it) }
@@ -520,7 +522,8 @@ class RemoteSourceRepository(private val context: Context) {
                         downloadUrl = asset.getString("browser_download_url"),
                         sourceName = sourceName,
                         publishedAt = publishedAt,
-                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 }
+                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 },
+                        description = description
                     )
                 )
             }
@@ -536,6 +539,7 @@ class RemoteSourceRepository(private val context: Context) {
             val release = array.getJSONObject(i)
             val releaseName = release.getString("name").trim()
             val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
+            val description = release.optString("body").takeIf { it.isNotBlank() }
             val assets = release.getJSONArray("assets")
             val wcpAssets = (0 until assets.length())
                 .map { assets.getJSONObject(it) }
@@ -551,7 +555,8 @@ class RemoteSourceRepository(private val context: Context) {
                             downloadUrl = asset.getString("browser_download_url"),
                             sourceName = sourceName,
                             publishedAt = publishedAt,
-                            sizeBytes = asset.optLong("size", 0).takeIf { it > 0 }
+                            sizeBytes = asset.optLong("size", 0).takeIf { it > 0 },
+                            description = description
                         )
                     )
                 }
@@ -568,6 +573,7 @@ class RemoteSourceRepository(private val context: Context) {
             val release = array.getJSONObject(i)
             val releaseName = release.getString("name").trim()
             val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
+            val description = release.optString("body").takeIf { it.isNotBlank() }
             val assets = release.getJSONArray("assets")
             val zipAssets = (0 until assets.length())
                 .map { assets.getJSONObject(it) }
@@ -582,7 +588,8 @@ class RemoteSourceRepository(private val context: Context) {
                         downloadUrl = asset.getString("browser_download_url"),
                         sourceName = sourceName,
                         publishedAt = publishedAt,
-                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 }
+                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 },
+                        description = description
                     )
                 )
             }

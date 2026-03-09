@@ -43,6 +43,7 @@ fun DownloadManagerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var isVerifying by remember { mutableStateOf(false) }
 
     // Downloads navigation state
     var downloads by remember { mutableStateOf(repo.getAllDownloads()) }
@@ -121,10 +122,36 @@ fun DownloadManagerScreen(
                 TopAppBar(
                     title = { Text("My Downloads", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                     actions = {
-                        // Clear All only makes sense for the downloads root
-                        if (!showingBackups && selectedRepo == null && downloads.isNotEmpty()) {
-                            IconButton(onClick = { showClearAllDialog = true }) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All Downloads")
+                        // Verify + Clear All only make sense for the downloads root
+                        if (!showingBackups && selectedRepo == null) {
+                            if (isVerifying) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp).padding(end = 4.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                IconButton(onClick = {
+                                    isVerifying = true
+                                    scope.launch {
+                                        val removed = withContext(Dispatchers.IO) {
+                                            repo.pruneStaleDownloadRecords(context)
+                                        }
+                                        downloads = repo.getAllDownloads()
+                                        isVerifying = false
+                                        snackbarHostState.showSnackbar(
+                                            if (removed == 0) "All download records are up to date"
+                                            else "Removed $removed stale record${if (removed != 1) "s" else ""}"
+                                        )
+                                    }
+                                }) {
+                                    Icon(Icons.Default.CloudSync, contentDescription = "Verify Downloads")
+                                }
+                            }
+                            if (downloads.isNotEmpty()) {
+                                IconButton(onClick = { showClearAllDialog = true }) {
+                                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All Downloads")
+                                }
                             }
                         }
                         IconButton(onClick = onShowSettings) {

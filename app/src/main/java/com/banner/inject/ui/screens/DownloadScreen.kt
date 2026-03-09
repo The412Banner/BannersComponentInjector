@@ -11,6 +11,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -61,7 +63,6 @@ fun DownloadScreen(
     var fetchJob by remember { mutableStateOf<Job?>(null) }
     
     var isRefreshing by remember { mutableStateOf(false) }
-    var isVerifying by remember { mutableStateOf(false) }
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sourceToEdit by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
@@ -76,6 +77,8 @@ fun DownloadScreen(
     var batchSelected by remember { mutableStateOf(emptySet<String>()) } // set of downloadUrls
     var lastFailedItem by remember { mutableStateOf<RemoteSourceRepository.RemoteItem?>(null) }
     var downloadedSet: Set<String> by remember { mutableStateOf(emptySet()) }
+    // (item, componentType) for the detail sheet; null when closed
+    var detailTarget by remember { mutableStateOf<Pair<RemoteSourceRepository.RemoteItem, String>?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchCaching by remember { mutableStateOf(false) }
 
@@ -185,14 +188,8 @@ fun DownloadScreen(
                 SearchContent(
                     query = searchQuery,
                     isCaching = isSearchCaching,
-                    isDownloading = isDownloading,
-                    downloadProgress = downloadProgress,
-                    repo = repo,
-                    context = context,
-                    scope = scope,
-                    snackbarHostState = snackbarHostState,
-                    onDownloadingChanged = { isDownloading = it },
-                    onProgressChanged = { downloadProgress = it }
+                    onShowDetail = { item, componentType -> detailTarget = Pair(item, componentType) },
+                    modifier = Modifier.fillMaxSize()
                 )
             } else {
 
@@ -348,33 +345,6 @@ fun DownloadScreen(
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh All", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    if (isVerifying) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        IconButton(
-                            onClick = {
-                                isVerifying = true
-                                scope.launch {
-                                    val removed = withContext(Dispatchers.IO) {
-                                        repo.pruneStaleDownloadRecords(context)
-                                    }
-                                    isVerifying = false
-                                    snackbarHostState.showSnackbar(
-                                        if (removed == 0) "All download records are up to date"
-                                        else "Removed $removed stale download record${if (removed != 1) "s" else ""}"
-                                    )
-                                }
-                            },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Default.CloudSync, contentDescription = "Verify Downloads", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                     Spacer(Modifier.width(4.dp))
@@ -643,26 +613,7 @@ fun DownloadScreen(
                                         else
                                             batchSelected + item.downloadUrl
                                     } else {
-                                        scope.launch {
-                                            isDownloading = true
-                                            try {
-                                                val file = repo.downloadToTemp(item.downloadUrl) { progress ->
-                                                    downloadProgress = progress
-                                                }
-                                                val (uriString, fileSize) = saveToDownloads(
-                                                    context, file, fileName, capturedSource, capturedType
-                                                )
-                                                repo.recordDownload(capturedSource, capturedType, fileName, fileSize, uriString)
-                                                downloadedSet = downloadedSet + fileName
-                                                lastFailedItem = null
-                                                snackbarHostState.showSnackbar("Saved $fileName to Downloads")
-                                            } catch (e: Exception) {
-                                                lastFailedItem = item
-                                                errorMessage = "Download failed: ${e.message}"
-                                            } finally {
-                                                isDownloading = false
-                                            }
-                                        }
+                                        detailTarget = Pair(item, capturedType)
                                     }
                                 },
                                 colors = CardDefaults.cardColors(
@@ -730,6 +681,155 @@ fun DownloadScreen(
         }
     }
 
+    // Detail sheet — shown when user taps a file item
+    detailTarget?.let { (detailItem, detailType) ->
+        val detailFileName = detailItem.downloadUrl.substringAfterLast("/").substringBefore("?")
+            .ifEmpty { "${detailItem.displayName.replace(" ", "_")}.zip" }
+        val alreadyDownloaded = detailFileName in downloadedSet
+        ModalBottomSheet(
+            onDismissRequest = { if (!isDownloading) detailTarget = null },
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                // Icon + title
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                    Icon(
+                        if (alreadyDownloaded) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        tint = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        detailItem.displayName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // Source + type chips
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            detailItem.sourceName,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            detailType.uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+                // Date + size
+                val metaLine = buildString {
+                    if (detailItem.publishedAt != null) append("Published ${detailItem.publishedAt}")
+                    if (detailItem.publishedAt != null && detailItem.sizeBytes != null) append("  ·  ")
+                    if (detailItem.sizeBytes != null) append(RemoteSourceRepository.formatFileSize(detailItem.sizeBytes))
+                }
+                if (metaLine.isNotEmpty()) {
+                    Text(
+                        metaLine,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+                // Description
+                if (detailItem.description != null) {
+                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+                    Text(
+                        "Release Notes",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Text(
+                            detailItem.description,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
+                // Download button or progress
+                if (isDownloading) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(downloadProgress, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isDownloading = true
+                                try {
+                                    val file = repo.downloadToTemp(detailItem.downloadUrl) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    val (uriString, fileSize) = saveToDownloads(
+                                        context, file, detailFileName, detailItem.sourceName, detailType
+                                    )
+                                    repo.recordDownload(detailItem.sourceName, detailType, detailFileName, fileSize, uriString)
+                                    downloadedSet = downloadedSet + detailFileName
+                                    lastFailedItem = null
+                                    detailTarget = null
+                                    snackbarHostState.showSnackbar("Saved $detailFileName to Downloads")
+                                } catch (e: Exception) {
+                                    lastFailedItem = detailItem
+                                    errorMessage = "Download failed: ${e.message}"
+                                } finally {
+                                    isDownloading = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !alreadyDownloaded
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (alreadyDownloaded) "Already Downloaded" else "Download to Device")
+                    }
+                }
+            }
+        }
+    }
+
     if (showAddRepoDialog) {
         AddRepoDialog(
             repo = repo,
@@ -785,35 +885,13 @@ fun DownloadScreen(
 private fun SearchContent(
     query: String,
     isCaching: Boolean,
-    isDownloading: Boolean,
-    downloadProgress: String,
-    repo: RemoteSourceRepository,
-    context: android.content.Context,
-    scope: kotlinx.coroutines.CoroutineScope,
-    snackbarHostState: SnackbarHostState,
-    onDownloadingChanged: (Boolean) -> Unit,
-    onProgressChanged: (String) -> Unit,
+    onShowDetail: (RemoteSourceRepository.RemoteItem, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var localDownloading by remember { mutableStateOf(false) }
-    var localProgress by remember { mutableStateOf("") }
-    var localError by remember { mutableStateOf<String?>(null) }
-
     val results = remember(query) { RemoteSourceRepository.searchCache(query) }
 
     Column(modifier = modifier.padding(horizontal = 16.dp)) {
         when {
-            isDownloading || localDownloading -> {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(16.dp))
-                    Text(if (localDownloading) localProgress else downloadProgress, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
             query.isBlank() -> {
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -859,9 +937,6 @@ private fun SearchContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
-                if (localError != null) {
-                    Text(localError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
-                }
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(results) { result ->
                         val item = result.item
@@ -871,24 +946,7 @@ private fun SearchContent(
                         val sizeText = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
-                                scope.launch {
-                                    localDownloading = true
-                                    localError = null
-                                    try {
-                                        val file = repo.downloadToTemp(item.downloadUrl) { progress ->
-                                            localProgress = progress
-                                        }
-                                        val (uriString, fileSize) = saveToDownloads(
-                                            context, file, fileName, result.sourceName, result.componentType
-                                        )
-                                        repo.recordDownload(result.sourceName, result.componentType, fileName, fileSize, uriString)
-                                        snackbarHostState.showSnackbar("Saved $fileName to Downloads")
-                                    } catch (e: Exception) {
-                                        localError = "Download failed: ${e.message}"
-                                    } finally {
-                                        localDownloading = false
-                                    }
-                                }
+                                onShowDetail(item, result.componentType)
                             },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
