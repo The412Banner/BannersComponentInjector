@@ -4,6 +4,24 @@
 
 ---
 
+### [pre-release] — v1.4.5-pre-2 — Hamburger Menu, Download Indicators, My Downloads Tab (2026-03-09)
+**Commit:** `fda7879`  |  **Tag:** v1.4.5-pre-2
+
+#### What changed
+- **Hamburger menu** on repo cards: replaced inline browser + delete `IconButton`s with a single `MoreVert` that opens a `DropdownMenu` with "Open in Browser" and "Remove Repository".
+- **Downloaded indicator**: file list shows `CheckCircle` icon + "Already downloaded" subtitle for previously saved items. Updates immediately after download; persists via SharedPreferences.
+- **My Downloads tab** (`DownloadManagerScreen`): new third tab — repo → type → file drill-down. Each file card shows name, size, date, and a delete button. "Clear All" in top bar. Empty state when no downloads exist.
+- **Download record tracking** added to `RemoteSourceRepository`: `DownloadedFile` data class, `recordDownload()`, `removeDownloadRecord()`, `getAllDownloads()`, `isDownloaded()` (O(1) companion `ConcurrentHashSet`). `sanitizeFolderName()` moved to companion. `saveToDownloads()` now returns `Pair<String?, Long>` (URI + file size).
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadManagerScreen.kt` (new)
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [pre-release] — v1.4.4-pre — Organized Download Folder Structure (2026-03-09)
 **Commit:** `18a3a46`  |  **Tag:** v1.4.4-pre
 
