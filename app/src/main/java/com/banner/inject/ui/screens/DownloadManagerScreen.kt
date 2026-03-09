@@ -18,10 +18,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.banner.inject.data.BackupManager
 import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.MainTab
+import com.banner.inject.model.formatSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -33,30 +36,49 @@ fun DownloadManagerScreen(
     currentTab: MainTab,
     onTabSelected: (MainTab) -> Unit,
     repo: RemoteSourceRepository,
-    onShowBackupManager: () -> Unit,
+    onListBackups: () -> List<BackupManager.BackupInfo>,
+    onDeleteBackup: (String) -> Unit,
     onShowSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Downloads navigation state
     var downloads by remember { mutableStateOf(repo.getAllDownloads()) }
     var selectedRepo by remember { mutableStateOf<String?>(null) }
     var selectedType by remember { mutableStateOf<String?>(null) }
     var recordToDelete by remember { mutableStateOf<RemoteSourceRepository.DownloadedFile?>(null) }
     var showClearAllDialog by remember { mutableStateOf(false) }
 
-    // Grouped: sourceName → componentType → List<DownloadedFile>
+    // Backups section state
+    var showingBackups by remember { mutableStateOf(false) }
+    var backups by remember { mutableStateOf<List<BackupManager.BackupInfo>>(emptyList()) }
+    var backupsLoading by remember { mutableStateOf(false) }
+    var backupToDelete by remember { mutableStateOf<String?>(null) }
+
     val grouped = remember(downloads) {
         downloads.groupBy { it.sourceName }
             .mapValues { (_, files) -> files.groupBy { it.componentType } }
     }
 
-    BackHandler(enabled = selectedRepo != null) {
-        if (selectedType != null) selectedType = null else selectedRepo = null
+    BackHandler(enabled = showingBackups || selectedRepo != null) {
+        when {
+            selectedType != null -> selectedType = null
+            selectedRepo != null -> selectedRepo = null
+            showingBackups -> showingBackups = false
+        }
     }
 
-    fun deleteRecord(record: RemoteSourceRepository.DownloadedFile) {
+    fun loadBackups() {
+        backupsLoading = true
+        scope.launch {
+            backups = withContext(Dispatchers.IO) { onListBackups() }
+            backupsLoading = false
+        }
+    }
+
+    fun deleteDownloadRecord(record: RemoteSourceRepository.DownloadedFile) {
         scope.launch(Dispatchers.IO) {
             try {
                 if (record.uriString != null) {
@@ -75,11 +97,21 @@ fun DownloadManagerScreen(
         downloads = repo.getAllDownloads()
     }
 
-    fun clearAll() {
-        downloads.forEach { deleteRecord(it) }
+    fun clearAllDownloads() {
+        val snapshot = downloads.toList()
+        snapshot.forEach { deleteDownloadRecord(it) }
         downloads = repo.getAllDownloads()
         selectedRepo = null
         selectedType = null
+    }
+
+    // Navigation header title and back-button visibility
+    val showBackButton = showingBackups || selectedRepo != null
+    val headerTitle = when {
+        selectedType != null -> "${selectedType!!.uppercase()} — $selectedRepo"
+        selectedRepo != null -> selectedRepo!!
+        showingBackups -> "Backups"
+        else -> "My Downloads"
     }
 
     Scaffold(
@@ -89,13 +121,11 @@ fun DownloadManagerScreen(
                 TopAppBar(
                     title = { Text("My Downloads", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                     actions = {
-                        if (downloads.isNotEmpty() && selectedRepo == null) {
+                        // Clear All only makes sense for the downloads root
+                        if (!showingBackups && selectedRepo == null && downloads.isNotEmpty()) {
                             IconButton(onClick = { showClearAllDialog = true }) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All")
+                                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All Downloads")
                             }
-                        }
-                        IconButton(onClick = onShowBackupManager) {
-                            Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
                         }
                         IconButton(onClick = onShowSettings) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -115,35 +145,36 @@ fun DownloadManagerScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Navigation header
+            // Navigation header row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                if (selectedRepo != null) {
+                if (showBackButton) {
                     IconButton(
-                        onClick = { if (selectedType != null) selectedType = null else selectedRepo = null },
+                        onClick = {
+                            when {
+                                selectedType != null -> selectedType = null
+                                selectedRepo != null -> selectedRepo = null
+                                showingBackups -> showingBackups = false
+                            }
+                        },
                         modifier = Modifier.size(28.dp).padding(end = 8.dp)
                     ) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
                 Text(
-                    text = when {
-                        selectedType != null -> "${selectedType!!.uppercase()} — $selectedRepo"
-                        selectedRepo != null -> selectedRepo!!
-                        else -> "All Repositories"
-                    },
+                    text = headerTitle,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-                // Storage summary at root level
-                if (selectedRepo == null && downloads.isNotEmpty()) {
-                    val totalSize = downloads.sumOf { it.fileSizeBytes }
+                // Storage summary at the downloads root
+                if (!showingBackups && selectedRepo == null && downloads.isNotEmpty()) {
                     Text(
-                        text = formatManagerSize(totalSize),
+                        text = formatManagerSize(downloads.sumOf { it.fileSizeBytes }),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -151,63 +182,124 @@ fun DownloadManagerScreen(
             }
 
             when {
-                downloads.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Default.CloudDownload,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "No downloads yet",
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Components downloaded from the Download tab will appear here.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
+                // ── Backups section ──────────────────────────────────────────
+                showingBackups -> {
+                    when {
+                        backupsLoading -> {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        backups.isEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Backup,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    "No backups yet",
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Backups created from the Inject Components tab will appear here.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        else -> {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(backups, key = { it.componentName }) { info ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.FolderOpen,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.secondary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    info.componentName,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 14.sp
+                                                )
+                                                Text(
+                                                    "${info.fileCount} file${if (info.fileCount == 1) "" else "s"}  ·  ${formatSize(info.totalSize)}",
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { backupToDelete = info.componentName },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.DeleteOutline,
+                                                    contentDescription = "Delete backup",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
+                // ── Root: Backups folder card + repo download cards ──────────
                 selectedRepo == null -> {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(grouped.keys.toList()) { repoName ->
-                            val repoTypes = grouped[repoName] ?: return@items
-                            val totalFiles = repoTypes.values.sumOf { it.size }
-                            val totalSize = repoTypes.values.flatten().sumOf { it.fileSizeBytes }
+                        // Always-visible Backups folder
+                        item {
                             Card(
-                                modifier = Modifier.fillMaxWidth().clickable { selectedRepo = repoName },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    showingBackups = true
+                                    loadBackups()
+                                },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        Icons.Default.Source,
+                                        Icons.Default.Backup,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = MaterialTheme.colorScheme.secondary,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(repoName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                                        Text(
-                                            "$totalFiles file${if (totalFiles != 1) "s" else ""} · ${formatManagerSize(totalSize)}",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    Text(
+                                        "Backups",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                     Icon(
                                         Icons.Default.ArrowForward,
                                         contentDescription = null,
@@ -217,9 +309,78 @@ fun DownloadManagerScreen(
                                 }
                             }
                         }
+
+                        if (downloads.isEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        "No downloads yet",
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        "Components downloaded from the Download tab will appear here.",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        } else {
+                            items(grouped.keys.toList()) { repoName ->
+                                val repoTypes = grouped[repoName] ?: return@items
+                                val totalFiles = repoTypes.values.sumOf { it.size }
+                                val totalSize = repoTypes.values.flatten().sumOf { it.fileSizeBytes }
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().clickable { selectedRepo = repoName },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Source,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(repoName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                                            Text(
+                                                "$totalFiles file${if (totalFiles != 1) "s" else ""} · ${formatManagerSize(totalSize)}",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Icon(
+                                            Icons.Default.ArrowForward,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
+                // ── Repo → Type list ─────────────────────────────────────────
                 selectedType == null -> {
                     val repoTypes = grouped[selectedRepo] ?: emptyMap()
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -228,7 +389,9 @@ fun DownloadManagerScreen(
                             val totalSize = typeFiles.sumOf { it.fileSizeBytes }
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { selectedType = typeName },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -242,11 +405,7 @@ fun DownloadManagerScreen(
                                     )
                                     Spacer(Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            typeName.uppercase(),
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 15.sp
-                                        )
+                                        Text(typeName.uppercase(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                                         Text(
                                             "${typeFiles.size} file${if (typeFiles.size != 1) "s" else ""} · ${formatManagerSize(totalSize)}",
                                             fontSize = 12.sp,
@@ -265,16 +424,20 @@ fun DownloadManagerScreen(
                     }
                 }
 
+                // ── Type → File list ─────────────────────────────────────────
                 else -> {
                     val fileList = grouped[selectedRepo]?.get(selectedType) ?: emptyList()
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(fileList) { record ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
@@ -324,7 +487,7 @@ fun DownloadManagerScreen(
         }
     }
 
-    // Delete single file confirmation
+    // Delete download confirmation
     recordToDelete?.let { record ->
         AlertDialog(
             onDismissRequest = { recordToDelete = null },
@@ -332,9 +495,8 @@ fun DownloadManagerScreen(
             text = { Text("Remove '${record.fileName}' from your device?") },
             confirmButton = {
                 TextButton(onClick = {
-                    deleteRecord(record)
+                    deleteDownloadRecord(record)
                     recordToDelete = null
-                    // Pop back if the type folder is now empty
                     if ((grouped[selectedRepo]?.get(selectedType)?.size ?: 0) <= 1) {
                         selectedType = null
                     }
@@ -346,7 +508,27 @@ fun DownloadManagerScreen(
         )
     }
 
-    // Clear all confirmation
+    // Delete backup confirmation
+    backupToDelete?.let { name ->
+        AlertDialog(
+            onDismissRequest = { backupToDelete = null },
+            icon = { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Backup") },
+            text = { Text("Permanently delete the backup for $name?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteBackup(name)
+                    backups = backups.filter { it.componentName != name }
+                    backupToDelete = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { backupToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Clear all downloads confirmation
     if (showClearAllDialog) {
         AlertDialog(
             onDismissRequest = { showClearAllDialog = false },
@@ -354,7 +536,7 @@ fun DownloadManagerScreen(
             text = { Text("This will remove all ${downloads.size} downloaded file records and delete the files from your device. This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
-                    clearAll()
+                    clearAllDownloads()
                     showClearAllDialog = false
                 }) { Text("Clear All", color = MaterialTheme.colorScheme.error) }
             },

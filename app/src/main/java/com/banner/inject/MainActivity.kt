@@ -101,27 +101,17 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                        MainTab.DOWNLOAD, MainTab.MANAGERS -> {
+                        MainTab.DOWNLOAD -> {
                             var showBackupManager by remember { mutableStateOf(false) }
                             var showSettings by remember { mutableStateOf(false) }
 
-                            if (currentTab == MainTab.DOWNLOAD) {
-                                DownloadScreen(
-                                    currentTab = currentTab,
-                                    onTabSelected = { currentTab = it },
-                                    repo = repo,
-                                    onShowBackupManager = { showBackupManager = true },
-                                    onShowSettings = { showSettings = true }
-                                )
-                            } else {
-                                DownloadManagerScreen(
-                                    currentTab = currentTab,
-                                    onTabSelected = { currentTab = it },
-                                    repo = repo,
-                                    onShowBackupManager = { showBackupManager = true },
-                                    onShowSettings = { showSettings = true }
-                                )
-                            }
+                            DownloadScreen(
+                                currentTab = currentTab,
+                                onTabSelected = { currentTab = it },
+                                repo = repo,
+                                onShowBackupManager = { showBackupManager = true },
+                                onShowSettings = { showSettings = true }
+                            )
 
                             if (showBackupManager) {
                                 BackupManagerSheet(
@@ -138,6 +128,28 @@ class MainActivity : ComponentActivity() {
                                     onAccentColorChanged = { accentColor = it },
                                     onDismiss = { showSettings = false },
                                     onOpenBackupManager = { showSettings = false; showBackupManager = true }
+                                )
+                            }
+                        }
+                        MainTab.MANAGERS -> {
+                            var showSettings by remember { mutableStateOf(false) }
+
+                            DownloadManagerScreen(
+                                currentTab = currentTab,
+                                onTabSelected = { currentTab = it },
+                                repo = repo,
+                                onListBackups = { vm.listAllBackups() },
+                                onDeleteBackup = { vm.deleteBackupByName(it) },
+                                onShowSettings = { showSettings = true }
+                            )
+
+                            if (showSettings) {
+                                SettingsSheet(
+                                    appVersion = appVersion,
+                                    accentColor = accentColor,
+                                    onAccentColorChanged = { accentColor = it },
+                                    onDismiss = { showSettings = false },
+                                    onOpenBackupManager = { showSettings = false }
                                 )
                             }
                         }
