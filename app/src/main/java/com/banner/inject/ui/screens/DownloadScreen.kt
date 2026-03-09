@@ -20,8 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -77,10 +75,8 @@ fun DownloadScreen(
     var batchSelected by remember { mutableStateOf(emptySet<String>()) } // set of downloadUrls
     var lastFailedItem by remember { mutableStateOf<RemoteSourceRepository.RemoteItem?>(null) }
     var downloadedSet: Set<String> by remember { mutableStateOf(emptySet()) }
-    var searchMode by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchCaching by remember { mutableStateOf(false) }
-    val searchFocusRequester = remember { FocusRequester() }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
 
@@ -98,24 +94,18 @@ fun DownloadScreen(
         }
     }
 
-    // Auto-focus search field when search mode opens + kick off background cache refresh
-    LaunchedEffect(searchMode) {
-        if (searchMode) {
-            delay(100)
-            searchFocusRequester.requestFocus()
-            if (!RemoteSourceRepository.hasCache()) {
-                isSearchCaching = true
-                try { repo.refreshAllCache(sources, componentTypes) } catch (_: Exception) {}
-                isSearchCaching = false
-            }
-        } else {
-            searchQuery = ""
+    // Kick off background cache refresh when user starts typing so results populate quickly
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty() && !RemoteSourceRepository.hasCache()) {
+            isSearchCaching = true
+            try { repo.refreshAllCache(sources, componentTypes) } catch (_: Exception) {}
+            isSearchCaching = false
         }
     }
 
-    BackHandler(enabled = searchMode || (selectedSource != null && !isDownloading)) {
-        if (searchMode) {
-            searchMode = false
+    BackHandler(enabled = searchQuery.isNotEmpty() || (selectedSource != null && !isDownloading)) {
+        if (searchQuery.isNotEmpty()) {
+            searchQuery = ""
             return@BackHandler
         }
         if (batchMode) {
@@ -141,81 +131,26 @@ fun DownloadScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
-                if (searchMode) {
-                    TopAppBar(
-                        navigationIcon = {
-                            IconButton(onClick = { searchMode = false }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Close search")
-                            }
-                        },
-                        title = {
-                            TextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search all repositories...", fontSize = 14.sp) },
-                                modifier = Modifier.fillMaxWidth().focusRequester(searchFocusRequester),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(onSearch = { /* keep keyboard open */ }),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                                )
-                            )
-                        },
-                        actions = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                TopAppBar(
+                    title = {
+                        Text("Download Components", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    },
+                    actions = {
+                        IconButton(onClick = onShowBackupManager) {
+                            Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
+                        }
+                        IconButton(onClick = onShowSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
-                } else {
-                    TopAppBar(
-                        title = {
-                            Text("Download Components", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        },
-                        actions = {
-                            IconButton(onClick = { searchMode = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search repositories")
-                            }
-                            IconButton(onClick = onShowBackupManager) {
-                                Icon(Icons.Default.Backup, contentDescription = "Backup Manager")
-                            }
-                            IconButton(onClick = onShowSettings) {
-                                Icon(Icons.Default.Settings, contentDescription = "Settings")
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    )
-                }
+                )
                 MainTabRow(currentTab = currentTab, onTabSelected = onTabSelected)
             }
         }
     ) { padding ->
-        if (searchMode) {
-            SearchContent(
-                query = searchQuery,
-                isCaching = isSearchCaching,
-                isDownloading = isDownloading,
-                downloadProgress = downloadProgress,
-                repo = repo,
-                context = context,
-                scope = scope,
-                snackbarHostState = snackbarHostState,
-                onDownloadingChanged = { isDownloading = it },
-                onProgressChanged = { downloadProgress = it },
-                modifier = Modifier.fillMaxSize().padding(padding)
-            )
-        } else
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -225,6 +160,40 @@ fun DownloadScreen(
             // Hoist these for use in both header batch controls and file list
             val capturedSource = selectedSource?.name ?: ""
             val capturedType = selectedType ?: ""
+
+            // Always-visible search field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search all repositories...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {}),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            )
+
+            if (searchQuery.isNotEmpty()) {
+                SearchContent(
+                    query = searchQuery,
+                    isCaching = isSearchCaching,
+                    isDownloading = isDownloading,
+                    downloadProgress = downloadProgress,
+                    repo = repo,
+                    context = context,
+                    scope = scope,
+                    snackbarHostState = snackbarHostState,
+                    onDownloadingChanged = { isDownloading = it },
+                    onProgressChanged = { downloadProgress = it }
+                )
+            } else {
 
             // Navigation Header
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
@@ -729,9 +698,10 @@ fun DownloadScreen(
                     }
                 }
             }
+            } // end else (searchQuery empty)
         }
     }
-    
+
     if (showAddRepoDialog) {
         AddRepoDialog(
             repo = repo,
