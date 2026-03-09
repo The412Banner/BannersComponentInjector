@@ -447,6 +447,87 @@ class RemoteSourceRepository(private val context: Context) {
         result
     }
 
+    /**
+     * Fetches the repository and returns all component type names it actually contains.
+     * For WCP_JSON: extracts unique "type" field values from the JSON entries.
+     * For GITHUB_RELEASES_WCP/ZIP: scans asset names and matches against known types.
+     * For GITHUB_RELEASES_TURNIP: always returns ["turnip", "adreno"].
+     * Falls back to the source's existing supportedTypes (or all known types) on error.
+     */
+    suspend fun discoverTypes(source: RemoteSource): List<String> = withContext(Dispatchers.IO) {
+        val knownTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
+        fun sortByKnown(set: Set<String>) = set.sortedBy { t -> knownTypes.indexOf(t).let { if (it == -1) Int.MAX_VALUE else it } }
+        try {
+            when (source.format) {
+                SourceFormat.WCP_JSON -> {
+                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("Accept", "application/json")
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val array = JSONArray(conn.inputStream.bufferedReader().readText())
+                    val types = mutableSetOf<String>()
+                    for (i in 0 until array.length()) {
+                        val t = array.getJSONObject(i).optString("type").lowercase().trim()
+                        if (t.isNotEmpty()) types.add(t)
+                    }
+                    sortByKnown(types)
+                }
+                SourceFormat.GITHUB_RELEASES_TURNIP -> listOf("turnip", "adreno")
+                SourceFormat.GITHUB_RELEASES_WCP -> {
+                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("Accept", "application/json")
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val array = JSONArray(conn.inputStream.bufferedReader().readText())
+                    val found = mutableSetOf<String>()
+                    for (i in 0 until array.length()) {
+                        val assets = array.getJSONObject(i).optJSONArray("assets") ?: continue
+                        for (j in 0 until assets.length()) {
+                            val name = assets.getJSONObject(j).optString("name").lowercase()
+                            if (!name.endsWith(".wcp")) continue
+                            knownTypes.forEach { if (name.contains(it)) found.add(it) }
+                        }
+                    }
+                    sortByKnown(found)
+                }
+                SourceFormat.GITHUB_RELEASES_ZIP -> {
+                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    conn.setRequestProperty("Accept", "application/json")
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val array = JSONArray(conn.inputStream.bufferedReader().readText())
+                    val found = mutableSetOf<String>()
+                    for (i in 0 until array.length()) {
+                        val assets = array.getJSONObject(i).optJSONArray("assets") ?: continue
+                        for (j in 0 until assets.length()) {
+                            val name = assets.getJSONObject(j).optString("name").lowercase()
+                            if (!name.endsWith(".zip")) continue
+                            knownTypes.forEach { if (name.contains(it)) found.add(it) }
+                        }
+                    }
+                    // ZIP repos often have generic filenames; fall back to full known list if nothing matched
+                    if (found.isEmpty()) knownTypes else sortByKnown(found)
+                }
+            }
+        } catch (_: Exception) {
+            if (source.supportedTypes.isNotEmpty()) source.supportedTypes else knownTypes
+        }
+    }
+
+    /**
+     * Edit an existing source in-place.
+     * Custom sources are updated directly. Built-in defaults are removed from the
+     * active list and the edited version is saved as a new custom source.
+     */
+    fun editSource(oldSource: RemoteSource, newSource: RemoteSource) {
+        if (oldSource.isCustom) {
+            val current = getCustomSources().toMutableList()
+            val idx = current.indexOfFirst { it.name == oldSource.name && it.url == oldSource.url }
+            if (idx >= 0) current[idx] = newSource.copy(isCustom = true) else current.add(newSource.copy(isCustom = true))
+            saveCustomSources(current)
+        } else {
+            removeSource(oldSource)   // marks as removed from defaults
+            addCustomSource(newSource)
+        }
+    }
+
     suspend fun downloadToTemp(
         url: String,
         onProgress: (String) -> Unit

@@ -59,6 +59,7 @@ fun DownloadScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var sourceToEdit by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sourceMenuExpanded by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
@@ -288,6 +289,14 @@ fun DownloadScreen(
                                                 }
                                             )
                                             DropdownMenuItem(
+                                                text = { Text("Edit Repository") },
+                                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    sourceToEdit = source
+                                                }
+                                            )
+                                            DropdownMenuItem(
                                                 text = { Text("Remove Repository", color = MaterialTheme.colorScheme.error) },
                                                 leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
                                                 onClick = {
@@ -489,6 +498,19 @@ fun DownloadScreen(
                 TextButton(onClick = { sourceToDelete = null }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    sourceToEdit?.let { source ->
+        EditRepoDialog(
+            source = source,
+            repo = repo,
+            onDismiss = { sourceToEdit = null },
+            onSave = { edited ->
+                repo.editSource(source, edited)
+                sources = repo.getAllSources()
+                sourceToEdit = null
             }
         )
     }
