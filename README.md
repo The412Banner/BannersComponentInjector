@@ -27,6 +27,9 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
     - [Replacing a Component — Online Sources](#replacing-a-component--online-sources)
     - [Restoring a Component](#restoring-a-component)
   - [Download Components Tab](#download-components-tab)
+    - [Managing Repositories](#managing-repositories)
+    - [Adding a Custom Repository](#adding-a-custom-repository)
+    - [Editing a Repository](#editing-a-repository)
   - [My Downloads Tab](#my-downloads-tab)
   - [Backup Manager](#backup-manager)
   - [In-App Updates](#in-app-updates)
@@ -56,14 +59,16 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Backup warning** — warns before replacing an unbacked component, with a "Don't ask again" option and a Settings toggle to re-enable.
 
 **Download Components**
-- **8 built-in repositories** — browse StevenMXZ, Arihany WCPHub, AdrenoToolsDrivers (K11MCH1), MaxesTechReview (MTR), and more.
+- **6 built-in repositories** — StevenMXZ, Arihany WCPHub, Xnick417x, AdrenoToolsDrivers (K11MCH1), freedreno Turnip CI, and MaxesTechReview (MTR).
 - **10 component categories** — DXVK, VKD3D, Box64, FEXCore, WineD3D, Turnip, Adreno, Drivers, Wine, Proton.
 - **Upload dates** — each file card shows the date it was uploaded to its repository (from GitHub `published_at`).
 - **Sort control** — default sort is newest first; tap the Sort button to switch between Newest First, Oldest First, Name A→Z, or Name Z→A instantly.
 - **Already-downloaded indicator** — files you've previously saved are marked with a checkmark.
-- **Custom repositories** — add any compatible repository URL; format is auto-detected.
+- **Custom repositories** — add any compatible URL; format is auto-detected. Supports plain GitHub repo links, GitHub Releases URLs, and raw JSON feed URLs.
+- **Multi-URL custom repositories** — combine multiple links (e.g. a WCP releases URL and a Turnip releases URL) into a single repository card. Each URL's types are auto-detected and routed independently.
+- **Edit Repository** — rename any repository, change its URL, and choose which component categories it shows. Types are auto-detected from the live repository.
 - **Remove any repository** — including built-in defaults; a Restore Defaults button brings them back.
-- **Hamburger menu per repo** — Open in Browser or Remove Repository.
+- **Hamburger menu per repo** — Open in Browser, Edit Repository, Remove Repository.
 - **Refresh All** — pre-fetches all sources × all types in parallel and caches results in memory.
 
 **My Downloads**
@@ -182,19 +187,51 @@ This tab is the main workspace for managing components already installed inside 
 
 This tab lets you browse online repositories and save component files to your device for later use.
 
-1. **Select a repository** from the list. Tap the **≡ menu** on any card to open it in your browser or remove it.
-2. **Select a component type** — only types supported by that repository are shown.
+1. **Select a repository** from the list.
+2. **Select a component type** — types shown are those the repository actually provides. For folder-based repositories (like MTR) the app detects available categories automatically.
 3. **Browse the file list**:
    - Each item shows its name, upload date (where available), and a checkmark if you've already downloaded it.
    - Files are sorted **newest first** by default.
    - Tap the **Sort** button (top-right of the header) to change sort order: Newest First, Oldest First, Name A→Z, Name Z→A.
 4. **Tap a file** to download it. It is saved to `Downloads/BannersComponentInjector/<Repo>/<Type>/<filename>` (or your custom Downloads location).
 
-**Managing repositories:**
-- Tap **+** in the header to add a custom repository URL — the format is auto-detected.
-- Use the **≡ menu** on any card to remove a repository.
-- Tap **Restore Default Repositories** at the bottom to bring back the built-in list.
-- Tap the **⟳ Refresh** button to pre-fetch all sources and cache the results in memory.
+---
+
+#### Managing Repositories
+
+Each repository card has a **⋮ menu** with three options:
+
+- **Open in Browser** — opens the repository's GitHub page in your browser.
+- **Edit Repository** — opens the edit dialog (see below).
+- **Remove Repository** — removes the repository from your list (built-ins can be restored with **Restore Default Repositories** at the bottom of the list).
+
+Tap **⟳ Refresh** (top-right when no repo is selected) to pre-fetch all sources and cache the results in memory for instant browsing.
+
+---
+
+#### Adding a Custom Repository
+
+Tap **+** in the header to open the Add Repository dialog.
+
+1. Enter a **Repository Name**.
+2. Enter a URL in the **URL** field. Supported URL formats:
+   - A plain GitHub repo link: `https://github.com/{owner}/{repo}` — the app reads the folder structure directly from the repo; each folder becomes a component category.
+   - A GitHub Releases URL: `https://github.com/{owner}/{repo}/releases` — the app scans release assets for `.wcp` or `.zip` files.
+   - A raw JSON feed URL ending in `.json` (WCP JSON format).
+3. To combine multiple endpoints into one card (e.g. a WCP releases link plus a Turnip releases link), tap **+ Add another URL** to add a second URL field. Repeat for more. Tap **−** to remove a field.
+4. Tap **Add**. The app auto-detects the format of each URL. For multi-URL repos, it also queries each URL to discover which component types it provides and assigns them accordingly.
+
+---
+
+#### Editing a Repository
+
+Tap **⋮ → Edit Repository** on any card.
+
+- Change the **name** or **URL**.
+- The app re-detects which component types the repository provides. Use the **⟳** button to re-detect after changing the URL.
+- Check or uncheck categories to control which ones appear when you select this repository.
+- Tap **Select All** / **Deselect All** for quick selection.
+- Tap **Save** to apply. Changes to built-in repositories are saved as a custom override.
 
 ---
 
@@ -268,18 +305,18 @@ A plain ZIP archive containing a `meta.json` file and flat `.so` library files. 
 
 ## Online Sources
 
-| Repository | Format | Component Types |
-|-----------|--------|----------------|
-| StevenMXZ / Winlator-Contents | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
-| Arihany / WinlatorWCPHub | GitHub Releases (WCP) | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
-| Arihany / WinlatorWCPHub | GitHub Releases (Turnip) | Turnip, Adreno |
-| Xnick417x / Winlator-Bionic-Nightly-wcp | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
-| K11MCH1 / AdrenoToolsDrivers | GitHub Releases (Turnip) | Turnip, Adreno |
-| StevenMXZ / Adreno-Tools-Drivers | GitHub Releases (ZIP) | Turnip, Adreno |
-| whitebelyash / freedreno_turnip-CI | GitHub Releases (Turnip) | Turnip, Adreno |
-| maxjivi05 / Components (MTR) | WCP JSON | DXVK, VKD3D, Box64, FEX, FEXCore, Drivers, Wine, Proton |
+| Repository | Component Types |
+|-----------|----------------|
+| StevenMXZ / Winlator-Contents + Adreno-Tools-Drivers | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton, Turnip, Adreno |
+| Arihany / WinlatorWCPHub | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton, Turnip, Adreno |
+| Xnick417x / Winlator-Bionic-Nightly-wcp | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
+| K11MCH1 / AdrenoToolsDrivers | Turnip, Adreno |
+| whitebelyash / freedreno_turnip-CI | Turnip, Adreno |
+| maxjivi05 / Components (MTR) | Auto-detected from repo folders (DXVK, VKD3D, Box64, FEXCore, Drivers, and more) |
 
-> Upload dates are shown for all GitHub Releases sources. WCP JSON sources do not expose a date field.
+> Upload dates are shown for GitHub Releases sources. WCP JSON sources and the GitHub Contents format (MTR) do not expose a date field.
+>
+> StevenMXZ and Arihany each appear as a single card covering both their WCP types and Turnip/Adreno. The app routes each type to the correct upstream endpoint automatically.
 
 ---
 

@@ -2,6 +2,96 @@
 
 > **Development Rule:** Always create a *new* pre-release tag (e.g., bump to v1.4.3-pre, v1.4.4-pre) when pushing a new commit and build. Never overwrite or re-tag the same pre-release version.
 
+> **Stable Release Rule:** After every stable release, as the final step (after setting the GitHub release description and deleting old releases), rewrite the repository README.md to accurately reflect the current feature set — all built-in repos, all features, all settings, and any UI/flow changes made since the previous stable.
+
+---
+
+### [stable] — v1.5.5 — Repository Merging, Edit Repo, MTR & Multi-URL (2026-03-09)
+**Commit:** `11ca506`  |  **Tag:** v1.5.5
+
+#### New since v1.5.3
+- Edit Repository (rename, URL, type selection with auto-detect)
+- GITHUB_REPO_CONTENTS format (plain GitHub repo URL → folder structure)
+- MTR (MaxesTechReview) uses GITHUB_REPO_CONTENTS; plain github.com URL stored
+- Merged composite repos: StevenMXZ and Arihany each one card covering WCP + Turnip/Adreno
+- ExtraEndpoint system replacing secondaryUrl/Format/Types — supports N extra URLs
+- Multi-URL custom repos in AddRepoDialog: dynamic URL fields (add/remove), auto-detect + type discovery per URL
+
+#### Files touched (since v1.5.3)
+- `RemoteSourceRepository.kt`, `DownloadScreen.kt`, `RemoteSourceSheet.kt`, `AddRepoDialog.kt`, `EditRepoDialog.kt` (new)
+
+---
+
+### [pre-release] — v1.5.4-pre-5 — Multi-URL custom repos (2026-03-09)
+**Commit:** `11ca506`  |  **Tag:** v1.5.4-pre-5
+
+#### What changed
+- `RemoteSource.secondaryUrl/Format/Types` replaced with `extraEndpoints: List<ExtraEndpoint>` supporting N extra URLs
+- `ExtraEndpoint` data class: url + format + types
+- Built-in StevenMXZ and Arihany migrated to `extraEndpoints`
+- `fetchFromSource`: routes to first ExtraEndpoint matching the type
+- `refreshAllCache`: iterates all ExtraEndpoints and fetches each with its format
+- `discoverTypes`: composite short-circuits to `supportedTypes`
+- `saveCustomSources`/`getCustomSources`: serialize/deserialize `extraEndpoints` in JSON
+- `AddRepoDialog`: rewritten with dynamic URL fields; "Add another URL" button / "−" remove button; single URL = simple source; multiple URLs = format-detect + discoverTypes per URL, primary + extras built automatically; takes `repo` param for discoverTypes calls
+- `DownloadScreen` + `RemoteSourceSheet`: pass `repo =` to AddRepoDialog
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
+### [pre-release] — v1.5.4-pre-4 — Merged composite repos (2026-03-09)
+**Commit:** `4ea7547`  |  **Tag:** v1.5.4-pre-4
+
+#### What changed
+- `RemoteSource` gains `secondaryUrl`, `secondaryFormat`, `secondaryTypes` fields for composite sources
+- StevenMXZ merged with Adreno-Tools-Drivers (StevenMXZ) → one entry: WCP JSON for WCP types + GITHUB_RELEASES_ZIP for turnip/adreno
+- Arihany WCPHub merged with Arihany WCPHub (Turnip) → one entry: GITHUB_RELEASES_WCP for WCP types + GITHUB_RELEASES_TURNIP for turnip/adreno
+- Default sources reduced from 8 to 6
+- `fetchFromSource`: routes to `secondaryUrl`/`secondaryFormat` when `componentType in secondaryTypes`
+- `refreshAllCache`: fetches primary and secondary groups separately with their correct formats
+- `discoverTypes`: composite sources short-circuit to `supportedTypes` (no network scan)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+
+---
+
+### [pre-release] — v1.5.4-pre-3 — Plain GitHub URL for MTR (2026-03-09)
+**Commit:** `79bb8f4`  |  **Tag:** v1.5.4-pre-3
+
+#### What changed
+- MTR default source URL changed to `https://github.com/maxjivi05/Components` (plain GitHub URL)
+- Added `normalizeContentsUrl()` private helper in `RemoteSourceRepository`: converts `github.com/{owner}/{repo}` to API `/contents` URL before any network call — both plain and API URLs work for `GITHUB_REPO_CONTENTS` sources
+- `fetchGithubRepoContents()` and `discoverTypes()` GITHUB_REPO_CONTENTS branch both use `normalizeContentsUrl()`
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+
+---
+
+### [pre-release] — v1.5.4-pre-2 — GitHub Repo Contents format (MTR) (2026-03-09)
+**Commit:** `e8e7de3`  |  **Tag:** v1.5.4-pre-2
+
+#### What changed
+- `RemoteSourceRepository.fetchGithubRepoContents()`: fetches `{url}/{folderName}` via GitHub Contents API; returns `.wcp`/`.zip` files as `RemoteItem` list using `download_url`; `publishedAt = null` (no dates from Contents API)
+- MTR default source already set to `GITHUB_REPO_CONTENTS` format pointing at `api.github.com/repos/maxjivi05/Components/contents`
+- `discoverTypes()` GITHUB_REPO_CONTENTS branch: lists non-hidden directories from repo root with original casing (for correct API paths)
+- `refreshAllCache()` GITHUB_REPO_CONTENTS branch: discovers folders then fetches each
+- `DownloadScreen` + `RemoteSourceSheet`: added `dynamicTypes`/`isLoadingTypes` state + `LaunchedEffect(selectedSource)` that auto-calls `discoverTypes()` for Contents-format repos; shows "Detecting types..." spinner; `typesToShow` uses dynamic folder names for that format
+- `AddRepoDialog.sanitizeUrl()`: plain `github.com/{owner}/{repo}` → `api.github.com/repos/{owner}/{repo}/contents`
+- `AddRepoDialog.autoDetectFormat()`: returns `GITHUB_REPO_CONTENTS` when URL ends with `/contents` (no extra network call needed)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt`
+
 ---
 
 ### [pre-release] — v1.5.4-pre — Edit Repository (2026-03-09)
