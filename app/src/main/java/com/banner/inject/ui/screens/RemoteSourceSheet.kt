@@ -51,6 +51,8 @@ fun RemoteSourceSheet(
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sources by remember { mutableStateOf(repo.getAllSources()) }
+    var sortOrder by remember { mutableStateOf(SortOrder.NEWEST_FIRST) }
+    var showSortMenu by remember { mutableStateOf(false) }
     
     // Fixed list of common component types users can select when source allows anything
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
@@ -112,6 +114,35 @@ fun RemoteSourceSheet(
                     modifier = Modifier.weight(1f)
                 )
                 
+                if (selectedType != null && !isLoading && !isDownloading) {
+                    Box {
+                        IconButton(
+                            onClick = { showSortMenu = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            listOf(
+                                SortOrder.NEWEST_FIRST to "Newest First",
+                                SortOrder.OLDEST_FIRST to "Oldest First",
+                                SortOrder.NAME_ASC to "Name A\u2192Z",
+                                SortOrder.NAME_DESC to "Name Z\u2192A"
+                            ).forEach { (order, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = { sortOrder = order; showSortMenu = false },
+                                    trailingIcon = {
+                                        if (sortOrder == order) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
                 if (selectedSource == null && !isDownloading && !isLoading) {
                     IconButton(
                         onClick = { showAddRepoDialog = true },
@@ -265,11 +296,19 @@ fun RemoteSourceSheet(
                     // snapshot race where items becomes null between the when-check and
                     // LazyColumn's lazy content evaluation (causes NPE at items!!)
                     val currentItems = items ?: return@Column
+                    val sortedItems = remember(currentItems, sortOrder) {
+                        when (sortOrder) {
+                            SortOrder.NEWEST_FIRST -> currentItems.sortedByDescending { it.publishedAt ?: "" }
+                            SortOrder.OLDEST_FIRST -> currentItems.sortedBy { it.publishedAt ?: "9999-99-99" }
+                            SortOrder.NAME_ASC -> currentItems.sortedBy { it.displayName }
+                            SortOrder.NAME_DESC -> currentItems.sortedByDescending { it.displayName }
+                        }
+                    }
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(currentItems) { item ->
+                        items(sortedItems) { item ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     scope.launch {

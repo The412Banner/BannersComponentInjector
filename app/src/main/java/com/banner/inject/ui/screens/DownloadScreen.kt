@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+enum class SortOrder { NEWEST_FIRST, OLDEST_FIRST, NAME_ASC, NAME_DESC }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadScreen(
@@ -60,6 +62,8 @@ fun DownloadScreen(
     var sourceMenuExpanded by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
+    var sortOrder by remember { mutableStateOf(SortOrder.NEWEST_FIRST) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
 
@@ -140,6 +144,35 @@ fun DownloadScreen(
                     modifier = Modifier.weight(1f)
                 )
                 
+                if (selectedType != null && !isLoading && !isDownloading) {
+                    Box {
+                        IconButton(
+                            onClick = { showSortMenu = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            listOf(
+                                SortOrder.NEWEST_FIRST to "Newest First",
+                                SortOrder.OLDEST_FIRST to "Oldest First",
+                                SortOrder.NAME_ASC to "Name A\u2192Z",
+                                SortOrder.NAME_DESC to "Name Z\u2192A"
+                            ).forEach { (order, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = { sortOrder = order; showSortMenu = false },
+                                    trailingIcon = {
+                                        if (sortOrder == order) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
                 if (selectedSource == null && !isDownloading && !isLoading) {
                     if (isRefreshing) {
                         CircularProgressIndicator(
@@ -338,6 +371,14 @@ fun DownloadScreen(
                     val currentItems = items ?: return@Column
                     val capturedSource = selectedSource?.name ?: "Unknown"
                     val capturedType = selectedType ?: "misc"
+                    val sortedItems = remember(currentItems, sortOrder) {
+                        when (sortOrder) {
+                            SortOrder.NEWEST_FIRST -> currentItems.sortedByDescending { it.publishedAt ?: "" }
+                            SortOrder.OLDEST_FIRST -> currentItems.sortedBy { it.publishedAt ?: "9999-99-99" }
+                            SortOrder.NAME_ASC -> currentItems.sortedBy { it.displayName }
+                            SortOrder.NAME_DESC -> currentItems.sortedByDescending { it.displayName }
+                        }
+                    }
                     // Track downloaded state as recomposable set
                     var downloadedSet: Set<String> by remember(currentItems) {
                         mutableStateOf(
@@ -352,7 +393,7 @@ fun DownloadScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(currentItems) { item ->
+                        items(sortedItems) { item ->
                             val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
                                 .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
                             val alreadyDownloaded = fileName in downloadedSet
