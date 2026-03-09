@@ -4,6 +4,22 @@
 
 ---
 
+### [pre-release] — v1.5.4-pre — Edit Repository (2026-03-09)
+**Commit:** `b050609`  |  **Tag:** v1.5.4-pre
+
+#### What changed
+- **Edit Repository** option added to each repo card's hamburger menu in Download Components tab
+- `EditRepoDialog` (new file): name + URL fields; auto-detects types from the live repo on open; checkboxes for each discovered type pre-checked per current config; ⟳ refresh button re-detects with updated URL; Select All / Deselect All shortcuts
+- `RemoteSourceRepository.discoverTypes()`: fetches repo once, extracts unique types — WCP JSON uses `type` field, GitHub Releases scans asset names against known types list, Turnip always returns `["turnip","adreno"]`
+- `RemoteSourceRepository.editSource()`: in-place update for custom sources; for defaults, marks original removed and saves edited version as custom
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/EditRepoDialog.kt` (new)
+
+---
+
 ### [stable] — v1.5.3 — Wine/Proton, Upload Dates & Sort Control (2026-03-09)
 **Commit:** `819ceba`  |  **Tag:** v1.5.3
 
