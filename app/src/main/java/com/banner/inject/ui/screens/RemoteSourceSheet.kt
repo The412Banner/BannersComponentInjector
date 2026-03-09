@@ -53,7 +53,7 @@ fun RemoteSourceSheet(
     var sources by remember { mutableStateOf(repo.getAllSources()) }
     
     // Fixed list of common component types users can select when source allows anything
-    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers")
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
 
     BackHandler(enabled = selectedSource != null && !isDownloading) {
         fetchJob?.cancel()
@@ -307,7 +307,7 @@ fun RemoteSourceSheet(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "Tap to download and replace",
+                                            text = if (item.publishedAt != null) "Uploaded ${item.publishedAt} · Tap to replace" else "Tap to download and replace",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

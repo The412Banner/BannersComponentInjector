@@ -137,7 +137,8 @@ class RemoteSourceRepository(private val context: Context) {
         val displayName: String,
         val versionName: String,
         val downloadUrl: String,
-        val sourceName: String
+        val sourceName: String,
+        val publishedAt: String? = null  // "YYYY-MM-DD" from GitHub releases; null for WCP JSON sources
     )
 
     data class RemoteSource(
@@ -157,14 +158,14 @@ class RemoteSourceRepository(private val context: Context) {
 
     // Default built-in sources mapped strictly to the components they provide
     private val defaultSources = listOf(
-        RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
-        RemoteSource("Arihany WCPHub", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
+        RemoteSource("StevenMXZ", "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
+        RemoteSource("Arihany WCPHub", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
         RemoteSource("Arihany WCPHub (Turnip)", "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
-        RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore")),
+        RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
         RemoteSource("Adreno Tools Drivers (StevenMXZ)", "https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
-        RemoteSource("MaxesTechReview (MTR)", "https://raw.githubusercontent.com/maxjivi05/Components/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "drivers"))
+        RemoteSource("MaxesTechReview (MTR)", "https://raw.githubusercontent.com/maxjivi05/Components/main/contents.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "drivers", "wine", "proton"))
     )
 
     fun getAllSources(): List<RemoteSource> {
@@ -360,6 +361,7 @@ class RemoteSourceRepository(private val context: Context) {
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)
             val releaseName = release.getString("name").trim()
+            val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
             val assets = release.getJSONArray("assets")
             val turnipAssets = (0 until assets.length())
                 .map { assets.getJSONObject(it) }
@@ -376,7 +378,8 @@ class RemoteSourceRepository(private val context: Context) {
                         displayName = displayName,
                         versionName = assetName.removeSuffix(".zip"),
                         downloadUrl = asset.getString("browser_download_url"),
-                        sourceName = sourceName
+                        sourceName = sourceName,
+                        publishedAt = publishedAt
                     )
                 )
             }
@@ -391,6 +394,7 @@ class RemoteSourceRepository(private val context: Context) {
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)
             val releaseName = release.getString("name").trim()
+            val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
             val assets = release.getJSONArray("assets")
             val wcpAssets = (0 until assets.length())
                 .map { assets.getJSONObject(it) }
@@ -404,7 +408,8 @@ class RemoteSourceRepository(private val context: Context) {
                             displayName = displayName,
                             versionName = assetName.removeSuffix(".wcp"),
                             downloadUrl = asset.getString("browser_download_url"),
-                            sourceName = sourceName
+                            sourceName = sourceName,
+                            publishedAt = publishedAt
                         )
                     )
                 }
@@ -420,6 +425,7 @@ class RemoteSourceRepository(private val context: Context) {
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)
             val releaseName = release.getString("name").trim()
+            val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
             val assets = release.getJSONArray("assets")
             val zipAssets = (0 until assets.length())
                 .map { assets.getJSONObject(it) }
@@ -432,7 +438,8 @@ class RemoteSourceRepository(private val context: Context) {
                         displayName = displayName,
                         versionName = assetName.removeSuffix(".zip"),
                         downloadUrl = asset.getString("browser_download_url"),
-                        sourceName = sourceName
+                        sourceName = sourceName,
+                        publishedAt = publishedAt
                     )
                 )
             }

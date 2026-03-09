@@ -61,7 +61,7 @@ fun DownloadScreen(
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
 
-    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers")
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
 
     BackHandler(enabled = selectedSource != null && !isDownloading) {
         fetchJob?.cancel()
@@ -397,8 +397,13 @@ fun DownloadScreen(
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        val subtitle = when {
+                                            alreadyDownloaded -> if (item.publishedAt != null) "Already downloaded · ${item.publishedAt}" else "Already downloaded"
+                                            item.publishedAt != null -> "Uploaded ${item.publishedAt} · Tap to download"
+                                            else -> "Tap to download to device"
+                                        }
                                         Text(
-                                            text = if (alreadyDownloaded) "Already downloaded" else "Tap to download to device",
+                                            text = subtitle,
                                             fontSize = 12.sp,
                                             color = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
