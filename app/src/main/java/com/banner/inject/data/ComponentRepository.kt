@@ -6,6 +6,11 @@ import androidx.documentfile.provider.DocumentFile
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.FileInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 class ComponentRepository(private val context: Context) {
@@ -15,22 +20,27 @@ class ComponentRepository(private val context: Context) {
     fun getRootDocument(uri: Uri): DocumentFile? =
         DocumentFile.fromTreeUri(context, uri)
 
-    fun scanComponents(rootDoc: DocumentFile, backupManager: BackupManager): List<ComponentEntry> {
-        return rootDoc.listFiles()
-            .filter { it.isDirectory }
-            .map { dir ->
-                val folderName = dir.name ?: "unknown"
-                val files = SafFastScanner.collectFilesRecursively(context, dir)
-                ComponentEntry(
-                    folderName = folderName,
-                    documentFile = dir,
-                    files = files,
-                    hasBackup = backupManager.hasBackup(folderName),
-                    totalSize = files.sumOf { it.size },
-                    replacedWith = prefs.getString("replaced_with_$folderName", null)
-                )
-            }
-            .sortedBy { it.folderName.lowercase() }
+    suspend fun scanComponents(rootDoc: DocumentFile, backupManager: BackupManager): List<ComponentEntry> {
+        val dirs = rootDoc.listFiles().filter { it.isDirectory }
+        val semaphore = Semaphore(4) // cap concurrent SAF queries on lower-end devices
+        return coroutineScope {
+            dirs.map { dir ->
+                async {
+                    semaphore.withPermit {
+                        val folderName = dir.name ?: "unknown"
+                        val files = SafFastScanner.collectFilesRecursively(context, dir)
+                        ComponentEntry(
+                            folderName = folderName,
+                            documentFile = dir,
+                            files = files,
+                            hasBackup = backupManager.hasBackup(folderName),
+                            totalSize = files.sumOf { it.size },
+                            replacedWith = prefs.getString("replaced_with_$folderName", null)
+                        )
+                    }
+                }
+            }.awaitAll()
+        }.sortedBy { it.folderName.lowercase() }
     }
 
     fun scanSingleComponent(dir: DocumentFile, backupManager: BackupManager): ComponentEntry {
