@@ -6,6 +6,27 @@
 
 ---
 
+### [stable] — v1.6.0 — Cross-repo search, batch downloads, detail sheets, pull-to-refresh, parity (2026-03-09)
+**Commit:** `cd38edd`  |  **Tag:** v1.6.0
+
+#### New since v1.5.5
+- Parallel + streaming component scanner with live progress counter
+- Pull-to-refresh on Inject tab component list
+- Cross-repo search (always-visible) in Download Components tab
+- File sizes shown on download items
+- Release Notes (GitHub release body) in file detail sheets
+- Tap-to-detail: file cards open detail sheet before downloading (both tabs)
+- Batch multi-select downloads with parallel execution and skip-already-downloaded
+- Verify Downloads / pull-to-refresh on My Downloads tab (prunes stale records)
+- Parity: Inject → Online Sources now has hamburger repo menu + tap-to-detail + cross-repo search, matching Download Components tab
+
+#### Files touched
+- README.md (rewritten), PROGRESS_LOG.md
+- `ui/screens/HomeScreen.kt`, `ui/screens/DownloadScreen.kt`, `ui/screens/DownloadManagerScreen.kt`, `ui/screens/RemoteSourceSheet.kt`
+- `data/RemoteSourceRepository.kt`, `viewmodel/MainViewModel.kt`, `data/ComponentRepository.kt`
+
+---
+
 ### [pre-release] — v1.5.13-pre — Parity: hamburger menu + tap-to-detail in RemoteSourceSheet (2026-03-09)
 **Commit:** `6e4f85a`  |  **Tag:** v1.5.13-pre
 

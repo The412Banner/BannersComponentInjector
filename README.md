@@ -27,6 +27,8 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
     - [Replacing a Component — Online Sources](#replacing-a-component--online-sources)
     - [Restoring a Component](#restoring-a-component)
   - [Download Components Tab](#download-components-tab)
+    - [Cross-Repo Search](#cross-repo-search)
+    - [Batch Downloads](#batch-downloads)
     - [Managing Repositories](#managing-repositories)
     - [Adding a Custom Repository](#adding-a-custom-repository)
     - [Editing a Repository](#editing-a-repository)
@@ -47,34 +49,39 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 **Core**
 - **No root required** — uses Android's Storage Access Framework (SAF) for secure folder access.
 - **Multi-app support** — automatically detects all installed GameHub variants side by side.
-- **Fast component scanner** — native `ContentResolver`-based scanner shows every component folder with file count and total size.
+- **Fast streaming scanner** — components appear progressively as folders are found, with a live "Loading X / Y" counter. Parallel scanning with semaphore limiting makes load times fast even on large component trees.
 - **Three-tab layout** — Inject Components, Download Components, and My Downloads.
 
 **Inject Components**
 - **Backup** — back up any component folder to `Downloads/BannersComponentInjector/<componentName>/` (or a custom location).
 - **Replace from local file** — pick a `.wcp` or `.zip` from your device and inject it into the component folder.
-- **Replace from online source** — browse, select, and download a component from an online repository directly into the component folder, without leaving the app.
+- **Replace from online source** — cross-repo search or drill-down browse; file detail sheet with Release Notes; "Download & Replace" injects directly without leaving the app.
 - **Restore** — restore any component to its backed-up state with one tap.
 - **Replacement notes** — the component list remembers what each folder was last replaced with; cleared automatically on restore.
 - **Backup warning** — warns before replacing an unbacked component, with a "Don't ask again" option and a Settings toggle to re-enable.
+- **Pull-to-refresh** — swipe down on the component list to re-scan the folder.
 
 **Download Components**
 - **6 built-in repositories** — StevenMXZ, Arihany WCPHub, Xnick417x, AdrenoToolsDrivers (K11MCH1), freedreno Turnip CI, and MaxesTechReview (MTR).
 - **10 component categories** — DXVK, VKD3D, Box64, FEXCore, WineD3D, Turnip, Adreno, Drivers, Wine, Proton.
-- **Upload dates** — each file card shows the date it was uploaded to its repository (from GitHub `published_at`).
-- **Sort control** — default sort is newest first; tap the Sort button to switch between Newest First, Oldest First, Name A→Z, or Name Z→A instantly.
+- **Always-visible cross-repo search** — search field above the repo list searches all repositories simultaneously; results show file name, source, and type.
+- **File detail sheet** — tap any file to see its name, source/type chips, published date, file size, and scrollable Release Notes (from GitHub release body); "Download to Device" button confirms the save.
+- **Upload dates and file sizes** — shown on every file card and in the detail sheet.
+- **Sort control** — Newest First, Oldest First, Name A→Z, Name Z→A.
 - **Already-downloaded indicator** — files you've previously saved are marked with a checkmark.
+- **Batch multi-select downloads** — enter multi-select mode; pick any number of files; "Download X files" downloads them all in parallel, skipping any already downloaded.
 - **Custom repositories** — add any compatible URL; format is auto-detected. Supports plain GitHub repo links, GitHub Releases URLs, and raw JSON feed URLs.
-- **Multi-URL custom repositories** — combine multiple links (e.g. a WCP releases URL and a Turnip releases URL) into a single repository card. Each URL's types are auto-detected and routed independently.
-- **Edit Repository** — rename any repository, change its URL, and choose which component categories it shows. Types are auto-detected from the live repository.
-- **Remove any repository** — including built-in defaults; a Restore Defaults button brings them back.
+- **Multi-URL custom repositories** — combine multiple endpoints (e.g. WCP releases + Turnip releases) into a single repository card.
+- **Edit Repository** — rename any repository, change its URL, and choose which component categories it shows.
 - **Hamburger menu per repo** — Open in Browser, Edit Repository, Remove Repository.
 - **Refresh All** — pre-fetches all sources × all types in parallel and caches results in memory.
 
 **My Downloads**
 - Browse saved files by Repository → Type → File.
+- **Pull-to-refresh** — swipe down to prune stale records (files deleted outside the app); snackbar shows how many were removed.
+- **Verify Downloads** — ☁ icon in the top bar runs the same stale-record check on demand.
+- **Backups folder** at the root gives quick access to all component backups.
 - Delete individual records or clear all at once.
-- **Backups folder** at the root of My Downloads for quick access to all component backups.
 
 **General**
 - **Backup Manager** — centralised view of all saved backups with per-backup deletion.
@@ -167,10 +174,15 @@ This tab is the main workspace for managing components already installed inside 
 
 1. Tap the component card you want to replace.
 2. Tap **Select Online Source**.
-3. **Step 1 — Choose a repository**: pick the online source to browse.
-4. **Step 2 — Choose a component type**: select the type (DXVK, VKD3D, Box64, Turnip, Wine, etc.).
-5. **Step 3 — Choose a file**: a filtered list of matching packages appears with version info and upload date. Tap any entry to download and install it directly into the component folder.
-6. A progress indicator shows download status. The component folder is updated on completion.
+3. At the top of the sheet, a **search bar** lets you search across all repositories at once. Type to see matching files from any repo — tap a result to open its detail sheet.
+4. Or browse manually:
+   - **Step 1 — Choose a repository**: tap any repo card to drill in.
+   - **Step 2 — Choose a component type**: select the category (DXVK, VKD3D, Box64, Turnip, Wine, etc.).
+   - **Step 3 — Choose a file**: sorted list with published date. Tap any file to open its detail sheet.
+5. The detail sheet shows the file name, source, type, date, size, and Release Notes (if available).
+6. Tap **Download & Replace**. A progress indicator shows download status. The component folder is updated on completion.
+
+> Repo cards have a **⋮ menu**: Open in Browser, Edit Repository, Remove Repository.
 
 ---
 
@@ -187,13 +199,28 @@ This tab is the main workspace for managing components already installed inside 
 
 This tab lets you browse online repositories and save component files to your device for later use.
 
+#### Cross-Repo Search
+
+The **search bar** at the top of the tab searches all repositories at once as you type. Results show the file name, source, and component type. Tap a result to open its detail sheet.
+
+---
+
+#### Batch Downloads
+
+Tap the **☑ checkbox icon** in the top bar to enter multi-select mode. Tap files to select them (checkboxes appear). Tap **Download X files** to save all selected files in parallel. Already-downloaded files are automatically skipped.
+
+---
+
+#### Browsing a Repository
+
 1. **Select a repository** from the list.
 2. **Select a component type** — types shown are those the repository actually provides. For folder-based repositories (like MTR) the app detects available categories automatically.
 3. **Browse the file list**:
-   - Each item shows its name, upload date (where available), and a checkmark if you've already downloaded it.
+   - Each item shows its name, upload date (where available), file size, and a checkmark if you've already downloaded it.
    - Files are sorted **newest first** by default.
-   - Tap the **Sort** button (top-right of the header) to change sort order: Newest First, Oldest First, Name A→Z, Name Z→A.
-4. **Tap a file** to download it. It is saved to `Downloads/BannersComponentInjector/<Repo>/<Type>/<filename>` (or your custom Downloads location).
+   - Tap the **Sort** button (top-right) to switch: Newest First, Oldest First, Name A→Z, Name Z→A.
+4. **Tap a file** to open its detail sheet. The detail sheet shows the file name, source/type chips, published date, file size, and scrollable Release Notes (if available).
+5. Tap **Download to Device** to save it to `Downloads/BannersComponentInjector/<Repo>/<Type>/<filename>` (or your custom Downloads location).
 
 ---
 
@@ -205,7 +232,7 @@ Each repository card has a **⋮ menu** with three options:
 - **Edit Repository** — opens the edit dialog (see below).
 - **Remove Repository** — removes the repository from your list (built-ins can be restored with **Restore Default Repositories** at the bottom of the list).
 
-Tap **⟳ Refresh** (top-right when no repo is selected) to pre-fetch all sources and cache the results in memory for instant browsing.
+Tap **⟳ Refresh** (top-right when no repo is selected) to pre-fetch all sources and cache the results in memory for instant browsing and search.
 
 ---
 
@@ -241,6 +268,8 @@ Browse and manage all files previously downloaded via the Download Components ta
 
 - The list is grouped by **Repository → Type → File**.
 - A **Backups** folder at the root gives quick access to all component backups.
+- **Swipe down** (pull-to-refresh) to verify all download records — stale records for files deleted outside the app are pruned; a snackbar shows how many were removed.
+- Tap the **☁ icon** in the top bar to run the same stale-record check on demand.
 - Tap the **🗑** icon on any file to remove its download record.
 - Tap **Clear All** in the top bar to remove all records at once.
 
@@ -314,7 +343,7 @@ A plain ZIP archive containing a `meta.json` file and flat `.so` library files. 
 | whitebelyash / freedreno_turnip-CI | Turnip, Adreno |
 | maxjivi05 / Components (MTR) | Auto-detected from repo folders (DXVK, VKD3D, Box64, FEXCore, Drivers, and more) |
 
-> Upload dates are shown for GitHub Releases sources. WCP JSON sources and the GitHub Contents format (MTR) do not expose a date field.
+> Upload dates and Release Notes are shown for GitHub Releases sources. WCP JSON sources and the GitHub Contents format (MTR) do not expose these fields.
 >
 > StevenMXZ and Arihany each appear as a single card covering both their WCP types and Turnip/Adreno. The app routes each type to the correct upstream endpoint automatically.
 
