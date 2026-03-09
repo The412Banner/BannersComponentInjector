@@ -58,5 +58,6 @@ fun formatSize(bytes: Long): String = when {
 
 enum class MainTab(val title: String) {
     INJECT("Inject Components"),
-    DOWNLOAD("Download Components")
+    DOWNLOAD("Download Components"),
+    MANAGERS("My Downloads")
 }

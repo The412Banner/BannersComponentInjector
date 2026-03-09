@@ -25,6 +25,7 @@ import com.banner.inject.model.MainTab
 import com.banner.inject.ui.screens.AppListScreen
 import com.banner.inject.ui.screens.BackupManagerSheet
 import com.banner.inject.ui.screens.ComponentListScreen
+import com.banner.inject.ui.screens.DownloadManagerScreen
 import com.banner.inject.ui.screens.DownloadScreen
 import com.banner.inject.ui.screens.SettingsSheet
 import com.banner.inject.ui.theme.BannersComponentInjectorTheme
@@ -100,17 +101,27 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-                        MainTab.DOWNLOAD -> {
+                        MainTab.DOWNLOAD, MainTab.MANAGERS -> {
                             var showBackupManager by remember { mutableStateOf(false) }
                             var showSettings by remember { mutableStateOf(false) }
 
-                            DownloadScreen(
-                                currentTab = currentTab,
-                                onTabSelected = { currentTab = it },
-                                repo = repo,
-                                onShowBackupManager = { showBackupManager = true },
-                                onShowSettings = { showSettings = true }
-                            )
+                            if (currentTab == MainTab.DOWNLOAD) {
+                                DownloadScreen(
+                                    currentTab = currentTab,
+                                    onTabSelected = { currentTab = it },
+                                    repo = repo,
+                                    onShowBackupManager = { showBackupManager = true },
+                                    onShowSettings = { showSettings = true }
+                                )
+                            } else {
+                                DownloadManagerScreen(
+                                    currentTab = currentTab,
+                                    onTabSelected = { currentTab = it },
+                                    repo = repo,
+                                    onShowBackupManager = { showBackupManager = true },
+                                    onShowSettings = { showSettings = true }
+                                )
+                            }
 
                             if (showBackupManager) {
                                 BackupManagerSheet(

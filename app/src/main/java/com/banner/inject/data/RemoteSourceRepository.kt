@@ -19,7 +19,6 @@ class RemoteSourceRepository(private val context: Context) {
 
     companion object {
         // In-memory cache: "sourceName::componentType" → items
-        // ConcurrentHashMap for safe parallel writes during refresh
         private val cache = ConcurrentHashMap<String, List<RemoteItem>>()
 
         fun clearCache() = cache.clear()
@@ -29,6 +28,94 @@ class RemoteSourceRepository(private val context: Context) {
         fun putToCache(sourceName: String, componentType: String, items: List<RemoteItem>) {
             cache["$sourceName::$componentType"] = items
         }
+
+        // In-memory set of downloaded file keys for fast indicator lookups
+        private val downloadedKeys = ConcurrentHashMap.newKeySet<String>()
+
+        fun isDownloaded(sourceName: String, componentType: String, fileName: String): Boolean =
+            downloadedKeys.contains("$sourceName::$componentType::$fileName")
+
+        private fun markDownloaded(sourceName: String, componentType: String, fileName: String) {
+            downloadedKeys.add("$sourceName::$componentType::$fileName")
+        }
+        private fun unmarkDownloaded(sourceName: String, componentType: String, fileName: String) {
+            downloadedKeys.remove("$sourceName::$componentType::$fileName")
+        }
+
+        /** Strip filesystem-unsafe characters from a folder name segment. */
+        fun sanitizeFolderName(name: String): String =
+            name.replace(Regex("""[/\\:*?"<>|]"""), "_").trim()
+    }
+
+    data class DownloadedFile(
+        val sourceName: String,
+        val componentType: String,
+        val fileName: String,
+        val fileSizeBytes: Long = 0L,
+        val downloadedAt: Long = 0L,
+        val uriString: String? = null
+    )
+
+    init {
+        // Hydrate the in-memory downloaded keys from persisted records on first instantiation
+        getAllDownloads().forEach {
+            markDownloaded(it.sourceName, it.componentType, it.fileName)
+        }
+    }
+
+    fun recordDownload(
+        sourceName: String, componentType: String, fileName: String,
+        fileSizeBytes: Long = 0L, uriString: String? = null
+    ) {
+        val record = DownloadedFile(sourceName, componentType, fileName, fileSizeBytes,
+            System.currentTimeMillis(), uriString)
+        val current = getAllDownloads().toMutableList()
+        current.removeAll { it.sourceName == sourceName && it.componentType == componentType && it.fileName == fileName }
+        current.add(record)
+        saveDownloadRecords(current)
+        markDownloaded(sourceName, componentType, fileName)
+    }
+
+    fun removeDownloadRecord(record: DownloadedFile) {
+        val current = getAllDownloads().toMutableList()
+        current.removeAll { it.sourceName == record.sourceName && it.componentType == record.componentType && it.fileName == record.fileName }
+        saveDownloadRecords(current)
+        unmarkDownloaded(record.sourceName, record.componentType, record.fileName)
+    }
+
+    fun getAllDownloads(): List<DownloadedFile> {
+        val jsonStr = prefs.getString("download_records", "[]") ?: "[]"
+        val list = mutableListOf<DownloadedFile>()
+        try {
+            val array = JSONArray(jsonStr)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(DownloadedFile(
+                    sourceName = obj.getString("sourceName"),
+                    componentType = obj.getString("componentType"),
+                    fileName = obj.getString("fileName"),
+                    fileSizeBytes = obj.optLong("fileSizeBytes", 0L),
+                    downloadedAt = obj.optLong("downloadedAt", 0L),
+                    uriString = obj.optString("uriString").takeIf { it.isNotEmpty() }
+                ))
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+        return list
+    }
+
+    private fun saveDownloadRecords(records: List<DownloadedFile>) {
+        val array = JSONArray()
+        for (r in records) {
+            val obj = JSONObject()
+            obj.put("sourceName", r.sourceName)
+            obj.put("componentType", r.componentType)
+            obj.put("fileName", r.fileName)
+            obj.put("fileSizeBytes", r.fileSizeBytes)
+            obj.put("downloadedAt", r.downloadedAt)
+            if (r.uriString != null) obj.put("uriString", r.uriString)
+            array.put(obj)
+        }
+        prefs.edit().putString("download_records", array.toString()).apply()
     }
 
     /** Convert an API or raw URL to a human-readable browser URL. */

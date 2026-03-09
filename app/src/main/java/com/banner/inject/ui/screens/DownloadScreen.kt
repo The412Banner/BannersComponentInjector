@@ -56,6 +56,7 @@ fun DownloadScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var sourceMenuExpanded by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
 
@@ -232,21 +233,35 @@ fun DownloadScreen(
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    IconButton(
-                                        onClick = {
-                                            val browseUrl = repo.getBrowseUrl(source)
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(browseUrl)))
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.OpenInBrowser, contentDescription = "Open in Browser", tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    Spacer(Modifier.width(4.dp))
-                                    IconButton(
-                                        onClick = { sourceToDelete = source },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                    Box {
+                                        IconButton(
+                                            onClick = { sourceMenuExpanded = source },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                                        }
+                                        DropdownMenu(
+                                            expanded = sourceMenuExpanded == source,
+                                            onDismissRequest = { sourceMenuExpanded = null }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Open in Browser") },
+                                                leadingIcon = { Icon(Icons.Default.OpenInBrowser, null) },
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    val browseUrl = repo.getBrowseUrl(source)
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(browseUrl)))
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Remove Repository", color = MaterialTheme.colorScheme.error) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    sourceToDelete = source
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -320,11 +335,26 @@ fun DownloadScreen(
                 }
                 else -> {
                     val currentItems = items ?: return@Column
+                    val capturedSource = selectedSource?.name ?: "Unknown"
+                    val capturedType = selectedType ?: "misc"
+                    // Track downloaded state as recomposable set
+                    var downloadedSet by remember(currentItems) {
+                        mutableStateOf(
+                            currentItems.mapNotNullTo(mutableSetOf()) { item ->
+                                val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
+                                    .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
+                                if (RemoteSourceRepository.isDownloaded(capturedSource, capturedType, fileName)) fileName else null
+                            }
+                        )
+                    }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(currentItems) { item ->
+                            val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
+                                .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
+                            val alreadyDownloaded = fileName in downloadedSet
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     scope.launch {
@@ -333,15 +363,11 @@ fun DownloadScreen(
                                             val file = repo.downloadToTemp(item.downloadUrl) { progress ->
                                                 downloadProgress = progress
                                             }
-
-                                            // Extract a sensible filename from the downloadUrl
-                                            val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
-                                                .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
-
-                                            val sourceName = selectedSource?.name ?: "Unknown"
-                                            val componentType = selectedType ?: "misc"
-                                            saveToDownloads(context, file, fileName, sourceName, componentType)
-
+                                            val (uriString, fileSize) = saveToDownloads(
+                                                context, file, fileName, capturedSource, capturedType
+                                            )
+                                            repo.recordDownload(capturedSource, capturedType, fileName, fileSize, uriString)
+                                            downloadedSet = downloadedSet + fileName
                                             snackbarHostState.showSnackbar("Saved $fileName to Downloads")
                                         } catch (e: Exception) {
                                             errorMessage = "Download failed: ${e.message}"
@@ -357,13 +383,13 @@ fun DownloadScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        Icons.Default.CloudDownload,
+                                        if (alreadyDownloaded) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(24.dp)
                                     )
                                     Spacer(Modifier.width(16.dp))
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = item.displayName,
                                             fontWeight = FontWeight.SemiBold,
@@ -371,9 +397,9 @@ fun DownloadScreen(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "Tap to download to device",
+                                            text = if (alreadyDownloaded) "Already downloaded" else "Tap to download to device",
                                             fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
@@ -421,38 +447,34 @@ fun DownloadScreen(
     }
 }
 
-private fun sanitizeFolderName(name: String): String =
-    name.replace(Regex("""[/\\:*?"<>|]"""), "_").trim()
-
 private suspend fun saveToDownloads(
     context: Context,
     tempFile: File,
     fileName: String,
     sourceName: String,
     componentType: String
-) = withContext(Dispatchers.IO) {
-    val safeSource = sanitizeFolderName(sourceName)
-    val safeType = sanitizeFolderName(componentType)
+): Pair<String?, Long> = withContext(Dispatchers.IO) {
+    val fileSize = tempFile.length()
+    val safeSource = RemoteSourceRepository.sanitizeFolderName(sourceName)
+    val safeType = RemoteSourceRepository.sanitizeFolderName(componentType)
     val relPath = "${Environment.DIRECTORY_DOWNLOADS}/BannersComponentInjector/$safeSource/$safeType/"
     val values = ContentValues().apply {
         put(MediaStore.Downloads.DISPLAY_NAME, fileName)
         put(MediaStore.Downloads.RELATIVE_PATH, relPath)
         put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
     }
-
     try {
         val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
         if (uri != null) {
             context.contentResolver.openOutputStream(uri)?.use { output ->
-                tempFile.inputStream().use { input ->
-                    input.copyTo(output)
-                }
+                tempFile.inputStream().use { input -> input.copyTo(output) }
             }
+            tempFile.delete()
+            Pair(uri.toString(), fileSize)
         } else {
             throw Exception("Could not insert into MediaStore")
         }
     } catch (e: Exception) {
-        // Fallback to legacy path
         val fallbackDir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "BannersComponentInjector/$safeSource/$safeType"
@@ -460,7 +482,7 @@ private suspend fun saveToDownloads(
         fallbackDir.mkdirs()
         val destFile = File(fallbackDir, fileName)
         tempFile.copyTo(destFile, overwrite = true)
-    } finally {
         tempFile.delete()
+        Pair(null, fileSize)
     }
 }
