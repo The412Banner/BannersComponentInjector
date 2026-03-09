@@ -1,6 +1,7 @@
 package com.banner.inject.ui.screens
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,6 +54,19 @@ fun RemoteSourceSheet(
     
     // Fixed list of common component types users can select when source allows anything
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d")
+
+    BackHandler(enabled = selectedSource != null && !isDownloading) {
+        fetchJob?.cancel()
+        fetchJob = null
+        items = null
+        isLoading = false
+        errorMessage = null
+        if (selectedType != null) {
+            selectedType = null
+        } else if (selectedSource != null) {
+            selectedSource = null
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = { if (!isDownloading) onDismiss() },

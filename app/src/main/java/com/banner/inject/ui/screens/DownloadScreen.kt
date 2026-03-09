@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -56,6 +57,19 @@ fun DownloadScreen(
     var sources by remember { mutableStateOf(repo.getAllSources()) }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno")
+
+    BackHandler(enabled = selectedSource != null && !isDownloading) {
+        fetchJob?.cancel()
+        fetchJob = null
+        items = null
+        isLoading = false
+        errorMessage = null
+        if (selectedType != null) {
+            selectedType = null
+        } else if (selectedSource != null) {
+            selectedSource = null
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
