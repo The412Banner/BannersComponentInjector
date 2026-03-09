@@ -378,8 +378,9 @@ fun RemoteSourceSheet(
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        val sizeStr = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
                                         Text(
-                                            text = if (item.publishedAt != null) "Uploaded ${item.publishedAt} · Tap to replace" else "Tap to download and replace",
+                                            text = if (item.publishedAt != null) "Uploaded ${item.publishedAt}$sizeStr · Tap to replace" else "Tap to download and replace$sizeStr",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

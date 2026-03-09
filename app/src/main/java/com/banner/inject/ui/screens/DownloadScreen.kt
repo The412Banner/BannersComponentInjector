@@ -67,6 +67,10 @@ fun DownloadScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var dynamicTypes by remember { mutableStateOf<List<String>?>(null) }
     var isLoadingTypes by remember { mutableStateOf(false) }
+    var batchMode by remember { mutableStateOf(false) }
+    var batchSelected by remember { mutableStateOf(emptySet<String>()) } // set of downloadUrls
+    var lastFailedItem by remember { mutableStateOf<RemoteSourceRepository.RemoteItem?>(null) }
+    var downloadedSet: Set<String> by remember { mutableStateOf(emptySet()) }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
 
@@ -85,12 +89,19 @@ fun DownloadScreen(
     }
 
     BackHandler(enabled = selectedSource != null && !isDownloading) {
+        if (batchMode) {
+            batchMode = false
+            batchSelected = emptySet()
+            return@BackHandler
+        }
         fetchJob?.cancel()
         fetchJob = null
         items = null
         isLoading = false
         errorMessage = null
         if (selectedType != null) {
+            batchMode = false
+            batchSelected = emptySet()
             selectedType = null
         } else if (selectedSource != null) {
             selectedSource = null
@@ -127,14 +138,23 @@ fun DownloadScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
+            // Hoist these for use in both header batch controls and file list
+            val capturedSource = selectedSource?.name ?: ""
+            val capturedType = selectedType ?: ""
+
             // Navigation Header
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
                 if (selectedSource != null && !isDownloading) {
                     IconButton(
                         onClick = {
-                            if (selectedType != null) {
+                            if (batchMode) {
+                                batchMode = false
+                                batchSelected = emptySet()
+                            } else if (selectedType != null) {
                                 fetchJob?.cancel()
                                 fetchJob = null
+                                batchMode = false
+                                batchSelected = emptySet()
                                 selectedType = null
                                 items = null
                                 isLoading = false
@@ -151,6 +171,7 @@ fun DownloadScreen(
                 }
                 Text(
                     when {
+                        batchMode -> "${batchSelected.size} selected"
                         selectedType != null -> "${selectedType!!.uppercase()} from ${selectedSource?.name}"
                         selectedSource != null -> "Select Component Type"
                         else -> "Select Online Repository"
@@ -162,31 +183,94 @@ fun DownloadScreen(
                 )
                 
                 if (selectedType != null && !isLoading && !isDownloading) {
-                    Box {
+                    if (batchMode) {
+                        // Batch mode: select all + download button
+                        val currentItemsList = items ?: emptyList()
                         IconButton(
-                            onClick = { showSortMenu = true },
+                            onClick = {
+                                batchSelected = if (batchSelected.size == currentItemsList.size)
+                                    emptySet()
+                                else
+                                    currentItemsList.map { it.downloadUrl }.toSet()
+                            },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.SelectAll, contentDescription = "Select All", tint = MaterialTheme.colorScheme.primary)
                         }
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false }
-                        ) {
-                            listOf(
-                                SortOrder.NEWEST_FIRST to "Newest First",
-                                SortOrder.OLDEST_FIRST to "Oldest First",
-                                SortOrder.NAME_ASC to "Name A\u2192Z",
-                                SortOrder.NAME_DESC to "Name Z\u2192A"
-                            ).forEach { (order, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = { sortOrder = order; showSortMenu = false },
-                                    trailingIcon = {
-                                        if (sortOrder == order) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(4.dp))
+                        if (batchSelected.isNotEmpty()) {
+                            TextButton(
+                                onClick = {
+                                    val toDownload = (items ?: emptyList()).filter { it.downloadUrl in batchSelected }
+                                    batchMode = false
+                                    batchSelected = emptySet()
+                                    scope.launch {
+                                        isDownloading = true
+                                        var successCount = 0
+                                        for ((index, item) in toDownload.withIndex()) {
+                                            val itemFileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
+                                                .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
+                                            try {
+                                                downloadProgress = "Downloading ${index + 1} / ${toDownload.size}: ${item.displayName}"
+                                                val file = repo.downloadToTemp(item.downloadUrl) { progress ->
+                                                    downloadProgress = "${index + 1}/${toDownload.size}: $progress"
+                                                }
+                                                val (uriString, fileSize) = saveToDownloads(
+                                                    context, file, itemFileName, capturedSource, capturedType
+                                                )
+                                                repo.recordDownload(capturedSource, capturedType, itemFileName, fileSize, uriString)
+                                                downloadedSet = downloadedSet + itemFileName
+                                                successCount++
+                                            } catch (e: Exception) {
+                                                errorMessage = "Batch download stopped at ${item.displayName}: ${e.message}"
+                                                isDownloading = false
+                                                return@launch
+                                            }
+                                        }
+                                        isDownloading = false
+                                        snackbarHostState.showSnackbar("Downloaded $successCount file${if (successCount != 1) "s" else ""}")
                                     }
-                                )
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text("Download ${batchSelected.size}", fontSize = 13.sp)
                             }
+                        }
+                    } else {
+                        // Normal mode: sort + select buttons
+                        Box {
+                            IconButton(
+                                onClick = { showSortMenu = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.Sort, contentDescription = "Sort", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false }
+                            ) {
+                                listOf(
+                                    SortOrder.NEWEST_FIRST to "Newest First",
+                                    SortOrder.OLDEST_FIRST to "Oldest First",
+                                    SortOrder.NAME_ASC to "Name A\u2192Z",
+                                    SortOrder.NAME_DESC to "Name Z\u2192A"
+                                ).forEach { (order, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = { sortOrder = order; showSortMenu = false },
+                                        trailingIcon = {
+                                            if (sortOrder == order) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { batchMode = true; batchSelected = emptySet() },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Checklist, contentDescription = "Batch select", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -253,7 +337,41 @@ fun DownloadScreen(
                     ) {
                         Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
                         Spacer(Modifier.height(8.dp))
-                        Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
+                        Text(errorMessage!!, color = MaterialTheme.colorScheme.error, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        if (lastFailedItem != null) {
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    val item = lastFailedItem ?: return@Button
+                                    val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
+                                        .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
+                                    errorMessage = null
+                                    scope.launch {
+                                        isDownloading = true
+                                        try {
+                                            val file = repo.downloadToTemp(item.downloadUrl) { progress ->
+                                                downloadProgress = progress
+                                            }
+                                            val (uriString, fileSize) = saveToDownloads(
+                                                context, file, fileName, capturedSource, capturedType
+                                            )
+                                            repo.recordDownload(capturedSource, capturedType, fileName, fileSize, uriString)
+                                            downloadedSet = downloadedSet + fileName
+                                            lastFailedItem = null
+                                            snackbarHostState.showSnackbar("Saved $fileName to Downloads")
+                                        } catch (e: Exception) {
+                                            errorMessage = "Download failed: ${e.message}"
+                                        } finally {
+                                            isDownloading = false
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Retry Download")
+                            }
+                        }
                     }
                 }
                 selectedSource == null -> {
@@ -410,8 +528,6 @@ fun DownloadScreen(
                 }
                 else -> {
                     val currentItems = items ?: return@Column
-                    val capturedSource = selectedSource?.name ?: "Unknown"
-                    val capturedType = selectedType ?: "misc"
                     val sortedItems = remember(currentItems, sortOrder) {
                         when (sortOrder) {
                             SortOrder.NEWEST_FIRST -> currentItems.sortedByDescending { it.publishedAt ?: "" }
@@ -420,15 +536,13 @@ fun DownloadScreen(
                             SortOrder.NAME_DESC -> currentItems.sortedByDescending { it.displayName }
                         }
                     }
-                    // Track downloaded state as recomposable set
-                    var downloadedSet: Set<String> by remember(currentItems) {
-                        mutableStateOf(
-                            currentItems.mapNotNullTo(mutableSetOf()) { item ->
-                                val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
-                                    .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
-                                if (RemoteSourceRepository.isDownloaded(capturedSource, capturedType, fileName)) fileName else null
-                            }
-                        )
+                    // Initialize downloadedSet when currentItems changes
+                    LaunchedEffect(currentItems) {
+                        downloadedSet = currentItems.mapNotNullTo(mutableSetOf()) { item ->
+                            val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
+                                .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
+                            if (RemoteSourceRepository.isDownloaded(capturedSource, capturedType, fileName)) fileName else null
+                        }
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -438,39 +552,68 @@ fun DownloadScreen(
                             val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
                                 .ifEmpty { "${item.displayName.replace(" ", "_")}.zip" }
                             val alreadyDownloaded = fileName in downloadedSet
+                            val isSelected = item.downloadUrl in batchSelected
+                            val sizeText = item.sizeBytes?.let { " · ${RemoteSourceRepository.formatFileSize(it)}" } ?: ""
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
-                                    scope.launch {
-                                        isDownloading = true
-                                        try {
-                                            val file = repo.downloadToTemp(item.downloadUrl) { progress ->
-                                                downloadProgress = progress
+                                    if (batchMode) {
+                                        batchSelected = if (isSelected)
+                                            batchSelected - item.downloadUrl
+                                        else
+                                            batchSelected + item.downloadUrl
+                                    } else {
+                                        scope.launch {
+                                            isDownloading = true
+                                            try {
+                                                val file = repo.downloadToTemp(item.downloadUrl) { progress ->
+                                                    downloadProgress = progress
+                                                }
+                                                val (uriString, fileSize) = saveToDownloads(
+                                                    context, file, fileName, capturedSource, capturedType
+                                                )
+                                                repo.recordDownload(capturedSource, capturedType, fileName, fileSize, uriString)
+                                                downloadedSet = downloadedSet + fileName
+                                                lastFailedItem = null
+                                                snackbarHostState.showSnackbar("Saved $fileName to Downloads")
+                                            } catch (e: Exception) {
+                                                lastFailedItem = item
+                                                errorMessage = "Download failed: ${e.message}"
+                                            } finally {
+                                                isDownloading = false
                                             }
-                                            val (uriString, fileSize) = saveToDownloads(
-                                                context, file, fileName, capturedSource, capturedType
-                                            )
-                                            repo.recordDownload(capturedSource, capturedType, fileName, fileSize, uriString)
-                                            downloadedSet = downloadedSet + fileName
-                                            snackbarHostState.showSnackbar("Saved $fileName to Downloads")
-                                        } catch (e: Exception) {
-                                            errorMessage = "Download failed: ${e.message}"
-                                        } finally {
-                                            isDownloading = false
                                         }
                                     }
                                 },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected && batchMode)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                )
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        if (alreadyDownloaded) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
-                                        contentDescription = null,
-                                        tint = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    if (batchMode) {
+                                        Checkbox(
+                                            checked = isSelected,
+                                            onCheckedChange = {
+                                                batchSelected = if (isSelected)
+                                                    batchSelected - item.downloadUrl
+                                                else
+                                                    batchSelected + item.downloadUrl
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            if (alreadyDownloaded) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                                            contentDescription = null,
+                                            tint = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
                                     Spacer(Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
@@ -480,14 +623,20 @@ fun DownloadScreen(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         val subtitle = when {
-                                            alreadyDownloaded -> if (item.publishedAt != null) "Already downloaded · ${item.publishedAt}" else "Already downloaded"
-                                            item.publishedAt != null -> "Uploaded ${item.publishedAt} · Tap to download"
+                                            batchMode -> if (item.publishedAt != null) "${item.publishedAt}$sizeText" else sizeText.trimStart(' ', '·').ifEmpty { "Tap to select" }
+                                            alreadyDownloaded -> if (item.publishedAt != null) "Already downloaded · ${item.publishedAt}$sizeText" else "Already downloaded$sizeText"
+                                            item.publishedAt != null -> "Uploaded ${item.publishedAt}$sizeText · Tap to download"
+                                            sizeText.isNotEmpty() -> "$sizeText · Tap to download"
                                             else -> "Tap to download to device"
                                         }
                                         Text(
                                             text = subtitle,
                                             fontSize = 12.sp,
-                                            color = if (alreadyDownloaded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = when {
+                                                batchMode -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                alreadyDownloaded -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
                                         )
                                     }
                                 }

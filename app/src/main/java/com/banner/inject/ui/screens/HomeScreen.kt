@@ -20,6 +20,7 @@ import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.OpState
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.banner.inject.model.MainTab
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +51,14 @@ fun ComponentListScreen(
     var showBackupManager by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val pullRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(pullRefreshState.isRefreshing) {
+        if (pullRefreshState.isRefreshing) onRefresh()
+    }
+    LaunchedEffect(isLoading) {
+        if (!isLoading) pullRefreshState.endRefresh()
+    }
 
     LaunchedEffect(opState) {
         when (opState) {
@@ -94,7 +103,7 @@ fun ComponentListScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding).nestedScroll(pullRefreshState.nestedScrollConnection)) {
             when {
                 isLoading && components.isEmpty() -> {
                     // Nothing loaded yet — show centered spinner
@@ -174,6 +183,12 @@ fun ComponentListScreen(
                     }
                 }
             }
+
+            PullToRefreshContainer(
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
 
             // Progress overlay
             if (opState is OpState.InProgress) {

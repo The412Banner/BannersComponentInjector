@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
@@ -45,6 +46,13 @@ class RemoteSourceRepository(private val context: Context) {
         /** Strip filesystem-unsafe characters from a folder name segment. */
         fun sanitizeFolderName(name: String): String =
             name.replace(Regex("""[/\\:*?"<>|]"""), "_").trim()
+
+        fun formatFileSize(bytes: Long): String = when {
+            bytes >= 1_073_741_824L -> "%.1f GB".format(bytes / 1_073_741_824f)
+            bytes >= 1_048_576L     -> "%.1f MB".format(bytes / 1_048_576f)
+            bytes >= 1_024L         -> "%.1f KB".format(bytes / 1_024f)
+            else                    -> "$bytes B"
+        }
     }
 
     data class DownloadedFile(
@@ -138,7 +146,8 @@ class RemoteSourceRepository(private val context: Context) {
         val versionName: String,
         val downloadUrl: String,
         val sourceName: String,
-        val publishedAt: String? = null  // "YYYY-MM-DD" from GitHub releases; null for WCP JSON sources
+        val publishedAt: String? = null,  // "YYYY-MM-DD" from GitHub releases; null for WCP JSON sources
+        val sizeBytes: Long? = null       // asset size in bytes; null when not available
     )
 
     /**
@@ -465,7 +474,8 @@ class RemoteSourceRepository(private val context: Context) {
                         versionName = assetName.removeSuffix(".zip"),
                         downloadUrl = asset.getString("browser_download_url"),
                         sourceName = sourceName,
-                        publishedAt = publishedAt
+                        publishedAt = publishedAt,
+                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 }
                     )
                 )
             }
@@ -495,7 +505,8 @@ class RemoteSourceRepository(private val context: Context) {
                             versionName = assetName.removeSuffix(".wcp"),
                             downloadUrl = asset.getString("browser_download_url"),
                             sourceName = sourceName,
-                            publishedAt = publishedAt
+                            publishedAt = publishedAt,
+                            sizeBytes = asset.optLong("size", 0).takeIf { it > 0 }
                         )
                     )
                 }
@@ -525,7 +536,8 @@ class RemoteSourceRepository(private val context: Context) {
                         versionName = assetName.removeSuffix(".zip"),
                         downloadUrl = asset.getString("browser_download_url"),
                         sourceName = sourceName,
-                        publishedAt = publishedAt
+                        publishedAt = publishedAt,
+                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 }
                     )
                 )
             }
@@ -660,7 +672,8 @@ class RemoteSourceRepository(private val context: Context) {
                 versionName = name.substringBeforeLast("."),
                 downloadUrl = downloadUrl,
                 sourceName = sourceName,
-                publishedAt = null
+                publishedAt = null,
+                sizeBytes = item.optLong("size", 0).takeIf { it > 0 }
             ))
         }
         result
@@ -670,12 +683,38 @@ class RemoteSourceRepository(private val context: Context) {
         url: String,
         onProgress: (String) -> Unit
     ): File = withContext(Dispatchers.IO) {
-        val tempFile = File(context.cacheDir, "remote_dl_temp")
-        val conn = openUrl(url)
-        val total = conn.contentLengthLong
-        var downloaded = 0L
+        val partFile = File(context.cacheDir, "dl_${Math.abs(url.hashCode())}.part")
+        var existingBytes = if (partFile.exists()) partFile.length() else 0L
+
+        var conn = openDownloadUrl(url, existingBytes)
+        val isResume: Boolean
+        when (conn.responseCode) {
+            206 -> isResume = true
+            416 -> {
+                // Stale partial file larger than the actual file; start over
+                partFile.delete()
+                existingBytes = 0L
+                conn.disconnect()
+                conn = openDownloadUrl(url, 0)
+                isResume = false
+            }
+            else -> {
+                if (existingBytes > 0) partFile.delete()
+                existingBytes = 0L
+                isResume = false
+            }
+        }
+
+        val contentLength = conn.contentLengthLong
+        val total = when {
+            isResume && contentLength >= 0 -> existingBytes + contentLength
+            contentLength >= 0 -> contentLength
+            else -> -1L
+        }
+        var downloaded = existingBytes
+
         conn.inputStream.use { input ->
-            tempFile.outputStream().use { output ->
+            FileOutputStream(partFile, isResume).use { output ->
                 val buffer = ByteArray(16384)
                 var bytes: Int
                 while (input.read(buffer).also { bytes = it } != -1) {
@@ -693,7 +732,29 @@ class RemoteSourceRepository(private val context: Context) {
                 }
             }
         }
-        tempFile
+        partFile
+    }
+
+    private fun openDownloadUrl(url: String, rangeStart: Long = 0): HttpURLConnection {
+        var conn = URL(url).openConnection() as HttpURLConnection
+        conn.setRequestProperty("Accept", "*/*")
+        conn.instanceFollowRedirects = true
+        if (rangeStart > 0) conn.setRequestProperty("Range", "bytes=$rangeStart-")
+        conn.connect()
+        val status = conn.responseCode
+        if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
+            status == HttpURLConnection.HTTP_MOVED_PERM ||
+            status == 307 || status == 308
+        ) {
+            val location = conn.getHeaderField("Location")
+            conn.disconnect()
+            conn = URL(location).openConnection() as HttpURLConnection
+            conn.setRequestProperty("Accept", "*/*")
+            conn.instanceFollowRedirects = true
+            if (rangeStart > 0) conn.setRequestProperty("Range", "bytes=$rangeStart-")
+            conn.connect()
+        }
+        return conn
     }
 
     private fun openUrl(urlString: String): HttpURLConnection {
