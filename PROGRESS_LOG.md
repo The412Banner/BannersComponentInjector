@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.6.2-pre — Fix Qualcomm/non-turnip assets hidden by filename filter (2026-03-09)
+**Commit:** `43f4888`  |  **Tag:** v1.6.2-pre
+
+#### What changed
+- `fetchTurnipReleases` gains optional `filterKeyword` param; when set, filters assets by keyword; when empty, returns all assets
+- `fetchFromSource` passes `componentType` as the keyword — direct browse now correctly shows only matching assets per type
+- `refreshAllCache` (TURNIP format, primary + extraEndpoints): fetches all assets once unfiltered, then filters per type before caching
+- Root cause: previously everything was filtered to "turnip" keyword regardless of selected type, so Qualcomm-named assets were silently dropped
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+
+---
+
 ### [pre-release] — v1.6.1-pre — Add Qualcomm component category (2026-03-09)
 **Commit:** `a29802e`  |  **Tag:** v1.6.1-pre
 
