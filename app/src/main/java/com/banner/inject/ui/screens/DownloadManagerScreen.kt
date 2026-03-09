@@ -10,9 +10,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +47,18 @@ fun DownloadManagerScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var isVerifying by remember { mutableStateOf(false) }
+
+    val pullRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(pullRefreshState.isRefreshing) {
+        if (pullRefreshState.isRefreshing) {
+            val removed = withContext(Dispatchers.IO) { repo.pruneStaleDownloadRecords(context) }
+            downloads = repo.getAllDownloads()
+            pullRefreshState.endRefresh()
+            if (removed > 0) snackbarHostState.showSnackbar(
+                "Removed $removed stale record${if (removed != 1) "s" else ""}"
+            )
+        }
+    }
 
     // Downloads navigation state
     var downloads by remember { mutableStateOf(repo.getAllDownloads()) }
@@ -166,10 +181,15 @@ fun DownloadManagerScreen(
             }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .nestedScroll(pullRefreshState.nestedScrollConnection)
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
                 .padding(16.dp)
         ) {
             // Navigation header row
@@ -512,6 +532,12 @@ fun DownloadManagerScreen(
                 }
             }
         }
+        PullToRefreshContainer(
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        } // end Box
     }
 
     // Delete download confirmation
