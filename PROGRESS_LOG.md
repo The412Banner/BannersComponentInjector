@@ -4,6 +4,20 @@
 
 ---
 
+### [pre-release] — v1.5.1-pre — Wine/Proton categories + upload dates (2026-03-09)
+**Commit:** `7613e24`  |  **Tag:** v1.5.1-pre
+
+#### What changed
+- **Wine & Proton categories**: added "wine" and "proton" to the `componentTypes` list in `DownloadScreen` and `RemoteSourceSheet`. All WCP/GitHub-WCP sources (StevenMXZ, Arihany WCPHub, Xnick417x, MTR) now include these types in `supportedTypes`.
+- **Upload dates on file items**: `RemoteItem` gains a nullable `publishedAt: String?` field ("YYYY-MM-DD"). Extracted from `published_at` in GitHub API responses for `fetchTurnipReleases`, `fetchGithubReleasesWcp`, and `fetchGithubReleasesZip`. WCP JSON sources have no date field — stays null. Shown in the subtitle of each file card: "Uploaded YYYY-MM-DD · Tap to download".
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [stable] — v1.5.0 — Custom Storage, Backups in My Downloads, Download Manager & More (2026-03-09)
 **Commit:** `31f1603`  |  **Tag:** v1.5.0
 
