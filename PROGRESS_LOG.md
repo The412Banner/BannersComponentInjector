@@ -7,7 +7,7 @@
 ---
 
 ### [pre-release] — v1.6.3-pre — HUB Emulators (T3st31) built-in source + RANKING_EMULATORS_JSON format (2026-03-09)
-**Commit:** `f277636`  |  **Tag:** v1.6.3-pre
+**Commit:** `f277636` (docs: `c439587`)  |  **Tag:** v1.6.3-pre
 
 #### What changed
 - New `SourceFormat.RANKING_EMULATORS_JSON` for sites serving a `rankings.json`
