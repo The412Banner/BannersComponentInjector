@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -27,6 +28,8 @@ data class UiState(
     val selectedApp: GameHubApp? = null,
     val components: List<ComponentEntry> = emptyList(),
     val isLoadingComponents: Boolean = false,
+    val totalComponentCount: Int = 0,
+    val loadedComponentCount: Int = 0,
     val opState: OpState = OpState.Idle
 )
 
@@ -125,20 +128,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadComponents(uri: Uri) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingComponents = true) }
+            _uiState.update { it.copy(isLoadingComponents = true, components = emptyList(), totalComponentCount = 0, loadedComponentCount = 0) }
             try {
                 val root = withContext(Dispatchers.IO) { repo.getRootDocument(uri) }
                 if (root == null || !root.canRead()) {
                     _uiState.update {
-                        it.copy(
-                            isLoadingComponents = false,
-                            opState = OpState.Error("Cannot read folder. Re-grant access.")
-                        )
+                        it.copy(isLoadingComponents = false, opState = OpState.Error("Cannot read folder. Re-grant access."))
                     }
                     return@launch
                 }
-                val components = withContext(Dispatchers.IO) { repo.scanComponents(root, backupManager) }
-                _uiState.update { it.copy(isLoadingComponents = false, components = components) }
+                val dirs = withContext(Dispatchers.IO) { repo.scanComponentDirs(root) }
+                _uiState.update { it.copy(totalComponentCount = dirs.size) }
+                repo.scanComponents(dirs, backupManager)
+                    .flowOn(Dispatchers.IO)
+                    .collect { component ->
+                        _uiState.update { state ->
+                            val newLoaded = state.loadedComponentCount + 1
+                            state.copy(
+                                components = (state.components + component).sortedBy { it.folderName.lowercase() },
+                                loadedComponentCount = newLoaded,
+                                isLoadingComponents = newLoaded < state.totalComponentCount
+                            )
+                        }
+                    }
+                _uiState.update { it.copy(isLoadingComponents = false) }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoadingComponents = false, opState = OpState.Error(e.message ?: "Unknown error"))

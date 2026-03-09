@@ -6,9 +6,9 @@ import androidx.documentfile.provider.DocumentFile
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.FileInfo
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -20,27 +20,27 @@ class ComponentRepository(private val context: Context) {
     fun getRootDocument(uri: Uri): DocumentFile? =
         DocumentFile.fromTreeUri(context, uri)
 
-    suspend fun scanComponents(rootDoc: DocumentFile, backupManager: BackupManager): List<ComponentEntry> {
-        val dirs = rootDoc.listFiles().filter { it.isDirectory }
+    fun scanComponentDirs(rootDoc: DocumentFile): List<DocumentFile> =
+        rootDoc.listFiles().filter { it.isDirectory }
+
+    fun scanComponents(dirs: List<DocumentFile>, backupManager: BackupManager): Flow<ComponentEntry> = channelFlow {
         val semaphore = Semaphore(4) // cap concurrent SAF queries on lower-end devices
-        return coroutineScope {
-            dirs.map { dir ->
-                async {
-                    semaphore.withPermit {
-                        val folderName = dir.name ?: "unknown"
-                        val files = SafFastScanner.collectFilesRecursively(context, dir)
-                        ComponentEntry(
-                            folderName = folderName,
-                            documentFile = dir,
-                            files = files,
-                            hasBackup = backupManager.hasBackup(folderName),
-                            totalSize = files.sumOf { it.size },
-                            replacedWith = prefs.getString("replaced_with_$folderName", null)
-                        )
-                    }
+        dirs.forEach { dir ->
+            launch {
+                semaphore.withPermit {
+                    val folderName = dir.name ?: "unknown"
+                    val files = SafFastScanner.collectFilesRecursively(context, dir)
+                    send(ComponentEntry(
+                        folderName = folderName,
+                        documentFile = dir,
+                        files = files,
+                        hasBackup = backupManager.hasBackup(folderName),
+                        totalSize = files.sumOf { it.size },
+                        replacedWith = prefs.getString("replaced_with_$folderName", null)
+                    ))
                 }
-            }.awaitAll()
-        }.sortedBy { it.folderName.lowercase() }
+            }
+        }
     }
 
     fun scanSingleComponent(dir: DocumentFile, backupManager: BackupManager): ComponentEntry {

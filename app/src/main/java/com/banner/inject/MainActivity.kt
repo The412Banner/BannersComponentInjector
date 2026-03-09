@@ -85,6 +85,8 @@ class MainActivity : ComponentActivity() {
                                     app = uiState.selectedApp!!,
                                     components = uiState.components,
                                     isLoading = uiState.isLoadingComponents,
+                                    totalComponentCount = uiState.totalComponentCount,
+                                    loadedComponentCount = uiState.loadedComponentCount,
                                     opState = uiState.opState,
                                     onBack = { vm.clearSelectedApp() },
                                     onRefresh = { vm.refresh() },

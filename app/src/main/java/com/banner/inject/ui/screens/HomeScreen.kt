@@ -30,6 +30,8 @@ fun ComponentListScreen(
     app: GameHubApp,
     components: List<ComponentEntry>,
     isLoading: Boolean,
+    totalComponentCount: Int,
+    loadedComponentCount: Int,
     opState: OpState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
@@ -94,15 +96,13 @@ fun ComponentListScreen(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
-                isLoading -> {
-                    val message = if (components.isEmpty()) "Loading components..." else "Refreshing components..."
+                isLoading && components.isEmpty() -> {
+                    // Nothing loaded yet — show centered spinner
                     Card(
                         modifier = Modifier
                             .align(Alignment.Center)
                             .padding(horizontal = 48.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                     ) {
                         Column(
@@ -112,16 +112,12 @@ fun ComponentListScreen(
                         ) {
                             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(16.dp))
-                            Text(
-                                message,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Text("Loading components...", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
 
-                components.isEmpty() -> Column(
+                !isLoading && components.isEmpty() -> Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -139,11 +135,38 @@ fun ComponentListScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (isLoading && totalComponentCount > 0)
+                                    "Loading $loadedComponentCount / $totalComponentCount components..."
+                                else
+                                    "${components.size} components",
+                                fontSize = 12.sp,
+                                color = if (isLoading) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (isLoading) FontWeight.Medium else FontWeight.Normal
+                            )
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    item {
                         Text(
                             "Tap a component to backup or replace its contents",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp)
                         )
                     }
                     items(components, key = { it.folderName }) { component ->
