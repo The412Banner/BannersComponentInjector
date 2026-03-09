@@ -4,6 +4,19 @@
 
 ---
 
+### [stable] — v1.5.3 — Wine/Proton, Upload Dates & Sort Control (2026-03-09)
+**Commit:** `819ceba`  |  **Tag:** v1.5.3
+
+#### What changed (new since v1.5.0)
+- Wine & Proton component categories in Download screen and injection wizard
+- Upload dates on file items (from GitHub published_at; WCP JSON sources have none)
+- Auto-sort newest first by default; Sort button dropdown (Newest First, Oldest First, Name A→Z, Name Z→A)
+
+#### Files touched
+- All files modified across v1.5.1-pre → v1.5.2-pre-2 (see individual pre-release entries below)
+
+---
+
 ### [pre-release] — v1.5.2-pre — Auto-sort newest first + user sort control (2026-03-09)
 **Commit:** `32d9afb`  |  **Tag:** v1.5.2-pre-2
 
