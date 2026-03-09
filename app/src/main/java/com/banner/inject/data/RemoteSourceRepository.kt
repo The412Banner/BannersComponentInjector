@@ -116,6 +116,26 @@ class RemoteSourceRepository(private val context: Context) {
         unmarkDownloaded(record.sourceName, record.componentType, record.fileName)
     }
 
+    /** Check each download record's URI and remove any where the file no longer exists.
+     *  Returns the number of stale records removed. */
+    fun pruneStaleDownloadRecords(context: Context): Int {
+        val stale = getAllDownloads().filter { record ->
+            val uriStr = record.uriString ?: return@filter true // no URI = assume stale
+            try {
+                val uri = android.net.Uri.parse(uriStr)
+                if (uri.scheme == "content") {
+                    context.contentResolver.query(uri, arrayOf("_id"), null, null, null)
+                        ?.use { cursor -> cursor.count == 0 } ?: true
+                } else {
+                    val path = uri.path ?: uriStr
+                    !File(path).exists()
+                }
+            } catch (_: Exception) { true }
+        }
+        stale.forEach { removeDownloadRecord(it) }
+        return stale.size
+    }
+
     fun getAllDownloads(): List<DownloadedFile> {
         val jsonStr = prefs.getString("download_records", "[]") ?: "[]"
         val list = mutableListOf<DownloadedFile>()

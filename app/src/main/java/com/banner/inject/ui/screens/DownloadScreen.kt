@@ -61,6 +61,7 @@ fun DownloadScreen(
     var fetchJob by remember { mutableStateOf<Job?>(null) }
     
     var isRefreshing by remember { mutableStateOf(false) }
+    var isVerifying by remember { mutableStateOf(false) }
     var showAddRepoDialog by remember { mutableStateOf(false) }
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sourceToEdit by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
@@ -347,6 +348,33 @@ fun DownloadScreen(
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh All", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    if (isVerifying) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        IconButton(
+                            onClick = {
+                                isVerifying = true
+                                scope.launch {
+                                    val removed = withContext(Dispatchers.IO) {
+                                        repo.pruneStaleDownloadRecords(context)
+                                    }
+                                    isVerifying = false
+                                    snackbarHostState.showSnackbar(
+                                        if (removed == 0) "All download records are up to date"
+                                        else "Removed $removed stale download record${if (removed != 1) "s" else ""}"
+                                    )
+                                }
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.CloudSync, contentDescription = "Verify Downloads", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                     Spacer(Modifier.width(4.dp))
