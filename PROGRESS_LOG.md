@@ -6,6 +6,26 @@
 
 ---
 
+### [pre-release] — v1.6.3-pre — HUB Emulators (T3st31) built-in source + RANKING_EMULATORS_JSON format (2026-03-09)
+**Commit:** `f277636`  |  **Tag:** v1.6.3-pre
+
+#### What changed
+- New `SourceFormat.RANKING_EMULATORS_JSON` for sites serving a `rankings.json`
+- `fetchRankingEmulators()`: WCP types from `manifestDrivers` section; GPU driver types from `results[Drivers]` assets filtered by keyword
+- `cacheAllRankingEmulators()`: fetches JSON once, caches all types in one pass
+- `discoverTypes()`: reads manifestDrivers keys + scans Drivers assets for turnip/adreno/qualcomm
+- `DownloadScreen` + `RemoteSourceSheet`: trigger `discoverTypes` for RANKING_EMULATORS_JSON (same path as GITHUB_REPO_CONTENTS)
+- `AddRepoDialog.autoDetectFormat`: detects `t3st31.github.io` or `rankings.json` URLs
+- **HUB Emulators (T3st31)** added as 7th default built-in source
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AddRepoDialog.kt`
+
+---
+
 ### [pre-release] — v1.6.2-pre — Fix Qualcomm/non-turnip assets hidden by filename filter (2026-03-09)
 **Commit:** `43f4888`  |  **Tag:** v1.6.2-pre
 
