@@ -59,7 +59,7 @@ fun DownloadScreen(
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
 
-    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno")
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers")
 
     BackHandler(enabled = selectedSource != null && !isDownloading) {
         fetchJob?.cancel()

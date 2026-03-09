@@ -53,7 +53,7 @@ fun RemoteSourceSheet(
     var sources by remember { mutableStateOf(repo.getAllSources()) }
     
     // Fixed list of common component types users can select when source allows anything
-    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d")
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers")
 
     BackHandler(enabled = selectedSource != null && !isDownloading) {
         fetchJob?.cancel()
