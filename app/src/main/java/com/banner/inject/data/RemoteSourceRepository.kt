@@ -230,19 +230,19 @@ class RemoteSourceRepository(private val context: Context) {
             name = "StevenMXZ",
             url = "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json",
             format = SourceFormat.WCP_JSON,
-            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno"),
-            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno")))
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno", "qualcomm"),
+            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno", "qualcomm")))
         ),
         RemoteSource(
             name = "Arihany WCPHub",
             url = "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases",
             format = SourceFormat.GITHUB_RELEASES_WCP,
-            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno"),
-            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")))
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno", "qualcomm"),
+            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")))
         ),
         RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
-        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
-        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno")),
+        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
+        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
         RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList())
     )
 
@@ -605,7 +605,7 @@ class RemoteSourceRepository(private val context: Context) {
      * Falls back to the source's existing supportedTypes (or all known types) on error.
      */
     suspend fun discoverTypes(source: RemoteSource): List<String> = withContext(Dispatchers.IO) {
-        val knownTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
+        val knownTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wined3d", "turnip", "adreno", "qualcomm", "drivers", "wine", "proton")
         fun sortByKnown(set: Set<String>) = set.sortedBy { t -> knownTypes.indexOf(t).let { if (it == -1) Int.MAX_VALUE else it } }
         // Composite sources have all their types explicitly listed — no network scan needed
         if (source.extraEndpoints.isNotEmpty() && source.supportedTypes.isNotEmpty()) {
@@ -625,7 +625,7 @@ class RemoteSourceRepository(private val context: Context) {
                     }
                     sortByKnown(types)
                 }
-                SourceFormat.GITHUB_RELEASES_TURNIP -> listOf("turnip", "adreno")
+                SourceFormat.GITHUB_RELEASES_TURNIP -> listOf("turnip", "adreno", "qualcomm")
                 SourceFormat.GITHUB_RELEASES_WCP -> {
                     val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
                     conn.setRequestProperty("Accept", "application/json")

@@ -82,7 +82,7 @@ fun RemoteSourceSheet(
     var isSearchCaching by remember { mutableStateOf(false) }
 
     // Fixed list of common component types users can select when source allows anything
-    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "qualcomm", "drivers", "wine", "proton")
 
     // Auto-fetch folder names for GITHUB_REPO_CONTENTS sources when one is selected
     LaunchedEffect(selectedSource) {

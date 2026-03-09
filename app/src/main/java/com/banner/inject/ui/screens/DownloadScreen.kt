@@ -82,7 +82,7 @@ fun DownloadScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchCaching by remember { mutableStateOf(false) }
 
-    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "drivers", "wine", "proton")
+    val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", "turnip", "adreno", "qualcomm", "drivers", "wine", "proton")
 
     // Auto-fetch folder names for GITHUB_REPO_CONTENTS sources when one is selected
     LaunchedEffect(selectedSource) {
