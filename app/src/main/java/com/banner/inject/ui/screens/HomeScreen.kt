@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,7 +55,13 @@ fun ComponentListScreen(
     var selectedComponent by remember { mutableStateOf<ComponentEntry?>(null) }
     var showBackupManager by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val filteredComponents = remember(components, searchQuery) {
+        if (searchQuery.isBlank()) components
+        else components.filter { it.folderName.contains(searchQuery.trim(), ignoreCase = true) }
+    }
 
     val pullRefreshState = rememberPullToRefreshState()
     LaunchedEffect(pullRefreshState.isRefreshing) {
@@ -102,6 +111,23 @@ fun ComponentListScreen(
                     )
                 )
                 MainTabRow(currentTab = currentTab, onTabSelected = onTabSelected)
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search components...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {}),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                )
             }
         }
     ) { padding ->
@@ -156,6 +182,8 @@ fun ComponentListScreen(
                             Text(
                                 text = if (isLoading && totalComponentCount > 0)
                                     "Loading $loadedComponentCount / $totalComponentCount components..."
+                                else if (searchQuery.isNotBlank() && filteredComponents.size != components.size)
+                                    "${filteredComponents.size} of ${components.size} components"
                                 else
                                     "${components.size} components",
                                 fontSize = 12.sp,
@@ -172,15 +200,35 @@ fun ComponentListScreen(
                             }
                         }
                     }
-                    item {
-                        Text(
-                            "Tap a component to backup or replace its contents",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp)
-                        )
+                    if (searchQuery.isBlank()) {
+                        item {
+                            Text(
+                                "Tap a component to backup or replace its contents",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp)
+                            )
+                        }
                     }
-                    items(components, key = { it.folderName }) { component ->
+                    if (filteredComponents.isEmpty() && searchQuery.isNotBlank()) {
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(Icons.Default.SearchOff, null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(48.dp))
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "No components match \"$searchQuery\"",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                    items(filteredComponents, key = { it.folderName }) { component ->
                         ComponentCard(component = component, onClick = { selectedComponent = component })
                     }
                 }
