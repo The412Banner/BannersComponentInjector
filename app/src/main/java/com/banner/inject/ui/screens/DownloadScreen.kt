@@ -338,7 +338,7 @@ fun DownloadScreen(
                     val capturedSource = selectedSource?.name ?: "Unknown"
                     val capturedType = selectedType ?: "misc"
                     // Track downloaded state as recomposable set
-                    var downloadedSet by remember(currentItems) {
+                    var downloadedSet: Set<String> by remember(currentItems) {
                         mutableStateOf(
                             currentItems.mapNotNullTo(mutableSetOf()) { item ->
                                 val fileName = item.downloadUrl.substringAfterLast("/").substringBefore("?")
