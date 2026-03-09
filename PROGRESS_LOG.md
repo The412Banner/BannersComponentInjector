@@ -4,6 +4,42 @@
 
 ---
 
+### [pre-release] — v1.4.7-pre — Custom Storage Locations for Downloads & Backups (2026-03-09)
+**Commit:** `b72f3b6`  |  **Tag:** v1.4.7-pre
+
+#### What changed
+- **Settings > Storage** (new section): two configurable save locations.
+  - **Downloads Location**: default (MediaStore `Downloads/BannersComponentInjector/…`) or user-selected SAF folder via system file picker.
+  - **Backups Location**: same choice for component backups.
+- Each row shows the current path, "Select Folder" / "Change" button, and "Use Default" reset button when custom is active.
+- SAF folder picker uses `ActivityResultContracts.OpenDocumentTree()`; takes persistable URI permission so access survives reboots.
+- `saveToDownloads()` reads `custom_downloads_uri` pref and writes to SAF `DocumentFile` tree when set (repo/type subfolders), falling back to MediaStore default.
+- `BackupManager`: all operations (`hasBackup`, `deleteBackup`, `backupFromDocumentFile`, `listAllBackupFiles`, `listAllBackups`) branch on custom vs. default; custom path uses `DocumentFile` tree traversal instead of MediaStore queries.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/SettingsSheet.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/data/BackupManager.kt`
+
+---
+
+### [pre-release] — v1.4.6-pre — Backups Integrated into My Downloads Tab (2026-03-09)
+**Commit:** `37dfc74`  |  **Tag:** v1.4.6-pre
+
+#### What changed
+- **Backups moved into My Downloads tab**: top-level "Backups" folder card appears at root of My Downloads list; tapping navigates into a full backup browser showing file count + size per backup, with per-backup delete support.
+- Removed standalone Backup `IconButton` from `DownloadManagerScreen` top bar.
+- `BackHandler` updated to handle `showingBackups` state (Backups → root pop).
+- Separate confirmation dialogs for deleting a backup vs a download record.
+- `MainTab.MANAGERS` when branch in `MainActivity` now passes `onListBackups`/`onDeleteBackup` directly to `DownloadManagerScreen` — no `BackupManagerSheet` modal on that tab.
+- INJECT tab and Download Components tab retain their existing `BackupManagerSheet` modals.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadManagerScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [pre-release] — v1.4.5-pre-2 — Hamburger Menu, Download Indicators, My Downloads Tab (2026-03-09)
 **Commit:** `fda7879`  |  **Tag:** v1.4.5-pre-2
 
