@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.documentfile.provider.DocumentFile
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -457,6 +458,32 @@ private suspend fun saveToDownloads(
     val fileSize = tempFile.length()
     val safeSource = RemoteSourceRepository.sanitizeFolderName(sourceName)
     val safeType = RemoteSourceRepository.sanitizeFolderName(componentType)
+
+    // Check for custom downloads location
+    val customUriStr = context.getSharedPreferences("bci_settings", Context.MODE_PRIVATE)
+        .getString("custom_downloads_uri", null)
+    if (customUriStr != null) {
+        try {
+            val root = DocumentFile.fromTreeUri(context, Uri.parse(customUriStr))
+                ?: throw Exception("Invalid custom downloads folder")
+            val repoDir = root.findFile(safeSource) ?: root.createDirectory(safeSource)
+                ?: throw Exception("Could not create repo folder")
+            val typeDir = repoDir.findFile(safeType) ?: repoDir.createDirectory(safeType)
+                ?: throw Exception("Could not create type folder")
+            typeDir.findFile(fileName)?.delete()
+            val fileDoc = typeDir.createFile("application/octet-stream", fileName)
+                ?: throw Exception("Could not create file in custom folder")
+            context.contentResolver.openOutputStream(fileDoc.uri)?.use { output ->
+                tempFile.inputStream().use { input -> input.copyTo(output) }
+            }
+            tempFile.delete()
+            return@withContext Pair(fileDoc.uri.toString(), fileSize)
+        } catch (_: Exception) {
+            // Fall through to default MediaStore on failure
+        }
+    }
+
+    // Default: MediaStore
     val relPath = "${Environment.DIRECTORY_DOWNLOADS}/BannersComponentInjector/$safeSource/$safeType/"
     val values = ContentValues().apply {
         put(MediaStore.Downloads.DISPLAY_NAME, fileName)

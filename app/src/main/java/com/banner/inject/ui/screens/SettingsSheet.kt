@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +37,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.UpdateRepository
@@ -104,6 +108,36 @@ fun SettingsSheet(
     
     var defaultStartTab by remember {
         mutableStateOf(prefs.getString("default_start_tab", "INJECT") ?: "INJECT")
+    }
+
+    var customDownloadsUri by remember {
+        mutableStateOf(prefs.getString("custom_downloads_uri", null))
+    }
+    var customBackupsUri by remember {
+        mutableStateOf(prefs.getString("custom_backups_uri", null))
+    }
+
+    val downloadsFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            customDownloadsUri = uri.toString()
+            prefs.edit().putString("custom_downloads_uri", uri.toString()).apply()
+        }
+    }
+    val backupsFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            customBackupsUri = uri.toString()
+            prefs.edit().putString("custom_backups_uri", uri.toString()).apply()
+        }
     }
 
     val isCustom = ThemePrefs.PRESETS.none { it.second == accentColor }
@@ -207,6 +241,42 @@ fun SettingsSheet(
                                         Text("Download Components", fontSize = 12.sp)
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // ── Storage ──────────────────────────────────────────────
+                    item {
+                        SectionLabel("Storage")
+                        Spacer(Modifier.height(8.dp))
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                StorageLocationRow(
+                                    label = "Downloads Location",
+                                    defaultLabel = "Default  (Downloads/BannersComponentInjector/…)",
+                                    customUri = customDownloadsUri,
+                                    context = context,
+                                    onSelect = { downloadsFolderLauncher.launch(null) },
+                                    onReset = {
+                                        customDownloadsUri = null
+                                        prefs.edit().remove("custom_downloads_uri").apply()
+                                    }
+                                )
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
+                                StorageLocationRow(
+                                    label = "Backups Location",
+                                    defaultLabel = "Default  (Downloads/BannersComponentInjector/…)",
+                                    customUri = customBackupsUri,
+                                    context = context,
+                                    onSelect = { backupsFolderLauncher.launch(null) },
+                                    onReset = {
+                                        customBackupsUri = null
+                                        prefs.edit().remove("custom_backups_uri").apply()
+                                    }
+                                )
                             }
                         }
                     }
@@ -538,6 +608,63 @@ fun SettingsSheet(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageLocationRow(
+    label: String,
+    defaultLabel: String,
+    customUri: String?,
+    context: Context,
+    onSelect: () -> Unit,
+    onReset: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Folder,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                val pathText = if (customUri != null) {
+                    val doc = runCatching {
+                        DocumentFile.fromTreeUri(context, Uri.parse(customUri))
+                    }.getOrNull()
+                    val name = doc?.name
+                    val segment = Uri.parse(customUri).lastPathSegment?.removePrefix("primary:")
+                    name ?: segment ?: "Custom folder"
+                } else {
+                    defaultLabel
+                }
+                Text(
+                    pathText,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onSelect, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(if (customUri != null) "Change" else "Select Folder", fontSize = 12.sp)
+            }
+            if (customUri != null) {
+                OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Restore, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Use Default", fontSize = 12.sp)
                 }
             }
         }
