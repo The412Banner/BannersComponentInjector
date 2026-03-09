@@ -4,6 +4,20 @@
 
 ---
 
+### [pre-release] — v1.4.3-pre — MTR Repository and Drivers Category (2026-03-09)
+**Commit:** `f54e027`  |  **Tag:** v1.4.3-pre
+
+#### What changed
+- Added **MaxesTechReview (MTR)** as a built-in default source (`WCP_JSON`) using `https://raw.githubusercontent.com/maxjivi05/Components/main/contents.json`. Supported types: dxvk, vkd3d, box64, fex, fexcore, drivers.
+- Added **"drivers"** to the global `componentTypes` list in both `DownloadScreen` and `RemoteSourceSheet`, since MTR labels his GPU/turnip components as "drivers" rather than "turnip"/"adreno".
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.4.2-pre — Browser Button, Refresh, and API Caching (2026-03-09)
 **Commit:** `7904d4b`  |  **Tag:** v1.4.2-pre
 
