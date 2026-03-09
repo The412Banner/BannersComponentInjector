@@ -4,6 +4,26 @@
 
 ---
 
+### [stable] — v1.5.0 — Custom Storage, Backups in My Downloads, Download Manager & More (2026-03-09)
+**Commit:** `31f1603`  |  **Tag:** v1.5.0
+
+#### What changed (new since v1.4.0)
+- Native device back button support
+- Hamburger menu on repo cards (Open in Browser + Remove Repository)
+- Refresh All button with in-memory API caching
+- MaxesTechReview (MTR) built-in repo + Drivers component category
+- Organized download folder structure: `Downloads/BannersComponentInjector/{Repo}/{Type}/`
+- Already-downloaded indicator on file items
+- My Downloads tab: browse by repo → type → file; delete records + Clear All
+- Backups folder inside My Downloads tab
+- Settings > Storage: custom Downloads Location + custom Backups Location (SAF)
+- All other pre-release improvements (v1.4.1-pre through v1.4.7-pre)
+
+#### Files touched
+- All files modified across v1.4.1-pre → v1.4.7-pre (see individual pre-release entries)
+
+---
+
 ### [pre-release] — v1.4.7-pre — Custom Storage Locations for Downloads & Backups (2026-03-09)
 **Commit:** `b72f3b6`  |  **Tag:** v1.4.7-pre
 
