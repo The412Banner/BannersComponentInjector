@@ -7,7 +7,7 @@
 ---
 
 ### [pre-release] — v1.5.13-pre — Parity: hamburger menu + tap-to-detail in RemoteSourceSheet (2026-03-09)
-**Commit:** `(pending)`  |  **Tag:** v1.5.13-pre
+**Commit:** `6e4f85a`  |  **Tag:** v1.5.13-pre
 
 #### What changed
 - **RemoteSourceSheet repo cards**: replaced plain Delete button with `MoreVert` hamburger dropdown matching DownloadScreen — "Open in Browser", "Edit Repository", "Remove Repository"
