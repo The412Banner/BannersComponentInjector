@@ -1,5 +1,20 @@
 # Banners Component Injector — Progress Log
 
+> **Development Rule:** Always create a *new* pre-release tag (e.g., bump to v1.4.3-pre, v1.4.4-pre) when pushing a new commit and build. Never overwrite or re-tag the same pre-release version.
+
+---
+
+### [pre-release] — v1.4.1-pre — Native Back Button Support (2026-03-09)
+**Commit:** `504b7a2`  |  **Tag:** v1.4.1-pre
+
+#### What changed
+- **Device Back Button Interception**: Added Jetpack Compose `BackHandler` to both the full-screen "Download Components" tab (`DownloadScreen`) and the "Select Online Source" injection sheet (`RemoteSourceSheet`).
+- **Intuitive Navigation**: Pressing the physical/swipe back button steps back through navigation state (file list → type selection → source selection) rather than immediately closing the app or sheet. Disabled during active downloads.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
 ---
 
 ### [release] — v1.4.0 — Global Navigation & Custom Repositories (2026-03-08)
