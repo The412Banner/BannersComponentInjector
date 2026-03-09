@@ -11,9 +11,12 @@ import androidx.lifecycle.viewModelScope
 import com.banner.inject.data.BackupManager
 import com.banner.inject.data.ComponentRepository
 import com.banner.inject.model.ComponentEntry
+import com.banner.inject.model.FileInfo
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.KNOWN_GAMEHUB_APPS
 import com.banner.inject.model.OpState
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +37,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context: Context get() = getApplication()
     private val prefs = application.getSharedPreferences("bci_prefs", Context.MODE_PRIVATE)
+    private val cachePrefs = application.getSharedPreferences("component_cache_prefs", Context.MODE_PRIVATE)
     private val repo = ComponentRepository(application)
     private val backupManager = BackupManager(application)
 
@@ -77,8 +81,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectApp(app: GameHubApp) {
         val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull() ?: return
-        _uiState.update { it.copy(selectedApp = app, components = emptyList(), isLoadingComponents = true) }
-        loadComponents(uri)
+        val cacheKey = app.known.packageNames.first()
+        val cached = loadComponentCache(cacheKey)
+        if (cached != null) {
+            // Cache hit: show list instantly, no spinner
+            _uiState.update { it.copy(selectedApp = app, components = cached, isLoadingComponents = false) }
+        } else {
+            // Cache miss: do a full scan with loading indicator
+            _uiState.update { it.copy(selectedApp = app, components = emptyList(), isLoadingComponents = true) }
+            loadComponents(uri)
+        }
     }
 
     fun clearSelectedApp() {
@@ -98,6 +110,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val edit = prefs.edit()
         app.known.packageNames.forEach { pkg -> edit.remove(uriKey(pkg)) }
         edit.apply()
+        cachePrefs.edit().remove("cache_${app.known.packageNames.first()}").apply()
         refreshAppList()
         if (_uiState.value.selectedApp?.known == app.known) {
             clearSelectedApp()
@@ -139,6 +152,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val components = withContext(Dispatchers.IO) { repo.scanComponents(root, backupManager) }
                 _uiState.update { it.copy(isLoadingComponents = false, components = components) }
+                val cacheKey = _uiState.value.selectedApp?.known?.packageNames?.first()
+                if (cacheKey != null) saveComponentCache(cacheKey, components)
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoadingComponents = false, opState = OpState.Error(e.message ?: "Unknown error"))
@@ -234,6 +249,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         backupManager.deleteBackup(componentName)
         val matching = _uiState.value.components.firstOrNull { it.folderName == componentName }
         if (matching != null) refreshComponent(matching)
+    }
+
+    // ── Component list cache ───────────────────────────────────────────────────
+
+    private fun saveComponentCache(packageKey: String, components: List<ComponentEntry>) {
+        val array = JSONArray()
+        for (comp in components) {
+            val obj = JSONObject()
+            obj.put("folderName", comp.folderName)
+            obj.put("uri", comp.documentFile.uri.toString())
+            obj.put("fileCount", comp.fileCount)
+            obj.put("totalSize", comp.totalSize)
+            array.put(obj)
+        }
+        cachePrefs.edit().putString("cache_$packageKey", array.toString()).apply()
+    }
+
+    /**
+     * Loads cached component metadata and reconstructs ComponentEntry objects.
+     * hasBackup and replacedWith are always read live from their respective prefs
+     * so they're never stale even if the cache was written at a different time.
+     * Returns null if no cache exists or parsing fails.
+     */
+    private fun loadComponentCache(packageKey: String): List<ComponentEntry>? {
+        val json = cachePrefs.getString("cache_$packageKey", null) ?: return null
+        return try {
+            val array = JSONArray(json)
+            val componentNotes = context.getSharedPreferences("component_notes", Context.MODE_PRIVATE)
+            val result = mutableListOf<ComponentEntry>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val folderName = obj.getString("folderName")
+                val uri = Uri.parse(obj.getString("uri"))
+                val fileCount = obj.getInt("fileCount")
+                val totalSize = obj.getLong("totalSize")
+                val doc = DocumentFile.fromTreeUri(context, uri) ?: continue
+                // Synthetic file list gives the right count; actual files are never
+                // accessed from cached entries — operations use the DocumentFile directly
+                val syntheticFiles = List(fileCount) { FileInfo("", "", 0L, "") }
+                result.add(ComponentEntry(
+                    folderName = folderName,
+                    documentFile = doc,
+                    files = syntheticFiles,
+                    hasBackup = backupManager.hasBackup(folderName),
+                    totalSize = totalSize,
+                    replacedWith = componentNotes.getString("replaced_with_$folderName", null)
+                ))
+            }
+            if (result.isEmpty()) null else result
+        } catch (_: Exception) { null }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
