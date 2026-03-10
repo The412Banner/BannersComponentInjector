@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -430,7 +431,7 @@ fun DownloadScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(sources) { source ->
+                        itemsIndexed(sources) { index, source ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { selectedSource = source },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -464,6 +465,30 @@ fun DownloadScreen(
                                             expanded = sourceMenuExpanded == source,
                                             onDismissRequest = { sourceMenuExpanded = null }
                                         ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Move Up") },
+                                                leadingIcon = { Icon(Icons.Default.KeyboardArrowUp, null) },
+                                                enabled = index > 0,
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    val newList = sources.toMutableList()
+                                                    newList.add(index - 1, newList.removeAt(index))
+                                                    repo.saveSourceOrder(newList.map { it.name })
+                                                    sources = repo.getAllSources()
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Move Down") },
+                                                leadingIcon = { Icon(Icons.Default.KeyboardArrowDown, null) },
+                                                enabled = index < sources.lastIndex,
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    val newList = sources.toMutableList()
+                                                    newList.add(index + 1, newList.removeAt(index))
+                                                    repo.saveSourceOrder(newList.map { it.name })
+                                                    sources = repo.getAllSources()
+                                                }
+                                            )
                                             DropdownMenuItem(
                                                 text = { Text("Open in Browser") },
                                                 leadingIcon = { Icon(Icons.Default.OpenInBrowser, null) },

@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Search
@@ -340,7 +343,7 @@ fun RemoteSourceSheet(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(sources) { source ->
+                        itemsIndexed(sources) { index, source ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable { selectedSource = source },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -374,6 +377,30 @@ fun RemoteSourceSheet(
                                             expanded = sourceMenuExpanded == source,
                                             onDismissRequest = { sourceMenuExpanded = null }
                                         ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Move Up") },
+                                                leadingIcon = { Icon(Icons.Default.KeyboardArrowUp, null) },
+                                                enabled = index > 0,
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    val newList = sources.toMutableList()
+                                                    newList.add(index - 1, newList.removeAt(index))
+                                                    repo.saveSourceOrder(newList.map { it.name })
+                                                    sources = repo.getAllSources()
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Move Down") },
+                                                leadingIcon = { Icon(Icons.Default.KeyboardArrowDown, null) },
+                                                enabled = index < sources.lastIndex,
+                                                onClick = {
+                                                    sourceMenuExpanded = null
+                                                    val newList = sources.toMutableList()
+                                                    newList.add(index + 1, newList.removeAt(index))
+                                                    repo.saveSourceOrder(newList.map { it.name })
+                                                    sources = repo.getAllSources()
+                                                }
+                                            )
                                             DropdownMenuItem(
                                                 text = { Text("Open in Browser") },
                                                 leadingIcon = { Icon(Icons.Default.OpenInBrowser, null) },

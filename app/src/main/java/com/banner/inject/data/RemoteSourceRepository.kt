@@ -255,7 +255,20 @@ class RemoteSourceRepository(private val context: Context) {
     fun getAllSources(): List<RemoteSource> {
         val removedDefaults = getRemovedDefaultSources()
         val filteredDefaults = defaultSources.filter { it.name !in removedDefaults }
-        return filteredDefaults + getCustomSources()
+        val all = filteredDefaults + getCustomSources()
+        val order = getSourceOrder()
+        if (order.isEmpty()) return all
+        val orderMap = order.withIndex().associate { (i, name) -> name to i }
+        return all.sortedWith(compareBy { orderMap[it.name] ?: Int.MAX_VALUE })
+    }
+
+    fun saveSourceOrder(orderedNames: List<String>) {
+        prefs.edit().putString("source_order", orderedNames.joinToString("\n")).apply()
+    }
+
+    private fun getSourceOrder(): List<String> {
+        val str = prefs.getString("source_order", "") ?: return emptyList()
+        return if (str.isEmpty()) emptyList() else str.split("\n")
     }
 
     private fun getRemovedDefaultSources(): List<String> {
@@ -347,10 +360,13 @@ class RemoteSourceRepository(private val context: Context) {
                 saveRemovedDefaultSources(removed)
             }
         }
+        // Remove from saved order
+        val order = getSourceOrder().toMutableList()
+        if (order.remove(source.name)) saveSourceOrder(order)
     }
 
     fun restoreDefaultSources() {
-        prefs.edit().remove("removed_defaults").apply()
+        prefs.edit().remove("removed_defaults").remove("source_order").apply()
     }
 
     private fun saveCustomSources(sources: List<RemoteSource>) {
