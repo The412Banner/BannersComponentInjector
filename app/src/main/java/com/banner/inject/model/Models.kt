@@ -3,7 +3,7 @@ package com.banner.inject.model
 import androidx.documentfile.provider.DocumentFile
 
 // ── Known GameHub variants ────────────────────────────────────────────────────
-data class KnownApp(val displayName: String, val packageNames: List<String>)
+data class KnownApp(val displayName: String, val packageNames: List<String>, val isCustom: Boolean = false)
 
 val KNOWN_GAMEHUB_APPS = listOf(
     KnownApp("GameHub (Lite)",        listOf("gamehub.lite", "emuready.gamehub.lite")),

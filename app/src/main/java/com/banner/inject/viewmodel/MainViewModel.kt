@@ -13,7 +13,10 @@ import com.banner.inject.data.ComponentRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.KNOWN_GAMEHUB_APPS
+import com.banner.inject.model.KnownApp
 import com.banner.inject.model.OpState
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,19 +52,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshAppList() {
         val pm = context.packageManager
-        val apps = KNOWN_GAMEHUB_APPS.map { known ->
+        val apps = (KNOWN_GAMEHUB_APPS + loadCustomApps()).map { known ->
             val installedPkg = known.packageNames.firstOrNull { pkg ->
                 try { pm.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
             }
             val accessPkg = known.packageNames.firstOrNull { pkg -> prefs.contains(uriKey(pkg)) }
             GameHubApp(
                 known = known,
-                isInstalled = installedPkg != null,
+                // Custom apps are always treated as installed so the card is always tappable
+                // (Android 11+ blocks package visibility for packages not in <queries>)
+                isInstalled = installedPkg != null || known.isCustom,
                 hasAccess = accessPkg != null,
                 activePackage = installedPkg ?: accessPkg ?: known.packageNames.first()
             )
         }
         _uiState.update { it.copy(apps = apps) }
+    }
+
+    fun addCustomApp(name: String, packageName: String) {
+        val current = loadCustomApps().toMutableList()
+        current.add(KnownApp(name.trim(), listOf(packageName.trim()), isCustom = true))
+        saveCustomApps(current)
+        refreshAppList()
+    }
+
+    fun removeCustomApp(app: GameHubApp) {
+        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+        if (uri != null) {
+            try {
+                context.contentResolver.releasePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+        }
+        val edit = prefs.edit()
+        app.known.packageNames.forEach { pkg -> edit.remove(uriKey(pkg)) }
+        edit.apply()
+        val current = loadCustomApps().filter { it.packageNames != app.known.packageNames }
+        saveCustomApps(current)
+        if (_uiState.value.selectedApp?.known == app.known) clearSelectedApp()
+        refreshAppList()
+    }
+
+    private fun loadCustomApps(): List<KnownApp> {
+        val json = prefs.getString("custom_gamehub_apps", null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                KnownApp(
+                    displayName = obj.getString("name"),
+                    packageNames = listOf(obj.getString("packageName")),
+                    isCustom = true
+                )
+            }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun saveCustomApps(apps: List<KnownApp>) {
+        val arr = JSONArray()
+        apps.forEach { app ->
+            arr.put(JSONObject().apply {
+                put("name", app.displayName)
+                put("packageName", app.packageNames.first())
+            })
+        }
+        prefs.edit().putString("custom_gamehub_apps", arr.toString()).apply()
     }
 
     /** Called with the URI returned from ACTION_OPEN_DOCUMENT_TREE for a given app. */

@@ -76,7 +76,9 @@ class MainActivity : ComponentActivity() {
                                     onDeleteBackupByName = { vm.deleteBackupByName(it) },
                                     appVersion = appVersion,
                                     accentColor = accentColor,
-                                    onAccentColorChanged = { accentColor = it }
+                                    onAccentColorChanged = { accentColor = it },
+                                    onAddCustomApp = { name, pkg -> vm.addCustomApp(name, pkg) },
+                                    onRemoveCustomApp = { vm.removeCustomApp(it) }
                                 )
                             } else {
                                 ComponentListScreen(

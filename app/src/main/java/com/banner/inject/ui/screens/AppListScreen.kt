@@ -1,6 +1,5 @@
 package com.banner.inject.ui.screens
 
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -8,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,13 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.BackupManager
 import com.banner.inject.model.GameHubApp
-
 import com.banner.inject.model.MainTab
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,12 +38,16 @@ fun AppListScreen(
     onDeleteBackupByName: (String) -> Unit,
     appVersion: String,
     accentColor: Color,
-    onAccentColorChanged: (Color) -> Unit
+    onAccentColorChanged: (Color) -> Unit,
+    onAddCustomApp: (name: String, packageName: String) -> Unit,
+    onRemoveCustomApp: (GameHubApp) -> Unit
 ) {
     // Track which app is pending an SAF grant so the launcher callback knows
     var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
     var showGrantGuide by remember { mutableStateOf<GameHubApp?>(null) }
     var showRevokeDialog by remember { mutableStateOf<GameHubApp?>(null) }
+    var showDeleteCustomDialog by remember { mutableStateOf<GameHubApp?>(null) }
+    var showAddCustomApp by remember { mutableStateOf(false) }
     var showBackupManager by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
 
@@ -64,6 +67,9 @@ fun AppListScreen(
                         Text("Component Injector", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     },
                     actions = {
+                        IconButton(onClick = { showAddCustomApp = true }) {
+                            Icon(Icons.Default.AddCircleOutline, contentDescription = "Add Custom App")
+                        }
                         IconButton(onClick = onRefresh) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                         }
@@ -108,7 +114,8 @@ fun AppListScreen(
                             showGrantGuide = app
                         }
                     },
-                    onRevokeClick = { showRevokeDialog = app }
+                    onRevokeClick = { showRevokeDialog = app },
+                    onDeleteClick = if (app.known.isCustom) ({ showDeleteCustomDialog = app }) else null
                 )
             }
         }
@@ -195,13 +202,43 @@ fun AppListScreen(
             }
         )
     }
+
+    showDeleteCustomDialog?.let { app ->
+        AlertDialog(
+            onDismissRequest = { showDeleteCustomDialog = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Remove Custom App") },
+            text = { Text("Remove \"${app.known.displayName}\" from the app list? This will also revoke its folder access.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteCustomDialog = null
+                    onRemoveCustomApp(app)
+                }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteCustomDialog = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showAddCustomApp) {
+        AddCustomAppDialog(
+            existingPackageNames = apps.flatMap { it.known.packageNames }.toSet(),
+            onDismiss = { showAddCustomApp = false },
+            onAdd = { name, pkg ->
+                showAddCustomApp = false
+                onAddCustomApp(name, pkg)
+            }
+        )
+    }
 }
 
 @Composable
 private fun AppCard(
     app: GameHubApp,
     onClick: () -> Unit,
-    onRevokeClick: () -> Unit
+    onRevokeClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     val isClickable = app.isInstalled || app.hasAccess
 
@@ -315,6 +352,80 @@ private fun AppCard(
                     )
                 }
             }
+            // Delete button for custom apps
+            if (onDeleteClick != null) {
+                IconButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Remove custom app",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddCustomAppDialog(
+    existingPackageNames: Set<String>,
+    onDismiss: () -> Unit,
+    onAdd: (name: String, packageName: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var packageName by remember { mutableStateOf("") }
+
+    val nameError = name.isNotBlank() && name.trim().isEmpty()
+    val pkgError = packageName.isNotBlank() && packageName.trim() in existingPackageNames
+    val canAdd = name.isNotBlank() && packageName.isNotBlank() && !pkgError
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.AddCircleOutline, null, tint = MaterialTheme.colorScheme.primary) },
+        title = { Text("Add Custom App", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Add a GameHub variant that isn't listed. You'll need to grant folder access after adding.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Display Name") },
+                    placeholder = { Text("e.g. GameHub Custom Edition") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+                )
+                OutlinedTextField(
+                    value = packageName,
+                    onValueChange = { packageName = it.trim() },
+                    label = { Text("Package Name") },
+                    placeholder = { Text("e.g. com.example.gamehub") },
+                    singleLine = true,
+                    isError = pkgError,
+                    supportingText = if (pkgError) {
+                        { Text("This package is already in the list", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(name.trim(), packageName.trim()) },
+                enabled = canAdd
+            ) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
