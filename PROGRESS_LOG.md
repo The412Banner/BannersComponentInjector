@@ -6,6 +6,24 @@
 
 ---
 
+### [stable] — v1.8.5 — Stable release (2026-03-10)
+**Commit:** `8f9b765` (code) | `3e85a4d` (docs)  |  **Tag:** v1.8.5
+
+#### What changed since v1.8.0
+- Custom app entries (+ button in Inject tab)
+- Multi-install dropdown picker for same-group variants
+- GameHub label detection (excludes real apps sharing package names)
+- Report Issue / Feedback button in Settings → Utilities
+- Clickable URLs in release notes (DownloadScreen + RemoteSourceSheet)
+- Check for updates on launch toggle (Settings → Updates)
+- Bug fix: null safety for `DocumentFile.listFiles()` in ComponentRepository + BackupManager (9 call sites)
+
+#### Files touched
+- All code changes from v1.8.1-pre through v1.8.4-pre
+- README.md rewritten to reflect all v1.8.5 features
+
+---
+
 ### [pre-release] — v1.8.4-pre — Null safety fixes for DocumentFile.listFiles() (2026-03-10)
 **Commit:** `28a21b2`  |  **Tag:** v1.8.4-pre
 
