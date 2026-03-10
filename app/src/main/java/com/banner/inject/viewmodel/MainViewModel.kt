@@ -54,7 +54,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val pm = context.packageManager
         val apps = (KNOWN_GAMEHUB_APPS + loadCustomApps()).map { known ->
             val installedPkgs = known.packageNames.filter { pkg ->
-                try { pm.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
+                try { pm.getPackageInfo(pkg, 0); isLikelyGameHub(pm, pkg, known.isCustom) }
+                catch (_: Exception) { false }
             }
             val installedPkg = installedPkgs.firstOrNull()
             val accessPkg = known.packageNames.firstOrNull { pkg -> prefs.contains(uriKey(pkg)) }
@@ -313,6 +314,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns true if the installed package is actually a GameHub variant.
+     * Packages whose name already contains "gamehub" are always trusted.
+     * For borrowed package names (e.g. com.tencent.ig, com.mihoyo.genshinimpact),
+     * the app label is checked — real apps like PUBG Mobile or Genshin Impact
+     * won't have "GameHub" in their label, so they are excluded.
+     * Custom apps added by the user are always trusted.
+     */
+    private fun isLikelyGameHub(pm: PackageManager, packageName: String, isCustom: Boolean): Boolean {
+        if (isCustom) return true
+        if (packageName.contains("gamehub", ignoreCase = true)) return true
+        return try {
+            val label = pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+            label.contains("gamehub", ignoreCase = true) || label.contains("game hub", ignoreCase = true)
+        } catch (_: Exception) { false }
+    }
 
     private fun uriKey(packageName: String) = "uri_$packageName"
 
