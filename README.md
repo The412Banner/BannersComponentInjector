@@ -91,7 +91,8 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 **General**
 - **Backup Manager** — centralised view of all saved backups with per-backup deletion.
 - **Custom storage locations** — independently set a custom folder for Downloads and for Backups via the SAF folder picker.
-- **In-app update checker** — checks GitHub for new releases, downloads the APK with a progress bar, and hands it to the system installer.
+- **In-app update checker** — checks GitHub for new releases on demand or automatically on launch (toggleable); downloads the APK with a progress bar and hands it to the system installer.
+- **Clickable links in release notes** — URLs in component release notes and file detail sheets are tappable and open in your browser.
 - **Full theme customization** — 8 preset accent colours plus a custom HSV colour wheel with brightness slider and hex input.
 - **Native back button** — steps back through navigation states throughout the app.
 - **Settings on every screen** — accessible via the ⚙ icon from the App List, Component List, and Download screens.
@@ -313,11 +314,16 @@ Lists every saved backup across all components and apps. Tap the **🗑** icon n
 
 ### In-App Updates
 
-1. Open **Settings** (⚙ icon on any screen).
-2. Scroll to the **Updates** section.
-3. Toggle **Include pre-releases** if desired.
-4. Tap **Check for Updates**.
-5. If an update is available: **Download & Install** streams the APK with a live progress bar and launches the system installer, or **View on GitHub** opens the release page.
+**Automatic check on launch:**
+1. Open **Settings** → **Updates**.
+2. Enable **Check for updates on launch**.
+3. Each time the app starts, it silently checks GitHub. If a newer version is found, a dialog appears with **Download & Install**, **View on GitHub**, or **Not Now**.
+
+**Manual check:**
+1. Open **Settings** → **Updates**.
+2. Toggle **Include pre-releases** if desired.
+3. Tap **Check for Updates**.
+4. If an update is available: **Download & Install** streams the APK with a live progress bar and launches the system installer, or **View on GitHub** opens the release page.
 
 ---
 
@@ -378,10 +384,12 @@ When browsing a repository's individual release tags, all assets are shown regar
 | **Prompts** | Backup warning | Toggle the "No Backup Found" warning shown before replacing an unbacked component. |
 | **Storage** | Downloads Location | Set a custom folder for downloaded component files. Defaults to `Downloads/BannersComponentInjector/`. |
 | **Storage** | Backups Location | Set a custom folder for component backups. Defaults to `Downloads/BannersComponentInjector/`. |
+| **Updates** | Check for updates on launch | When enabled, the app silently checks for a newer release on every startup and shows a dialog if one is found. |
 | **Updates** | Include pre-releases | When enabled, the update checker also considers pre-release builds. |
-| **Updates** | Check for Updates | Checks GitHub for a newer version and offers in-app download + install. |
+| **Updates** | Check for Updates | Manually checks GitHub for a newer version and offers in-app download + install. |
 | **Utilities** | Backup Manager | Opens the centralised backup list. |
 | **Utilities** | Open Downloads Folder | Opens the system Downloads folder. |
+| **Utilities** | Report Issue / Feedback | Opens the GitHub Issues page in your browser. |
 
 ---
 
