@@ -6,6 +6,19 @@
 
 ---
 
+### [pre-release] — v1.8.1-pre — Report Issue / Feedback button in Settings (2026-03-10)
+**Commit:** `939f9f5`  |  **Tag:** v1.8.1-pre
+
+#### What changed
+- Added "Report Issue / Feedback" `OutlinedButton` to Settings → Utilities section
+- Opens `https://github.com/The412Banner/BannersComponentInjector/issues` via `ACTION_VIEW` intent
+- Uses `Icons.Default.BugReport` icon
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/SettingsSheet.kt`
+
+---
+
 ### [stable] — v1.8.0 — Stable release: custom app entries, multi-install picker, GameHub label detection (2026-03-10)
 **Commit:** `f052d60` (code) | `b8413fb` (docs)  |  **Tag:** v1.8.0
 
