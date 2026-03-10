@@ -43,6 +43,9 @@ class RemoteSourceRepository(private val context: Context) {
             downloadedKeys.remove("$sourceName::$componentType::$fileName")
         }
 
+        const val GPU_DRIVER_TYPE = "GPU Drivers"
+        val GPU_DRIVER_KEYWORDS = listOf("turnip", "adreno", "qualcomm", "mesa")
+
         /** Strip filesystem-unsafe characters from a folder name segment. */
         fun sanitizeFolderName(name: String): String =
             name.replace(Regex("""[/\\:*?"<>|]"""), "_").trim()
@@ -231,19 +234,19 @@ class RemoteSourceRepository(private val context: Context) {
             name = "StevenMXZ",
             url = "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json",
             format = SourceFormat.WCP_JSON,
-            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno", "qualcomm"),
-            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("turnip", "adreno", "qualcomm")))
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "GPU Drivers"),
+            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("GPU Drivers")))
         ),
         RemoteSource(
             name = "Arihany WCPHub",
             url = "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases",
             format = SourceFormat.GITHUB_RELEASES_WCP,
-            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "turnip", "adreno", "qualcomm"),
-            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")))
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "GPU Drivers"),
+            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")))
         ),
         RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
-        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
-        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
+        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")),
+        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")),
         RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList()),
         RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList()),
         RemoteSource("Nightlies by The412Banner", "https://api.github.com/repos/The412Banner/Nightlies/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "fex", "fexcore", "box64"))
@@ -384,12 +387,16 @@ class RemoteSourceRepository(private val context: Context) {
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
         getFromCache(source.name, componentType)?.let { return@withContext it }
         // Route to the extra endpoint that owns this type (if any), else use primary
-        val extra = source.extraEndpoints.firstOrNull { componentType in it.types }
+        val isGpuDrivers = componentType == GPU_DRIVER_TYPE
+        val extra = if (isGpuDrivers)
+            source.extraEndpoints.firstOrNull { ep -> ep.types.any { it == GPU_DRIVER_TYPE || GPU_DRIVER_KEYWORDS.contains(it) } }
+        else
+            source.extraEndpoints.firstOrNull { componentType in it.types }
         val activeUrl = extra?.url ?: source.url
         val activeFormat = extra?.format ?: source.format
         val result = when (activeFormat) {
             SourceFormat.WCP_JSON -> fetchWcpJson(activeUrl, componentType, source.name)
-            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(activeUrl, source.name, componentType)
+            SourceFormat.GITHUB_RELEASES_TURNIP -> fetchTurnipReleases(activeUrl, source.name, if (isGpuDrivers) "" else componentType)
             SourceFormat.GITHUB_RELEASES_WCP -> fetchGithubReleasesWcp(activeUrl, componentType, source.name)
             SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(activeUrl, source.name)
             SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(activeUrl, componentType, source.name)
@@ -420,7 +427,7 @@ class RemoteSourceRepository(private val context: Context) {
                             SourceFormat.GITHUB_RELEASES_TURNIP -> {
                                 val allItems = fetchTurnipReleases(source.url, source.name)
                                 primaryTypes.forEach { type ->
-                                    val filtered = allItems.filter {
+                                    val filtered = if (type == GPU_DRIVER_TYPE) allItems else allItems.filter {
                                         it.displayName.contains(type, ignoreCase = true) ||
                                         it.versionName.contains(type, ignoreCase = true)
                                     }
@@ -461,7 +468,7 @@ class RemoteSourceRepository(private val context: Context) {
                                 SourceFormat.GITHUB_RELEASES_TURNIP -> {
                                     val allItems = fetchTurnipReleases(ep.url, source.name)
                                     ep.types.forEach { type ->
-                                        val filtered = allItems.filter {
+                                        val filtered = if (type == GPU_DRIVER_TYPE) allItems else allItems.filter {
                                             it.displayName.contains(type, ignoreCase = true) ||
                                             it.versionName.contains(type, ignoreCase = true)
                                         }
@@ -493,6 +500,20 @@ class RemoteSourceRepository(private val context: Context) {
         }
     }
 
+    /** Collapses individual GPU driver keywords into a single "GPU Drivers" entry in a type list. */
+    private fun normalizeGpuTypes(types: List<String>): List<String> {
+        val result = mutableListOf<String>()
+        var gpuAdded = false
+        for (t in types) {
+            if (GPU_DRIVER_KEYWORDS.any { kw -> t.equals(kw, ignoreCase = true) }) {
+                if (!gpuAdded) { result.add(GPU_DRIVER_TYPE); gpuAdded = true }
+            } else {
+                result.add(t)
+            }
+        }
+        return result
+    }
+
     private suspend fun fetchWcpJson(
         jsonUrl: String,
         componentType: String,
@@ -509,8 +530,14 @@ class RemoteSourceRepository(private val context: Context) {
             all.add(RemoteItem(displayName = "$type  $verName", versionName = verName, downloadUrl = url, sourceName = sourceName))
         }
         // Ensure we only return items strictly matching the requested component folder
-        val term = if (componentType.equals("fex", ignoreCase = true)) "fex" else componentType
-        val filtered = all.filter { it.displayName.contains(term, ignoreCase = true) }
+        val filtered = when {
+            componentType == GPU_DRIVER_TYPE ->
+                all.filter { item -> GPU_DRIVER_KEYWORDS.any { kw -> item.displayName.contains(kw, ignoreCase = true) } }
+            componentType.equals("fex", ignoreCase = true) ->
+                all.filter { it.displayName.contains("fex", ignoreCase = true) }
+            else ->
+                all.filter { it.displayName.contains(componentType, ignoreCase = true) }
+        }
         filtered.reversed()
     }
 
@@ -565,9 +592,11 @@ class RemoteSourceRepository(private val context: Context) {
                 .filter { it.getString("name").endsWith(".wcp", ignoreCase = true) }
             for (asset in wcpAssets) {
                 val assetName = asset.getString("name")
+                val gpuMatch = componentType == GPU_DRIVER_TYPE &&
+                               GPU_DRIVER_KEYWORDS.any { assetName.contains(it, ignoreCase = true) }
                 val fexBridge = (componentType.equals("fexcore", ignoreCase = true) && assetName.contains("fex", ignoreCase = true)) ||
                                 (componentType.equals("fex", ignoreCase = true) && assetName.contains("fexcore", ignoreCase = true))
-                if (componentType.isEmpty() || assetName.contains(componentType, ignoreCase = true) || fexBridge) {
+                if (componentType.isEmpty() || assetName.contains(componentType, ignoreCase = true) || fexBridge || gpuMatch) {
                     val displayName = if (wcpAssets.size > 1) "$releaseName — $assetName" else releaseName
                     result.add(
                         RemoteItem(
@@ -626,7 +655,7 @@ class RemoteSourceRepository(private val context: Context) {
      * Falls back to the source's existing supportedTypes (or all known types) on error.
      */
     suspend fun discoverTypes(source: RemoteSource): List<String> = withContext(Dispatchers.IO) {
-        val knownTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wined3d", "turnip", "adreno", "qualcomm", "drivers", "wine", "proton")
+        val knownTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wined3d", "turnip", "adreno", "qualcomm", "mesa", "drivers", "wine", "proton")
         fun sortByKnown(set: Set<String>) = set.sortedBy { t -> knownTypes.indexOf(t).let { if (it == -1) Int.MAX_VALUE else it } }
         // Composite sources have all their types explicitly listed — no network scan needed
         if (source.extraEndpoints.isNotEmpty() && source.supportedTypes.isNotEmpty()) {
@@ -646,7 +675,7 @@ class RemoteSourceRepository(private val context: Context) {
                     }
                     sortByKnown(types)
                 }
-                SourceFormat.GITHUB_RELEASES_TURNIP -> listOf("turnip", "adreno", "qualcomm")
+                SourceFormat.GITHUB_RELEASES_TURNIP -> listOf(GPU_DRIVER_TYPE)
                 SourceFormat.GITHUB_RELEASES_WCP -> {
                     val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
                     conn.setRequestProperty("Accept", "application/json")
@@ -663,7 +692,7 @@ class RemoteSourceRepository(private val context: Context) {
                             if (name.contains("fex")) { found.add("fex"); found.add("fexcore") }
                         }
                     }
-                    sortByKnown(found)
+                    normalizeGpuTypes(sortByKnown(found))
                 }
                 SourceFormat.GITHUB_RELEASES_ZIP -> {
                     val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
@@ -680,7 +709,7 @@ class RemoteSourceRepository(private val context: Context) {
                         }
                     }
                     // ZIP repos often have generic filenames; fall back to full known list if nothing matched
-                    if (found.isEmpty()) knownTypes else sortByKnown(found)
+                    if (found.isEmpty()) normalizeGpuTypes(knownTypes) else normalizeGpuTypes(sortByKnown(found))
                 }
                 SourceFormat.GITHUB_REPO_CONTENTS -> {
                     // Return the actual folder names from the repo root (case-preserved for API calls)
@@ -705,11 +734,11 @@ class RemoteSourceRepository(private val context: Context) {
                     // WCP types from manifestDrivers keys
                     val md = root.optJSONObject("manifestDrivers")
                     md?.keys()?.forEach { types.add(it.lowercase()) }
-                    // GPU driver types from results Drivers assets
-                    val gpuFound = mutableSetOf<String>()
+                    // GPU driver types from results Drivers assets — all collapse into a single "GPU Drivers" entry
+                    var hasGpuDrivers = false
                     val results = root.optJSONArray("results")
                     if (results != null) {
-                        for (i in 0 until results.length()) {
+                        outer@ for (i in 0 until results.length()) {
                             val proj = results.getJSONObject(i)
                             if (!proj.optString("category").equals("Drivers", ignoreCase = true)) continue
                             val releases = proj.optJSONArray("releases") ?: continue
@@ -717,14 +746,12 @@ class RemoteSourceRepository(private val context: Context) {
                                 val assets = releases.getJSONObject(r).optJSONArray("assets") ?: continue
                                 for (a in 0 until assets.length()) {
                                     val name = assets.getJSONObject(a).optString("name").lowercase()
-                                    listOf("turnip", "adreno", "qualcomm").forEach { kw ->
-                                        if (name.contains(kw)) gpuFound.add(kw)
-                                    }
+                                    if (GPU_DRIVER_KEYWORDS.any { name.contains(it) }) { hasGpuDrivers = true; break@outer }
                                 }
                             }
                         }
                     }
-                    types + gpuFound.toList()
+                    if (hasGpuDrivers) types + listOf(GPU_DRIVER_TYPE) else types
                 }
             }
         } catch (_: Exception) {
@@ -761,7 +788,8 @@ class RemoteSourceRepository(private val context: Context) {
         val result = mutableListOf<RemoteItem>()
 
         // manifestDrivers section — WCP components (dxvk, vkd3d, box64, fexcore, wine, etc.)
-        val md = root.optJSONObject("manifestDrivers")
+        // Skip for GPU Drivers — those come from the results/Drivers section
+        val md = if (componentType != GPU_DRIVER_TYPE) root.optJSONObject("manifestDrivers") else null
         if (md != null) {
             val matchKey = md.keys().asSequence().firstOrNull { it.equals(componentType, ignoreCase = true) }
             if (matchKey != null) {
@@ -798,7 +826,10 @@ class RemoteSourceRepository(private val context: Context) {
                 for (a in 0 until assets.length()) {
                     val asset = assets.getJSONObject(a)
                     val assetName = asset.optString("name")
-                    if (!assetName.contains(componentType, ignoreCase = true)) continue
+                    val assetMatches = componentType == GPU_DRIVER_TYPE ||
+                        GPU_DRIVER_KEYWORDS.any { assetName.contains(it, ignoreCase = true) } ||
+                        assetName.contains(componentType, ignoreCase = true)
+                    if (!assetMatches) continue
                     val dlUrl = asset.optString("url")
                     val size = asset.optLong("size", 0).takeIf { it > 0 }
                     result.add(RemoteItem(
@@ -869,10 +900,8 @@ class RemoteSourceRepository(private val context: Context) {
                             publishedAt = date,
                             sizeBytes = size
                         )
-                        listOf("turnip", "adreno", "qualcomm").forEach { kw ->
-                            if (assetName.contains(kw, ignoreCase = true)) {
-                                gpuMap.getOrPut(kw) { mutableListOf() }.add(item)
-                            }
+                        if (GPU_DRIVER_KEYWORDS.any { assetName.contains(it, ignoreCase = true) }) {
+                            gpuMap.getOrPut(GPU_DRIVER_TYPE) { mutableListOf() }.add(item)
                         }
                     }
                 }
