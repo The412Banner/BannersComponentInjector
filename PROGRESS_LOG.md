@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.8.2-pre — Clickable URLs in release notes (2026-03-10)
+**Commit:** `1899e0b`  |  **Tag:** v1.8.2-pre
+
+#### What changed
+- `LinkedText` composable added to `DownloadScreen.kt` (accessible across the package): detects URLs via `android.util.Patterns.WEB_URL`, builds `AnnotatedString` with `SpanStyle` (primary color + underline), opens via `ACTION_VIEW` on tap via `ClickableText`
+- Release notes `Text()` replaced with `LinkedText()` in `DownloadScreen.kt` detail sheet
+- Release notes `Text()` replaced with `LinkedText()` in `RemoteSourceSheet.kt` detail sheet
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.8.1-pre — Report Issue / Feedback button in Settings (2026-03-10)
 **Commit:** `939f9f5`  |  **Tag:** v1.8.1-pre
 
