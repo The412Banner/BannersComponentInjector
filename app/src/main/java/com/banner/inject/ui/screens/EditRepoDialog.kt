@@ -45,6 +45,11 @@ fun EditRepoDialog(
         }
     }
 
+    // Additional Releases — individual GitHub releases the user can opt in to as categories
+    var allReleaseTags by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isDetectingReleases by remember { mutableStateOf(false) }
+    var selectedReleaseTags by remember { mutableStateOf(source.releaseTags.toSet()) }
+
     fun detect(targetUrl: String) {
         isDetecting = true
         detectError = null
@@ -62,8 +67,24 @@ fun EditRepoDialog(
         }
     }
 
+    fun detectReleases(targetUrl: String) {
+        isDetectingReleases = true
+        scope.launch {
+            try {
+                val tempSource = source.copy(url = targetUrl.trim())
+                allReleaseTags = repo.discoverReleaseTags(tempSource)
+            } catch (_: Exception) {
+                allReleaseTags = emptyList()
+            }
+            isDetectingReleases = false
+        }
+    }
+
     // Auto-detect on first open
-    LaunchedEffect(Unit) { detect(url) }
+    LaunchedEffect(Unit) {
+        detect(url)
+        detectReleases(url)
+    }
 
     AlertDialog(
         onDismissRequest = { if (!isDetecting) onDismiss() },
@@ -180,6 +201,88 @@ fun EditRepoDialog(
                         ) { Text("Deselect All", fontSize = 12.sp) }
                     }
                 }
+
+                // ── Additional Releases ──────────────────────────────────────────────
+                if (isDetectingReleases || allReleaseTags.isNotEmpty() || source.releaseTags.isNotEmpty()) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Additional Releases",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isDetectingReleases) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(
+                                onClick = { detectReleases(url) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    contentDescription = "Re-detect releases",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "Individual releases to browse as their own category:",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Union of saved + discovered so saved tags always appear even if re-detect fails
+                    val releaseTagsToShow = remember(allReleaseTags, source.releaseTags) {
+                        val combined = source.releaseTags.toMutableList()
+                        allReleaseTags.forEach { if (it !in combined) combined.add(it) }
+                        combined
+                    }
+                    releaseTagsToShow.forEach { tag ->
+                        val isNew = tag !in source.releaseTags
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedReleaseTags = if (tag in selectedReleaseTags)
+                                        selectedReleaseTags - tag else selectedReleaseTags + tag
+                                }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            Checkbox(
+                                checked = tag in selectedReleaseTags,
+                                onCheckedChange = { checked ->
+                                    selectedReleaseTags = if (checked) selectedReleaseTags + tag else selectedReleaseTags - tag
+                                }
+                            )
+                            Text(tag, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            if (isNew) {
+                                Text(
+                                    "new",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    if (releaseTagsToShow.isNotEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                onClick = { selectedReleaseTags = releaseTagsToShow.toSet() },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) { Text("Select All", fontSize = 12.sp) }
+                            TextButton(
+                                onClick = { selectedReleaseTags = emptySet() },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) { Text("Deselect All", fontSize = 12.sp) }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -190,11 +293,13 @@ fun EditRepoDialog(
                         emptyList()
                     else
                         typesToShow.filter { it in selectedTypes }
+                    val finalReleaseTags = selectedReleaseTags.toList()
                     onSave(
                         source.copy(
                             name = name.trim(),
                             url = url.trim(),
-                            supportedTypes = finalTypes
+                            supportedTypes = finalTypes,
+                            releaseTags = finalReleaseTags
                         )
                     )
                 },

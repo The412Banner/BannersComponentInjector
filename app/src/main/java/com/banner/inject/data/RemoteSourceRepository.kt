@@ -216,7 +216,9 @@ class RemoteSourceRepository(private val context: Context) {
         val supportedTypes: List<String> = emptyList(), // Empty implies all types
         val isCustom: Boolean = false,
         // Extra endpoints for composite sources — each endpoint owns a subset of types
-        val extraEndpoints: List<ExtraEndpoint> = emptyList()
+        val extraEndpoints: List<ExtraEndpoint> = emptyList(),
+        // Individual GitHub release names the user opted in to browse as their own categories
+        val releaseTags: List<String> = emptyList()
     )
 
     enum class SourceFormat {
@@ -325,6 +327,12 @@ class RemoteSourceRepository(private val context: Context) {
                     }
                 }
 
+                val releaseTagsArray = obj.optJSONArray("releaseTags")
+                val releaseTagsList = mutableListOf<String>()
+                if (releaseTagsArray != null) {
+                    for (j in 0 until releaseTagsArray.length()) releaseTagsList.add(releaseTagsArray.getString(j))
+                }
+
                 customSources.add(
                     RemoteSource(
                         name = obj.getString("name"),
@@ -332,7 +340,8 @@ class RemoteSourceRepository(private val context: Context) {
                         format = format,
                         supportedTypes = typesList,
                         isCustom = true,
-                        extraEndpoints = extrasList
+                        extraEndpoints = extrasList,
+                        releaseTags = releaseTagsList
                     )
                 )
             }
@@ -379,6 +388,11 @@ class RemoteSourceRepository(private val context: Context) {
             val typesArray = JSONArray()
             for (type in source.supportedTypes) typesArray.put(type)
             obj.put("supportedTypes", typesArray)
+            if (source.releaseTags.isNotEmpty()) {
+                val tagsArray = JSONArray()
+                for (tag in source.releaseTags) tagsArray.put(tag)
+                obj.put("releaseTags", tagsArray)
+            }
             if (source.extraEndpoints.isNotEmpty()) {
                 val extrasArray = JSONArray()
                 for (ep in source.extraEndpoints) {
@@ -402,6 +416,12 @@ class RemoteSourceRepository(private val context: Context) {
         componentType: String
     ): List<RemoteItem> = withContext(Dispatchers.IO) {
         getFromCache(source.name, componentType)?.let { return@withContext it }
+        // If the type is a user-opted release tag, fetch all assets from that release directly
+        if (componentType in source.releaseTags) {
+            val result = fetchGithubReleaseByTag(source.url, componentType, source.name)
+            putToCache(source.name, componentType, result)
+            return@withContext result
+        }
         // Route to the extra endpoint that owns this type (if any), else use primary
         val isGpuDrivers = componentType == GPU_DRIVER_TYPE
         val extra = if (isGpuDrivers)
@@ -510,10 +530,82 @@ class RemoteSourceRepository(private val context: Context) {
                                 else -> { /* GITHUB_REPO_CONTENTS not expected as extra endpoint */ }
                             }
                         }
+                        // Cache any user-opted release tag categories
+                        source.releaseTags.forEach { tag ->
+                            val items = fetchGithubReleaseByTag(source.url, tag, source.name)
+                            putToCache(source.name, tag, items)
+                        }
                     } catch (_: Exception) { /* skip failed sources silently */ }
                 }
             }
         }
+    }
+
+    /**
+     * Fetches all GitHub release names from a GITHUB_RELEASES_* source so the user can
+     * opt individual releases in as browseable categories in the edit dialog.
+     * Returns an empty list for non-GitHub-releases formats.
+     */
+    suspend fun discoverReleaseTags(source: RemoteSource): List<String> = withContext(Dispatchers.IO) {
+        val githubFormats = setOf(
+            SourceFormat.GITHUB_RELEASES_WCP,
+            SourceFormat.GITHUB_RELEASES_TURNIP,
+            SourceFormat.GITHUB_RELEASES_ZIP
+        )
+        if (source.format !in githubFormats) return@withContext emptyList()
+        try {
+            val json = openUrl(source.url).inputStream.bufferedReader().readText()
+            val array = JSONArray(json)
+            val tags = mutableListOf<String>()
+            for (i in 0 until array.length()) {
+                val release = array.getJSONObject(i)
+                val name = release.optString("name").trim().ifEmpty {
+                    release.optString("tag_name").trim()
+                }
+                if (name.isNotEmpty()) tags.add(name)
+            }
+            tags
+        } catch (_: Exception) { emptyList() }
+    }
+
+    /**
+     * Fetches ALL assets from the GitHub release whose name or tag matches [releaseTag],
+     * regardless of file extension. Used when the user opts a release in as a category.
+     */
+    private suspend fun fetchGithubReleaseByTag(
+        url: String,
+        releaseTag: String,
+        sourceName: String
+    ): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val array = JSONArray(json)
+        for (i in 0 until array.length()) {
+            val release = array.getJSONObject(i)
+            val releaseName = release.optString("name").trim()
+            val tagName = release.optString("tag_name").trim()
+            if (releaseName != releaseTag && tagName != releaseTag) continue
+            val publishedAt = release.optString("published_at").substringBefore("T").takeIf { it.isNotEmpty() }
+            val description = release.optString("body").takeIf { it.isNotBlank() }
+            val assets = release.optJSONArray("assets") ?: return@withContext emptyList()
+            val result = mutableListOf<RemoteItem>()
+            for (j in 0 until assets.length()) {
+                val asset = assets.getJSONObject(j)
+                val assetName = asset.optString("name")
+                result.add(
+                    RemoteItem(
+                        displayName = assetName,
+                        versionName = assetName,
+                        downloadUrl = asset.optString("browser_download_url"),
+                        sourceName = sourceName,
+                        publishedAt = publishedAt,
+                        sizeBytes = asset.optLong("size", 0).takeIf { it > 0 },
+                        description = description
+                    )
+                )
+            }
+            return@withContext result
+        }
+        emptyList()
     }
 
     /** Collapses individual GPU driver keywords into a single "GPU Drivers" entry in a type list. */

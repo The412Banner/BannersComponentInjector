@@ -457,12 +457,16 @@ fun RemoteSourceSheet(
                             Text("Detecting types...", fontSize = 14.sp)
                         }
                     } else {
-                    val typesToShow = when {
+                    val baseTypes = when {
                         selectedSource!!.format == RemoteSourceRepository.SourceFormat.GITHUB_REPO_CONTENTS ||
                         selectedSource!!.format == RemoteSourceRepository.SourceFormat.RANKING_EMULATORS_JSON -> dynamicTypes ?: emptyList()
                         selectedSource!!.supportedTypes.isNotEmpty() -> selectedSource!!.supportedTypes
                         else -> componentTypes
                     }
+                    val typesToShow = if (selectedSource!!.releaseTags.isNotEmpty())
+                        baseTypes + selectedSource!!.releaseTags
+                    else
+                        baseTypes
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
