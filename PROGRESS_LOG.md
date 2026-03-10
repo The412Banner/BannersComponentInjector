@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.8.4-pre — Null safety fixes for DocumentFile.listFiles() (2026-03-10)
+**Commit:** `28a21b2`  |  **Tag:** v1.8.4-pre
+
+#### What changed
+- `ComponentRepository`: added null safety (`?.` / `?: emptyList()`) on every `listFiles()` call — `scanComponentDirs`, `collectFilesRecursively`, `replaceWithWcp` (clear step), `restoreComponent` (clear step), `deleteRecursively` extension
+- `BackupManager`: same null safety applied to `listAllBackups`, `copyDocumentToDownloads`, `copyDocumentToDocumentFile`, `collectDocumentFiles`, `countFilesInDoc`
+- Prevents NPE crashes when SAF provider returns null on low-storage, permission edge cases, or provider failures
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/ComponentRepository.kt`
+- `app/src/main/java/com/banner/inject/data/BackupManager.kt`
+
+---
+
 ### [pre-release] — v1.8.3-pre — Check for updates on launch (2026-03-10)
 **Commit:** `1bc62b3`  |  **Tag:** v1.8.3-pre
 
