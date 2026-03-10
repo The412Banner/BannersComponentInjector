@@ -6,6 +6,21 @@
 
 ---
 
+### [pre-release] — v1.6.4-pre — Nightlies built-in source + fex/fexcore filename bridging (2026-03-10)
+**Commit:** `0be72a5`  |  **Tag:** v1.6.4-pre
+
+#### What changed
+- Added "Nightlies by The412Banner" as 8th built-in source (`GITHUB_RELEASES_WCP`)
+  - URL: `https://api.github.com/repos/The412Banner/Nightlies/releases`
+  - Types: dxvk, vkd3d, fex, fexcore, box64
+- `fetchGithubReleasesWcp`: fex/fexcore bridge — when componentType is "fexcore", also matches assets containing "fex" in the name (and vice versa). Fixes FEX-named WCP files not showing under fexcore component folders.
+- `discoverTypes` (GITHUB_RELEASES_WCP): same bridge applied — scanning releases with "fex"-named assets now surfaces both "fex" and "fexcore" as available types.
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+
+---
+
 ### [pre-release] — v1.6.3-pre — HUB Emulators (T3st31) built-in source + RANKING_EMULATORS_JSON format (2026-03-09)
 **Commit:** `f277636` (docs: `c439587`)  |  **Tag:** v1.6.3-pre
 
