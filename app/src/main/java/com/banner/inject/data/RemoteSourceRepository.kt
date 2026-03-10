@@ -245,7 +245,8 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("turnip", "adreno", "qualcomm")),
         RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList()),
-        RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList())
+        RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList()),
+        RemoteSource("Nightlies by The412Banner", "https://api.github.com/repos/The412Banner/Nightlies/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "fex", "fexcore", "box64"))
     )
 
     fun getAllSources(): List<RemoteSource> {
@@ -564,7 +565,9 @@ class RemoteSourceRepository(private val context: Context) {
                 .filter { it.getString("name").endsWith(".wcp", ignoreCase = true) }
             for (asset in wcpAssets) {
                 val assetName = asset.getString("name")
-                if (assetName.contains(componentType, ignoreCase = true) || componentType.isEmpty()) {
+                val fexBridge = (componentType.equals("fexcore", ignoreCase = true) && assetName.contains("fex", ignoreCase = true)) ||
+                                (componentType.equals("fex", ignoreCase = true) && assetName.contains("fexcore", ignoreCase = true))
+                if (componentType.isEmpty() || assetName.contains(componentType, ignoreCase = true) || fexBridge) {
                     val displayName = if (wcpAssets.size > 1) "$releaseName — $assetName" else releaseName
                     result.add(
                         RemoteItem(
@@ -656,6 +659,8 @@ class RemoteSourceRepository(private val context: Context) {
                             val name = assets.getJSONObject(j).optString("name").lowercase()
                             if (!name.endsWith(".wcp")) continue
                             knownTypes.forEach { if (name.contains(it)) found.add(it) }
+                            // fex/fexcore bridge: a file matching either adds both types
+                            if (name.contains("fex")) { found.add("fex"); found.add("fexcore") }
                         }
                     }
                     sortByKnown(found)
