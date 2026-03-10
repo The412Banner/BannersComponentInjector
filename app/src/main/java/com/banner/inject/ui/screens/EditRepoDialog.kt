@@ -32,8 +32,18 @@ fun EditRepoDialog(
     var isDetecting by remember { mutableStateOf(false) }
     var detectError by remember { mutableStateOf<String?>(null) }
 
-    // selectedTypes: if source.supportedTypes is empty it means "all", so pre-check everything
+    // selectedTypes: pre-check what the source currently has configured
     var selectedTypes by remember { mutableStateOf(source.supportedTypes.toSet()) }
+
+    // Union of current supportedTypes + anything discovered beyond that — current types always
+    // appear first so existing config is never silently dropped, new ones append below
+    val typesToShow by remember(discoveredTypes) {
+        derivedStateOf {
+            val combined = source.supportedTypes.toMutableList()
+            discoveredTypes.forEach { if (it !in combined) combined.add(it) }
+            combined
+        }
+    }
 
     fun detect(targetUrl: String) {
         isDetecting = true
@@ -115,7 +125,7 @@ fun EditRepoDialog(
                     Text(detectError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
 
-                if (!isDetecting && discoveredTypes.isEmpty() && detectError == null) {
+                if (!isDetecting && typesToShow.isEmpty() && detectError == null) {
                     Text(
                         "No types detected. Tap ⟳ to retry after updating the URL.",
                         fontSize = 12.sp,
@@ -123,13 +133,14 @@ fun EditRepoDialog(
                     )
                 }
 
-                if (discoveredTypes.isNotEmpty()) {
+                if (typesToShow.isNotEmpty()) {
                     Text(
                         "Select which categories this repository provides:",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    discoveredTypes.forEach { type ->
+                    typesToShow.forEach { type ->
+                        val isNew = type !in source.supportedTypes
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -146,14 +157,21 @@ fun EditRepoDialog(
                                     selectedTypes = if (checked) selectedTypes + type else selectedTypes - type
                                 }
                             )
-                            Text(type.uppercase(), fontSize = 13.sp)
+                            Text(type.uppercase(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            if (isNew) {
+                                Text(
+                                    "new",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
 
                     // Select all / Deselect all shortcuts
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(
-                            onClick = { selectedTypes = discoveredTypes.toSet() },
+                            onClick = { selectedTypes = typesToShow.toSet() },
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                         ) { Text("Select All", fontSize = 12.sp) }
                         TextButton(
@@ -167,11 +185,11 @@ fun EditRepoDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    // If all discovered types are selected, save as empty list (= all types)
-                    val finalTypes = if (discoveredTypes.isNotEmpty() && selectedTypes.containsAll(discoveredTypes))
+                    // If all shown types are selected (nothing excluded), save as empty list (= all types)
+                    val finalTypes = if (typesToShow.isNotEmpty() && selectedTypes.containsAll(typesToShow))
                         emptyList()
                     else
-                        discoveredTypes.filter { it in selectedTypes }
+                        typesToShow.filter { it in selectedTypes }
                     onSave(
                         source.copy(
                             name = name.trim(),
