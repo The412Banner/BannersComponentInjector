@@ -6,6 +6,27 @@
 
 ---
 
+### [pre-release] — v1.6.8-pre — Opt-in individual GitHub releases as browseable categories (2026-03-10)
+**Commit:** `29473bf`  |  **Tag:** v1.6.8-pre
+
+#### What changed
+- `RemoteSource.releaseTags: List<String>` — new field for user-opted release name categories
+- `getCustomSources` / `saveCustomSources`: serialize/deserialize `releaseTags`
+- `discoverReleaseTags(source)`: fetches all release names from GITHUB_RELEASES_* URLs
+- `fetchGithubReleaseByTag(url, tag, sourceName)`: returns ALL assets from matching release (any file type)
+- `fetchFromSource`: routes to `fetchGithubReleaseByTag` when `componentType in source.releaseTags`
+- `refreshAllCache`: also caches `releaseTags` entries
+- `EditRepoDialog`: new "Additional Releases" section (below divider); parallel discovery on open; pre-checks saved tags; "new" label on newly discovered; Select All / Deselect All per section; save persists to `releaseTags`
+- `DownloadScreen` + `RemoteSourceSheet`: `typesToShow` appends `source.releaseTags` after component types
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/EditRepoDialog.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.6.7-pre — Edit dialog shows full merged type list (2026-03-10)
 **Commit:** `2fe41bc`  |  **Tag:** v1.6.7-pre
 
