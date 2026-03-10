@@ -20,7 +20,9 @@ data class GameHubApp(
     val isInstalled: Boolean,
     val hasAccess: Boolean,
     /** The installed package name, or first package with a stored URI, or first in list. */
-    val activePackage: String
+    val activePackage: String,
+    /** All package names from this group that are actually installed on the device. */
+    val installedPackages: List<String> = emptyList()
 )
 
 data class ComponentEntry(

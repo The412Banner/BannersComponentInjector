@@ -78,7 +78,8 @@ class MainActivity : ComponentActivity() {
                                     accentColor = accentColor,
                                     onAccentColorChanged = { accentColor = it },
                                     onAddCustomApp = { name, pkg -> vm.addCustomApp(name, pkg) },
-                                    onRemoveCustomApp = { vm.removeCustomApp(it) }
+                                    onRemoveCustomApp = { vm.removeCustomApp(it) },
+                                    hasAccessForPackage = { vm.hasAccessForPackage(it) }
                                 )
                             } else {
                                 ComponentListScreen(

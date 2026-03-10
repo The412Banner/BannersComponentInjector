@@ -53,9 +53,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshAppList() {
         val pm = context.packageManager
         val apps = (KNOWN_GAMEHUB_APPS + loadCustomApps()).map { known ->
-            val installedPkg = known.packageNames.firstOrNull { pkg ->
+            val installedPkgs = known.packageNames.filter { pkg ->
                 try { pm.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
             }
+            val installedPkg = installedPkgs.firstOrNull()
             val accessPkg = known.packageNames.firstOrNull { pkg -> prefs.contains(uriKey(pkg)) }
             GameHubApp(
                 known = known,
@@ -63,11 +64,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // (Android 11+ blocks package visibility for packages not in <queries>)
                 isInstalled = installedPkg != null || known.isCustom,
                 hasAccess = accessPkg != null,
-                activePackage = installedPkg ?: accessPkg ?: known.packageNames.first()
+                activePackage = installedPkg ?: accessPkg ?: known.packageNames.first(),
+                installedPackages = if (known.isCustom) known.packageNames else installedPkgs
             )
         }
         _uiState.update { it.copy(apps = apps) }
     }
+
+    /** Returns true if a specific package name has a stored SAF URI. */
+    fun hasAccessForPackage(packageName: String): Boolean = prefs.contains(uriKey(packageName))
 
     fun addCustomApp(name: String, packageName: String) {
         val current = loadCustomApps().toMutableList()
@@ -127,16 +132,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
-        // Store URI under all package names in the group so any lookup hits it
-        val edit = prefs.edit()
-        app.known.packageNames.forEach { pkg -> edit.putString(uriKey(pkg), uri.toString()) }
-        edit.apply()
+        // Store URI only for activePackage so multi-installed packages each get their own URI
+        prefs.edit().putString(uriKey(app.activePackage), uri.toString()).apply()
         refreshAppList()
         selectApp(app.copy(hasAccess = true))
     }
 
     fun selectApp(app: GameHubApp) {
-        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull() ?: return
+        // Prioritize the URI for the specific activePackage, then fall back to any in the group
+        val uri = storedUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+            ?: return
         _uiState.update { it.copy(selectedApp = app, components = emptyList(), isLoadingComponents = true) }
         loadComponents(uri)
     }

@@ -40,7 +40,8 @@ fun AppListScreen(
     accentColor: Color,
     onAccentColorChanged: (Color) -> Unit,
     onAddCustomApp: (name: String, packageName: String) -> Unit,
-    onRemoveCustomApp: (GameHubApp) -> Unit
+    onRemoveCustomApp: (GameHubApp) -> Unit,
+    hasAccessForPackage: (String) -> Boolean
 ) {
     // Track which app is pending an SAF grant so the launcher callback knows
     var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
@@ -108,12 +109,14 @@ fun AppListScreen(
                 AppCard(
                     app = app,
                     onClick = {
-                        if (app.hasAccess) {
-                            onAppSelected(app)
-                        } else {
-                            showGrantGuide = app
-                        }
+                        if (app.hasAccess) onAppSelected(app) else showGrantGuide = app
                     },
+                    onMultiPackageSelect = if (app.installedPackages.size > 1) { pkg ->
+                        val pkgHasAccess = hasAccessForPackage(pkg)
+                        val effectiveApp = app.copy(activePackage = pkg, hasAccess = pkgHasAccess)
+                        if (pkgHasAccess) onAppSelected(effectiveApp) else showGrantGuide = effectiveApp
+                    } else null,
+                    hasAccessForPackage = hasAccessForPackage,
                     onRevokeClick = { showRevokeDialog = app },
                     onDeleteClick = if (app.known.isCustom) ({ showDeleteCustomDialog = app }) else null
                 )
@@ -237,15 +240,20 @@ fun AppListScreen(
 private fun AppCard(
     app: GameHubApp,
     onClick: () -> Unit,
+    onMultiPackageSelect: ((packageName: String) -> Unit)? = null,
+    hasAccessForPackage: (String) -> Boolean = { false },
     onRevokeClick: () -> Unit,
     onDeleteClick: (() -> Unit)? = null
 ) {
     val isClickable = app.isInstalled || app.hasAccess
+    var showPackageDropdown by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (isClickable) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (isClickable) Modifier.clickable(onClick = {
+                if (onMultiPackageSelect != null) showPackageDropdown = true else onClick()
+            }) else Modifier),
         colors = CardDefaults.cardColors(
             containerColor = when {
                 !app.isInstalled && !app.hasAccess -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -292,6 +300,7 @@ private fun AppCard(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = when {
+                        app.installedPackages.size > 1 -> "${app.installedPackages.size} variants installed  —  tap to select"
                         app.hasAccess && app.isInstalled -> "Tap to manage components"
                         app.hasAccess && !app.isInstalled -> "Access granted (not installed)"
                         app.isInstalled && !app.hasAccess -> "Installed  —  tap to grant access"
@@ -306,6 +315,14 @@ private fun AppCard(
 
             // Status badge
             when {
+                app.installedPackages.size > 1 -> {
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = "Select variant",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 app.hasAccess -> {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -363,6 +380,51 @@ private fun AppCard(
                         contentDescription = "Remove custom app",
                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                         modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        // Package picker dropdown for groups with multiple installed packages
+        if (onMultiPackageSelect != null) {
+            DropdownMenu(
+                expanded = showPackageDropdown,
+                onDismissRequest = { showPackageDropdown = false }
+            ) {
+                Text(
+                    "Select installed variant:",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                app.installedPackages.forEach { pkg ->
+                    val pkgHasAccess = hasAccessForPackage(pkg)
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(pkg, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                if (pkgHasAccess) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = MaterialTheme.shapes.extraSmall
+                                    ) {
+                                        Text(
+                                            "Access",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        onClick = {
+                            showPackageDropdown = false
+                            onMultiPackageSelect(pkg)
+                        }
                     )
                 }
             }
