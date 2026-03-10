@@ -6,6 +6,22 @@
 
 ---
 
+### [pre-release] — v1.6.7-pre — Edit dialog shows full merged type list (2026-03-10)
+**Commit:** `2fe41bc`  |  **Tag:** v1.6.7-pre
+
+#### What changed
+- `typesToShow` = union of `source.supportedTypes` (first, pre-checked) + `discoveredTypes` (appended, unchecked by default)
+- Currently-configured types never silently dropped when discovery partially fails
+- Newly discovered types labelled "new" in primary color so user knows they're additional
+- Save logic filters `typesToShow` (not just `discoveredTypes`) so nothing is lost
+- "No types detected" message only shows when `typesToShow` is truly empty
+- Select All / Deselect All operate on the full merged list
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/EditRepoDialog.kt`
+
+---
+
 ### [pre-release] — v1.6.6-pre — Custom repo order (Move Up / Move Down) (2026-03-10)
 **Commit:** `575231d`  |  **Tag:** v1.6.6-pre
 
