@@ -6,6 +6,29 @@
 
 ---
 
+### [stable] — v1.7.0 — Stable release: GPU Drivers, release tags, repo ordering, edit dialog improvements (2026-03-10)
+**Commit:** `f277636` (code) | `afbe90d` (docs)  |  **Tag:** v1.7.0
+
+#### What changed (new since v1.6.0)
+- **GPU Drivers unified category** — Turnip, Adreno, Qualcomm, Mesa files combined into single "GPU Drivers" category across all sources; `GPU_DRIVER_TYPE` constant; `normalizeGpuTypes()` helper
+- **FEX/FEXCore filename bridge** — files named `fex-*.wcp` visible under `fexcore` type and vice versa
+- **Nightlies by The412Banner built-in source** — 8th built-in; GITHUB_RELEASES_WCP format
+- **HUB Emulators (T3st31) built-in source** — 7th built-in; RANKING_EMULATORS_JSON format
+- **Release tag browsing** — `RemoteSource.releaseTags` field; `discoverReleaseTags()`; `fetchGithubReleaseByTag()` returns all assets any file type; `typesToShow` appends enabled release tags
+- **Edit dialog — full merged type list** — union of configured + discovered types; "new" badge on newly found; existing types never lost
+- **Edit dialog — Additional Releases section** — separate section below divider; individual GitHub release names listed; each can be toggled independently; Select All / Deselect All
+- **Repo reordering** — Move Up / Move Down in each repo's hamburger menu; order persisted in SharedPreferences `source_order`
+- README.md fully rewritten to reflect all current features
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/EditRepoDialog.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+- `README.md`
+
+---
+
 ### [pre-release] — v1.6.8-pre — Opt-in individual GitHub releases as browseable categories (2026-03-10)
 **Commit:** `29473bf`  |  **Tag:** v1.6.8-pre
 
