@@ -1,6 +1,8 @@
 # BannersComponentInjector
 
-**An external component manager for GameHub (Lite) and its variants — no root required.**
+**An external component manager for GameHub (Lite) and its variants — no root required.** 
+
+-ONLY FOR VERSIONS WITH FILES ACCESS PATCHED INTO THEM!
 
 BannersComponentInjector lets you browse, back up, replace, and restore the Windows-emulation components inside GameHub app variants (DXVK, VKD3D-Proton, Box64, FEXCore, Wine, GPU Drivers, and more) directly from your Android device. Components can be installed from local files or fetched and downloaded straight from online repositories — all without needing root access or a PC.
 
