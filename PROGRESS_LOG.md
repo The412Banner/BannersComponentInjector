@@ -6,6 +6,27 @@
 
 ---
 
+### [pre-release] — v1.7.2-pre — Dropdown package picker for multi-installed variants (2026-03-10)
+**Commit:** `5017718`  |  **Tag:** v1.7.2-pre
+
+#### What changed
+- `GameHubApp`: added `installedPackages: List<String>` — all packages from the group that are actually installed
+- `refreshAppList()`: collects ALL installed packages per group (not just first); custom apps get their own package in `installedPackages`
+- `grantAccess()`: stores URI only for `activePackage` (not all group members) — independent URIs per variant
+- `selectApp()`: prioritizes `activePackage` URI, falls back to any in group
+- `hasAccessForPackage(pkg): Boolean`: new ViewModel function for per-package access check
+- `AppCard`: `onMultiPackageSelect` callback + `hasAccessForPackage` param; `DropdownMenu` with per-package Access badges when `installedPackages.size > 1`; `ArrowDropDown` icon; subtitle shows "N variants installed — tap to select"
+- `AppListScreen`: passes `hasAccessForPackage` lambda; builds `effectiveApp` with correct `activePackage` and `hasAccess` on dropdown selection
+- `MainActivity`: wires `hasAccessForPackage`
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [pre-release] — v1.7.1-pre — Custom app entries in the Inject tab app list (2026-03-10)
 **Commit:** `e6f6d12`  |  **Tag:** v1.7.1-pre
 
