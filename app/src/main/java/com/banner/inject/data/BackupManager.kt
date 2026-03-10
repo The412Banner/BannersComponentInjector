@@ -122,7 +122,7 @@ class BackupManager(private val context: Context) {
     fun listAllBackups(): List<BackupInfo> {
         val root = customBackupRoot()
         return if (root != null) {
-            root.listFiles()
+            (root.listFiles() ?: emptyArray())
                 .filter { it.isDirectory }
                 .map { dir ->
                     val name = dir.name ?: "Unknown"
@@ -160,7 +160,7 @@ class BackupManager(private val context: Context) {
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private fun copyDocumentToDownloads(source: DocumentFile, componentSanitized: String, subPath: String) {
-        source.listFiles().forEach { item ->
+        source.listFiles()?.forEach { item ->
             val itemName = item.name ?: return@forEach
             if (item.isDirectory) {
                 val newSubPath = if (subPath.isEmpty()) itemName else "$subPath/$itemName"
@@ -186,7 +186,7 @@ class BackupManager(private val context: Context) {
     }
 
     private fun copyDocumentToDocumentFile(source: DocumentFile, destDir: DocumentFile) {
-        source.listFiles().forEach { item ->
+        source.listFiles()?.forEach { item ->
             val itemName = item.name ?: return@forEach
             if (item.isDirectory) {
                 val subDir = destDir.findFile(itemName) ?: destDir.createDirectory(itemName) ?: return@forEach
@@ -204,7 +204,7 @@ class BackupManager(private val context: Context) {
     }
 
     private fun collectDocumentFiles(dir: DocumentFile, prefix: String, result: MutableList<Pair<Uri, String>>) {
-        dir.listFiles().forEach { item ->
+        dir.listFiles()?.forEach { item ->
             val name = item.name ?: return@forEach
             val path = if (prefix.isEmpty()) name else "$prefix/$name"
             if (item.isDirectory) collectDocumentFiles(item, path, result)
@@ -215,7 +215,7 @@ class BackupManager(private val context: Context) {
     private fun countFilesInDoc(dir: DocumentFile): Pair<Int, Long> {
         var count = 0
         var size = 0L
-        dir.listFiles().forEach { item ->
+        dir.listFiles()?.forEach { item ->
             if (item.isDirectory) {
                 val (c, s) = countFilesInDoc(item)
                 count += c; size += s

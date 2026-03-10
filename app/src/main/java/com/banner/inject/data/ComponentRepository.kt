@@ -21,7 +21,7 @@ class ComponentRepository(private val context: Context) {
         DocumentFile.fromTreeUri(context, uri)
 
     fun scanComponentDirs(rootDoc: DocumentFile): List<DocumentFile> =
-        rootDoc.listFiles().filter { it.isDirectory }
+        rootDoc.listFiles()?.filter { it.isDirectory } ?: emptyList()
 
     fun scanComponents(dirs: List<DocumentFile>, backupManager: BackupManager): Flow<ComponentEntry> = channelFlow {
         val semaphore = Semaphore(4) // cap concurrent SAF queries on lower-end devices
@@ -58,7 +58,7 @@ class ComponentRepository(private val context: Context) {
 
     private fun collectFilesRecursively(dir: DocumentFile, prefix: String): List<FileInfo> {
         val result = mutableListOf<FileInfo>()
-        dir.listFiles().forEach { item ->
+        dir.listFiles()?.forEach { item ->
             val relPath = if (prefix.isEmpty()) item.name ?: "" else "$prefix/${item.name ?: ""}"
             if (item.isDirectory) {
                 result.addAll(collectFilesRecursively(item, relPath))
@@ -97,7 +97,7 @@ class ComponentRepository(private val context: Context) {
             backupManager.backupFromDocumentFile(component, componentName)
 
             onProgress("Clearing existing files...")
-            component.listFiles().forEach { it.deleteRecursively() }
+            component.listFiles()?.forEach { it.deleteRecursively() }
 
             WcpExtractor(context)
                 .extractToDocumentFile(wcpUri, component, flattenToRoot = isFlat, onProgress)
@@ -117,7 +117,7 @@ class ComponentRepository(private val context: Context) {
             }
 
             onProgress("Clearing current files...")
-            component.listFiles().forEach { it.deleteRecursively() }
+            component.listFiles()?.forEach { it.deleteRecursively() }
 
             backupManager.listAllBackupFiles(componentName).forEach { (uri, relPath) ->
                 val fileName = relPath.substringAfterLast('/')
@@ -141,7 +141,7 @@ class ComponentRepository(private val context: Context) {
     }
 
     private fun DocumentFile.deleteRecursively(): Boolean {
-        if (isDirectory) listFiles().forEach { it.deleteRecursively() }
+        if (isDirectory) listFiles()?.forEach { it.deleteRecursively() }
         return delete()
     }
 }
