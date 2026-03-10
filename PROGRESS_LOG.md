@@ -6,6 +6,24 @@
 
 ---
 
+### [pre-release] — v1.7.1-pre — Custom app entries in the Inject tab app list (2026-03-10)
+**Commit:** `e6f6d12`  |  **Tag:** v1.7.1-pre
+
+#### What changed
+- `KnownApp`: added `isCustom: Boolean = false` flag
+- `MainViewModel`: `addCustomApp()`, `removeCustomApp()`, `loadCustomApps()`, `saveCustomApps()` — JSON persistence in `bci_prefs` under `"custom_gamehub_apps"` key
+- `refreshAppList()`: merges `KNOWN_GAMEHUB_APPS + loadCustomApps()`; custom apps forced to `isInstalled = true` so card is always tappable (Android 11+ blocks package visibility for unknown packages)
+- `AppListScreen`: `+` (AddCircleOutline) button in top bar; `AddCustomAppDialog` (name + package name fields, duplicate check); trash icon on custom app cards; delete confirm dialog; two new callbacks `onAddCustomApp` / `onRemoveCustomApp`
+- `MainActivity`: wired new callbacks to ViewModel
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [stable] — v1.7.0 — Stable release: GPU Drivers, release tags, repo ordering, edit dialog improvements (2026-03-10)
 **Commit:** `f277636` (code) | `afbe90d` (docs)  |  **Tag:** v1.7.0
 
