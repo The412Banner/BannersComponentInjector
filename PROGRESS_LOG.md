@@ -6,6 +6,24 @@
 
 ---
 
+### [stable] — v1.8.0 — Stable release: custom app entries, multi-install picker, GameHub label detection (2026-03-10)
+**Commit:** `f052d60` (code) | `b8413fb` (docs)  |  **Tag:** v1.8.0
+
+#### What changed (new since v1.7.0)
+- **Custom app entries** — + button in Inject tab top bar; `AddCustomAppDialog` (name + package name, duplicate check); trash icon with confirm dialog to remove; `KnownApp.isCustom`; `addCustomApp()` / `removeCustomApp()` / `loadCustomApps()` / `saveCustomApps()` in ViewModel; persisted as JSON in SharedPreferences
+- **Multi-installed variant picker** — `GameHubApp.installedPackages`; `DropdownMenu` in `AppCard` when multiple packages from the same group are installed; per-package Access badge; each variant stores its own independent SAF URI; `hasAccessForPackage()` in ViewModel
+- **GameHub label detection** — `isLikelyGameHub()` helper; borrowed package names (com.tencent.ig, com.mihoyo.genshinimpact, com.antutu.*, com.ludashi.*) verified against app display label; real apps excluded
+- README.md fully rewritten
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/model/Models.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/AppListScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+- `README.md`
+
+---
+
 ### [pre-release] — v1.7.3-pre — Fix: real apps with borrowed package names excluded from GameHub list (2026-03-10)
 **Commit:** `f052d60`  |  **Tag:** v1.7.3-pre
 
