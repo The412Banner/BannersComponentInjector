@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.8.3-pre — Check for updates on launch (2026-03-10)
+**Commit:** `1bc62b3`  |  **Tag:** v1.8.3-pre
+
+#### What changed
+- `SettingsSheet`: new "Check for updates on launch" `Switch` row in Updates section; pref key `update_check_on_launch`, default `false`; separated from Include pre-releases by `HorizontalDivider`
+- `MainActivity`: `LaunchedEffect(Unit)` reads pref; if enabled, calls `UpdateRepository.fetchLatestRelease(includePreReleases)`; if update found, sets `launchUpdateRelease` state
+- `AlertDialog` shown when `launchUpdateRelease != null`: shows tag name, installed version, Download & Install with `mutableFloatStateOf` progress %, View on GitHub, Not Now; non-dismissible while downloading
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/SettingsSheet.kt`
+
+---
+
 ### [pre-release] — v1.8.2-pre — Clickable URLs in release notes (2026-03-10)
 **Commit:** `1899e0b`  |  **Tag:** v1.8.2-pre
 
