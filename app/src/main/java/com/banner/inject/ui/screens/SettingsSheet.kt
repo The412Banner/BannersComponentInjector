@@ -547,6 +547,21 @@ fun SettingsSheet(
                             Spacer(Modifier.width(8.dp))
                             Text("Open Downloads Folder")
                         }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/The412Banner/BannersComponentInjector/issues"))
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.BugReport, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Report Issue / Feedback")
+                        }
                     }
                 }
             } else {
