@@ -6,6 +6,23 @@
 
 ---
 
+### [pre-release] — v1.6.6-pre — Custom repo order (Move Up / Move Down) (2026-03-10)
+**Commit:** `575231d`  |  **Tag:** v1.6.6-pre
+
+#### What changed
+- `saveSourceOrder(orderedNames)` / `getSourceOrder()` persist order in SharedPreferences (`source_order` key, newline-separated names)
+- `getAllSources()` applies saved order; unknown names go at end
+- `removeSource()` removes the source name from saved order
+- `restoreDefaultSources()` also clears `source_order` so defaults revert to natural order
+- DownloadScreen + RemoteSourceSheet: `items()` → `itemsIndexed()`; **Move Up** and **Move Down** added at top of each repo's hamburger menu (disabled at list boundaries); list reloads immediately after each move
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.6.5-pre — GPU Drivers unified category (2026-03-10)
 **Commit:** `2ba1b2e`  |  **Tag:** v1.6.5-pre
 
