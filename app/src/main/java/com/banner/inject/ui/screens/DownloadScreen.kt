@@ -21,11 +21,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -804,11 +811,9 @@ fun DownloadScreen(
                             .verticalScroll(rememberScrollState())
                             .padding(bottom = 12.dp)
                     ) {
-                        Text(
-                            detailItem.description,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
+                        LinkedText(
+                            text = detailItem.description,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -1078,3 +1083,54 @@ private suspend fun saveToDownloads(
         Pair(null, fileSize)
     }
 }
+
+/**
+ * Renders [text] with any embedded URLs highlighted and tappable.
+ * URLs are detected via [android.util.Patterns.WEB_URL] and colored/underlined.
+ */
+@Composable
+fun LinkedText(
+    text: String,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 12.sp,
+    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    lineHeight: TextUnit = 18.sp
+) {
+    val context = LocalContext.current
+    val linkColor = MaterialTheme.colorScheme.primary
+    val annotated = remember(text, linkColor) {
+        buildAnnotatedString {
+            var lastEnd = 0
+            val matcher = android.util.Patterns.WEB_URL.matcher(text)
+            while (matcher.find()) {
+                val start = matcher.start()
+                val end = matcher.end()
+                append(text.substring(lastEnd, start))
+                pushStringAnnotation("URL", matcher.group())
+                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                    append(text.substring(start, end))
+                }
+                pop()
+                lastEnd = end
+            }
+            append(text.substring(lastEnd))
+        }
+    }
+    ClickableText(
+        text = annotated,
+        style = TextStyle(
+            fontSize = fontSize,
+            color = color,
+            lineHeight = lineHeight,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Default
+        ),
+        modifier = modifier,
+        onClick = { offset ->
+            annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { ann ->
+                val url = ann.item.let { if (it.startsWith("http")) it else "https://$it" }
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            }
+        }
+    )
+}
+

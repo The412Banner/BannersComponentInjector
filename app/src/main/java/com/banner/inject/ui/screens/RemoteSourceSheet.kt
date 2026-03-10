@@ -663,11 +663,9 @@ fun RemoteSourceSheet(
                             .verticalScroll(rememberScrollState())
                             .padding(bottom = 12.dp)
                     ) {
-                        Text(
-                            dItem.description,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
+                        LinkedText(
+                            text = dItem.description,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
