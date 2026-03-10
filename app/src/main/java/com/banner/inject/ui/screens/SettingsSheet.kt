@@ -100,6 +100,9 @@ fun SettingsSheet(
     var includePreReleases by remember {
         mutableStateOf(prefs.getBoolean("update_include_pre", false))
     }
+    var checkOnLaunch by remember {
+        mutableStateOf(prefs.getBoolean("update_check_on_launch", false))
+    }
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
     var warnBeforeReplace by remember {
@@ -359,6 +362,24 @@ fun SettingsSheet(
                                             if (updateState !is UpdateState.Downloading) {
                                                 updateState = UpdateState.Idle
                                             }
+                                        }
+                                    )
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Check for updates on launch", fontSize = 14.sp)
+                                        Text("Automatically check when the app opens", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Switch(
+                                        checked = checkOnLaunch,
+                                        onCheckedChange = {
+                                            checkOnLaunch = it
+                                            prefs.edit().putBoolean("update_check_on_launch", it).apply()
                                         }
                                     )
                                 }

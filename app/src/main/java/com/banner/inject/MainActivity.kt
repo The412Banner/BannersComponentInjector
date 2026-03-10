@@ -1,7 +1,9 @@
 package com.banner.inject
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.content.Context
@@ -10,17 +12,35 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.banner.inject.data.RemoteSourceRepository
+import com.banner.inject.data.UpdateRepository
 import com.banner.inject.model.MainTab
 import com.banner.inject.ui.screens.AppListScreen
 import com.banner.inject.ui.screens.BackupManagerSheet
@@ -31,6 +51,7 @@ import com.banner.inject.ui.screens.SettingsSheet
 import com.banner.inject.ui.theme.BannersComponentInjectorTheme
 import com.banner.inject.ui.theme.ThemePrefs
 import com.banner.inject.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -55,9 +76,114 @@ class MainActivity : ComponentActivity() {
                     val vm: MainViewModel = viewModel()
                     val uiState by vm.uiState.collectAsState()
                     val repo = remember { RemoteSourceRepository(this@MainActivity) }
+                    val scope = rememberCoroutineScope()
 
                     val appVersion = remember {
                         packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+                    }
+
+                    // ── Launch update check ────────────────────────────────────
+                    var launchUpdateRelease by remember { mutableStateOf<UpdateRepository.ReleaseInfo?>(null) }
+                    var launchUpdateDownloading by remember { mutableStateOf(false) }
+                    var launchUpdateProgress by remember { mutableFloatStateOf(0f) }
+
+                    LaunchedEffect(Unit) {
+                        val checkOnLaunch = prefs.getBoolean("update_check_on_launch", false)
+                        if (!checkOnLaunch) return@LaunchedEffect
+                        val includePreReleases = prefs.getBoolean("update_include_pre", false)
+                        try {
+                            val latest = UpdateRepository.fetchLatestRelease(includePreReleases)
+                            if (latest != null && latest.versionName != appVersion) {
+                                launchUpdateRelease = latest
+                            }
+                        } catch (_: Exception) {}
+                    }
+
+                    launchUpdateRelease?.let { release ->
+                        AlertDialog(
+                            onDismissRequest = {
+                                if (!launchUpdateDownloading) launchUpdateRelease = null
+                            },
+                            icon = {
+                                Icon(
+                                    Icons.Default.NewReleases,
+                                    contentDescription = null
+                                )
+                            },
+                            title = { Text("Update Available", fontWeight = FontWeight.Bold) },
+                            text = {
+                                if (launchUpdateDownloading) {
+                                    androidx.compose.foundation.layout.Column(
+                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        CircularProgressIndicator(progress = { launchUpdateProgress })
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            "Downloading… ${(launchUpdateProgress * 100).toInt()}%",
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                } else {
+                                    androidx.compose.foundation.layout.Column {
+                                        Text(
+                                            "${release.tagName}${if (release.isPreRelease) " (pre-release)" else ""}",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "Installed: v$appVersion",
+                                            fontSize = 12.sp,
+                                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                if (!launchUpdateDownloading && release.apkUrl != null) {
+                                    Button(onClick = {
+                                        scope.launch {
+                                            launchUpdateDownloading = true
+                                            launchUpdateProgress = 0f
+                                            try {
+                                                val file = UpdateRepository.downloadApk(
+                                                    this@MainActivity,
+                                                    release.apkUrl
+                                                ) { progress ->
+                                                    launchUpdateProgress = progress
+                                                }
+                                                UpdateRepository.installApk(this@MainActivity, file)
+                                            } catch (_: Exception) {}
+                                            launchUpdateDownloading = false
+                                            launchUpdateRelease = null
+                                        }
+                                    }) {
+                                        Text("Download & Install")
+                                    }
+                                }
+                            },
+                            dismissButton = {
+                                if (!launchUpdateDownloading) {
+                                    androidx.compose.foundation.layout.Row {
+                                        if (release.apkUrl != null) {
+                                            OutlinedButton(onClick = {
+                                                runCatching {
+                                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.htmlUrl)))
+                                                }
+                                                launchUpdateRelease = null
+                                            }) {
+                                                Text("View on GitHub")
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                        }
+                                        TextButton(onClick = { launchUpdateRelease = null }) {
+                                            Text("Not Now")
+                                        }
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     when (currentTab) {
