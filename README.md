@@ -2,7 +2,7 @@
 
 **An external component manager for GameHub (Lite) and its variants — no root required.**
 
-BannersComponentInjector lets you browse, back up, replace, and restore the Windows-emulation components inside GameHub app variants (DXVK, VKD3D-Proton, Box64, FEXCore, Wine, Turnip GPU drivers, and more) directly from your Android device. Components can be installed from local files or fetched and downloaded straight from online repositories — all without needing root access or a PC.
+BannersComponentInjector lets you browse, back up, replace, and restore the Windows-emulation components inside GameHub app variants (DXVK, VKD3D-Proton, Box64, FEXCore, Wine, GPU Drivers, and more) directly from your Android device. Components can be installed from local files or fetched and downloaded straight from online repositories — all without needing root access or a PC.
 
 ---
 
@@ -30,6 +30,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
     - [Cross-Repo Search](#cross-repo-search)
     - [Batch Downloads](#batch-downloads)
     - [Managing Repositories](#managing-repositories)
+    - [Reordering Repositories](#reordering-repositories)
     - [Adding a Custom Repository](#adding-a-custom-repository)
     - [Editing a Repository](#editing-a-repository)
   - [My Downloads Tab](#my-downloads-tab)
@@ -62,18 +63,20 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Pull-to-refresh** — swipe down on the component list to re-scan the folder.
 
 **Download Components**
-- **6 built-in repositories** — StevenMXZ, Arihany WCPHub, Xnick417x, AdrenoToolsDrivers (K11MCH1), freedreno Turnip CI, and MaxesTechReview (MTR).
-- **10 component categories** — DXVK, VKD3D, Box64, FEXCore, WineD3D, Turnip, Adreno, Drivers, Wine, Proton.
+- **8 built-in repositories** — StevenMXZ, Arihany WCPHub, Xnick417x, AdrenoToolsDrivers (K11MCH1), freedreno Turnip CI, MaxesTechReview (MTR), HUB Emulators (T3st31), and Nightlies by The412Banner.
+- **Unified GPU Drivers category** — Turnip, Adreno, Qualcomm, and Mesa driver files all appear together under a single "GPU Drivers" category.
+- **Release tag browsing** — any individual GitHub release can be enabled as its own browseable category; browse all assets (WCP, ZIP, APK, tar.gz, and more) from a single named release.
 - **Always-visible cross-repo search** — search field above the repo list searches all repositories simultaneously; results show file name, source, and type.
 - **File detail sheet** — tap any file to see its name, source/type chips, published date, file size, and scrollable Release Notes (from GitHub release body); "Download to Device" button confirms the save.
 - **Upload dates and file sizes** — shown on every file card and in the detail sheet.
 - **Sort control** — Newest First, Oldest First, Name A→Z, Name Z→A.
 - **Already-downloaded indicator** — files you've previously saved are marked with a checkmark.
 - **Batch multi-select downloads** — enter multi-select mode; pick any number of files; "Download X files" downloads them all in parallel, skipping any already downloaded.
-- **Custom repositories** — add any compatible URL; format is auto-detected. Supports plain GitHub repo links, GitHub Releases URLs, and raw JSON feed URLs.
-- **Multi-URL custom repositories** — combine multiple endpoints (e.g. WCP releases + Turnip releases) into a single repository card.
-- **Edit Repository** — rename any repository, change its URL, and choose which component categories it shows.
-- **Hamburger menu per repo** — Open in Browser, Edit Repository, Remove Repository.
+- **Custom repositories** — add any compatible URL; format is auto-detected. Supports plain GitHub repo links, GitHub Releases URLs, raw JSON feed URLs, and WCP hub JSON feeds.
+- **Multi-URL custom repositories** — combine multiple endpoints (e.g. WCP releases + GPU driver releases) into a single repository card.
+- **Reorder repositories** — use **Move Up** / **Move Down** in each repo's hamburger menu to arrange the list in any order you prefer.
+- **Edit Repository** — rename any repository, change its URL, choose which component types it shows, and enable individual release tags as browseable categories.
+- **Hamburger menu per repo** — Open in Browser, Edit Repository, Move Up, Move Down, Remove Repository.
 - **Refresh All** — pre-fetches all sources × all types in parallel and caches results in memory.
 
 **My Downloads**
@@ -177,12 +180,12 @@ This tab is the main workspace for managing components already installed inside 
 3. At the top of the sheet, a **search bar** lets you search across all repositories at once. Type to see matching files from any repo — tap a result to open its detail sheet.
 4. Or browse manually:
    - **Step 1 — Choose a repository**: tap any repo card to drill in.
-   - **Step 2 — Choose a component type**: select the category (DXVK, VKD3D, Box64, Turnip, Wine, etc.).
+   - **Step 2 — Choose a component type**: select the category (DXVK, VKD3D, Box64, FEXCore, GPU Drivers, Wine, etc.) or any individual release tag you've enabled.
    - **Step 3 — Choose a file**: sorted list with published date. Tap any file to open its detail sheet.
 5. The detail sheet shows the file name, source, type, date, size, and Release Notes (if available).
 6. Tap **Download & Replace**. A progress indicator shows download status. The component folder is updated on completion.
 
-> Repo cards have a **⋮ menu**: Open in Browser, Edit Repository, Remove Repository.
+> Repo cards have a **⋮ menu**: Open in Browser, Edit Repository, Move Up, Move Down, Remove Repository.
 
 ---
 
@@ -214,7 +217,7 @@ Tap the **☑ checkbox icon** in the top bar to enter multi-select mode. Tap fil
 #### Browsing a Repository
 
 1. **Select a repository** from the list.
-2. **Select a component type** — types shown are those the repository actually provides. For folder-based repositories (like MTR) the app detects available categories automatically.
+2. **Select a component type** — types shown are those the repository actually provides. GPU driver files (Turnip, Adreno, Qualcomm, Mesa) appear together under **GPU Drivers**. Any individual release tags you've enabled for that repo appear as additional entries in the list.
 3. **Browse the file list**:
    - Each item shows its name, upload date (where available), file size, and a checkmark if you've already downloaded it.
    - Files are sorted **newest first** by default.
@@ -226,13 +229,20 @@ Tap the **☑ checkbox icon** in the top bar to enter multi-select mode. Tap fil
 
 #### Managing Repositories
 
-Each repository card has a **⋮ menu** with three options:
+Each repository card has a **⋮ menu** with options:
 
 - **Open in Browser** — opens the repository's GitHub page in your browser.
 - **Edit Repository** — opens the edit dialog (see below).
+- **Move Up / Move Down** — reorder the repository in the list.
 - **Remove Repository** — removes the repository from your list (built-ins can be restored with **Restore Default Repositories** at the bottom of the list).
 
 Tap **⟳ Refresh** (top-right when no repo is selected) to pre-fetch all sources and cache the results in memory for instant browsing and search.
+
+---
+
+#### Reordering Repositories
+
+Tap **⋮ → Move Up** or **⋮ → Move Down** on any repo card to shift it up or down in the list. **Move Up** is disabled at the top of the list; **Move Down** is disabled at the bottom. The order is saved automatically and persists across restarts.
 
 ---
 
@@ -245,7 +255,7 @@ Tap **+** in the header to open the Add Repository dialog.
    - A plain GitHub repo link: `https://github.com/{owner}/{repo}` — the app reads the folder structure directly from the repo; each folder becomes a component category.
    - A GitHub Releases URL: `https://github.com/{owner}/{repo}/releases` — the app scans release assets for `.wcp` or `.zip` files.
    - A raw JSON feed URL ending in `.json` (WCP JSON format).
-3. To combine multiple endpoints into one card (e.g. a WCP releases link plus a Turnip releases link), tap **+ Add another URL** to add a second URL field. Repeat for more. Tap **−** to remove a field.
+3. To combine multiple endpoints into one card (e.g. a WCP releases link plus a GPU driver releases link), tap **+ Add another URL** to add a second URL field. Repeat for more. Tap **−** to remove a field.
 4. Tap **Add**. The app auto-detects the format of each URL. For multi-URL repos, it also queries each URL to discover which component types it provides and assigns them accordingly.
 
 ---
@@ -255,9 +265,10 @@ Tap **+** in the header to open the Add Repository dialog.
 Tap **⋮ → Edit Repository** on any card.
 
 - Change the **name** or **URL**.
-- The app re-detects which component types the repository provides. Use the **⟳** button to re-detect after changing the URL.
-- Check or uncheck categories to control which ones appear when you select this repository.
-- Tap **Select All** / **Deselect All** for quick selection.
+- **Component Types** — the app detects which categories the repository provides. Existing configured types always appear first, followed by any newly discovered ones (labelled **new**). Check or uncheck categories to control which ones appear when you select this repository. Use **⟳** to re-detect after changing the URL.
+- **Tap Select All / Deselect All** for quick selection of component types.
+- **Additional Releases** — if the repository has individual GitHub releases beyond the standard component categories (e.g. nightly builds, Steam client builds, emulator releases), they are listed here by release name/tag. Each release can be enabled independently to appear as its own browseable category. Newly discovered releases are labelled **new**.
+- Tap **Select All / Deselect All** in the Additional Releases section for quick selection.
 - Tap **Save** to apply. Changes to built-in repositories are saved as a custom override.
 
 ---
@@ -330,22 +341,30 @@ A tar archive compressed with **Zstandard (zstd)** or **XZ**. Contains:
 
 A plain ZIP archive containing a `meta.json` file and flat `.so` library files. Detected automatically by magic bytes (`PK`). Always extracted flat to the component root.
 
+### Release Tag Downloads
+
+When browsing a repository's individual release tags, all assets from that release are shown regardless of file type — WCP, ZIP, APK, tar.gz, etc. Files are downloaded as-is to your Downloads location.
+
 ---
 
 ## Online Sources
 
 | Repository | Component Types |
 |-----------|----------------|
-| StevenMXZ / Winlator-Contents + Adreno-Tools-Drivers | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton, Turnip, Adreno |
-| Arihany / WinlatorWCPHub | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton, Turnip, Adreno |
-| Xnick417x / Winlator-Bionic-Nightly-wcp | DXVK, VKD3D, Box64, FEX, FEXCore, Wine, Proton |
-| K11MCH1 / AdrenoToolsDrivers | Turnip, Adreno |
-| whitebelyash / freedreno_turnip-CI | Turnip, Adreno |
-| maxjivi05 / Components (MTR) | Auto-detected from repo folders (DXVK, VKD3D, Box64, FEXCore, Drivers, and more) |
+| StevenMXZ / Winlator-Contents + Adreno-Tools-Drivers | DXVK, VKD3D, Box64, FEXCore, Wine, Proton, GPU Drivers |
+| Arihany / WinlatorWCPHub | DXVK, VKD3D, Box64, FEXCore, Wine, Proton, GPU Drivers |
+| Xnick417x / Winlator-Bionic-Nightly-wcp | DXVK, VKD3D, Box64, FEXCore, Wine, Proton |
+| K11MCH1 / AdrenoToolsDrivers | GPU Drivers |
+| whitebelyash / freedreno_turnip-CI | GPU Drivers |
+| maxjivi05 / Components (MTR) | Auto-detected from repo folders (DXVK, VKD3D, Box64, FEXCore, GPU Drivers, and more) |
+| T3st31 / HUB Emulators | DXVK, VKD3D, Box64, FEXCore, Wine, WowBox64, GPU Drivers |
+| The412Banner / Nightlies | Box64, FEXCore, VKD3D, DXVK, and individual nightly/stable release tags |
 
 > Upload dates and Release Notes are shown for GitHub Releases sources. WCP JSON sources and the GitHub Contents format (MTR) do not expose these fields.
 >
-> StevenMXZ and Arihany each appear as a single card covering both their WCP types and Turnip/Adreno. The app routes each type to the correct upstream endpoint automatically.
+> StevenMXZ and Arihany each appear as a single card covering both their WCP types and GPU drivers. The app routes each type to the correct upstream endpoint automatically.
+>
+> GPU Drivers consolidates Turnip, Adreno, Qualcomm, and Mesa driver files from all sources into a single unified category.
 
 ---
 
