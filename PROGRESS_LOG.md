@@ -6,6 +6,29 @@
 
 ---
 
+### [pre-release] — v1.6.5-pre — GPU Drivers unified category (2026-03-10)
+**Commit:** `2ba1b2e`  |  **Tag:** v1.6.5-pre
+
+#### What changed
+- `GPU_DRIVER_TYPE = "GPU Drivers"` and `GPU_DRIVER_KEYWORDS = [turnip, adreno, qualcomm, mesa]` constants added to companion object
+- All GPU driver source `supportedTypes` and `extraEndpoints.types` updated to use "GPU Drivers" instead of individual keywords
+- `normalizeGpuTypes()` helper collapses any GPU keyword list into a single "GPU Drivers" entry
+- `fetchFromSource`: routes "GPU Drivers" to the correct extra endpoint; passes blank filterKeyword to TURNIP format
+- `fetchWcpJson`: matches any GPU keyword when componentType is GPU Drivers
+- `fetchGithubReleasesWcp`: gpuMatch condition — matches any GPU keyword file for GPU Drivers type
+- `fetchRankingEmulators`: skips manifestDrivers for GPU Drivers; accepts all Drivers-category assets matching any GPU keyword
+- `refreshAllCache`: TURNIP primary + extra endpoint — GPU Drivers gets full unfiltered item list
+- `cacheAllRankingEmulators`: GPU driver assets cached under single "GPU Drivers" bucket instead of per-keyword
+- `discoverTypes`: "mesa" added to knownTypes; TURNIP returns `["GPU Drivers"]`; WCP/ZIP apply `normalizeGpuTypes()`; RANKING appends "GPU Drivers" if any GPU keyword asset found
+- `componentTypes` in DownloadScreen and RemoteSourceSheet updated (removed turnip/adreno/qualcomm, added GPU_DRIVER_TYPE)
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/RemoteSourceRepository.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadScreen.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre-release] — v1.6.4-pre — Nightlies built-in source + fex/fexcore filename bridging (2026-03-10)
 **Commit:** `0be72a5`  |  **Tag:** v1.6.4-pre
 
