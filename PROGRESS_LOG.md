@@ -6,6 +6,22 @@
 
 ---
 
+### [pre-release] — v1.7.3-pre — Fix: real apps with borrowed package names excluded from GameHub list (2026-03-10)
+**Commit:** `f052d60`  |  **Tag:** v1.7.3-pre
+
+#### What changed
+- `isLikelyGameHub(pm, packageName, isCustom)`: new helper in `MainViewModel`
+  - Packages with "gamehub" in name → always trusted
+  - Custom apps → always trusted
+  - Borrowed package names (e.g. `com.tencent.ig`, `com.mihoyo.genshinimpact`, `com.antutu.*`, `com.ludashi.*`) → label checked for "GameHub" or "Game Hub"
+  - Real apps (PUBG Mobile, Genshin Impact, AnTuTu, etc.) fail the label check and are excluded
+- `refreshAppList()`: `installedPkgs` filter now calls `isLikelyGameHub()` after detecting install
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+
+---
+
 ### [pre-release] — v1.7.2-pre — Dropdown package picker for multi-installed variants (2026-03-10)
 **Commit:** `5017718`  |  **Tag:** v1.7.2-pre
 
