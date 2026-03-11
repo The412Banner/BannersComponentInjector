@@ -6,6 +6,30 @@
 
 ---
 
+### [pre-release] — v1.8.6-pre — Inject from My Downloads (2026-03-11)
+**Commit:** `426f1c7`  |  **Tag:** v1.8.6-pre
+
+#### What changed
+- **Feature 1 – "From My Downloads" in ComponentDetailSheet (Inject tab):**
+  - New `FilledTonalButton` "From My Downloads" between Local File and Online Source
+  - Opens `MyDownloadsPicker` bottom sheet listing all previously downloaded files (newest-first)
+  - Shows source, type, size per item; resolves SAF or MediaStore URI and injects
+  - Integrated into the no-backup warning flow (refactored pending source tracking to `ReplaceSource` enum)
+- **Feature 2 – "Inject into GameHub" button in My Downloads tab:**
+  - `SystemUpdateAlt` icon button on each file in the type→file list
+  - Opens `InjectPickerSheet`: Step 1 = pick accessible GameHub app, Step 2 = load & pick component
+  - Loading indicator while components are fetched; back button to return to app selection
+  - Snackbar feedback on injection start
+- **`MainViewModel.getComponentsForApp()`:** new suspend function loads components for any app without touching main UI state
+
+#### Files touched
+- `ui/screens/ComponentDetailSheet.kt` — ReplaceSource enum, From My Downloads button, MyDownloadsPicker composable, resolveDownloadUri helper
+- `ui/screens/DownloadManagerScreen.kt` — new params (apps/onGetComponentsForApp/onInjectInto), Inject button per file, InjectPickerSheet composable, resolveManagerDownloadUri helper
+- `viewmodel/MainViewModel.kt` — getComponentsForApp() suspend fun
+- `MainActivity.kt` — wires apps/onGetComponentsForApp/onInjectInto to DownloadManagerScreen
+
+---
+
 ### [stable] — v1.8.5 — Stable release (2026-03-10)
 **Commit:** `8f9b765` (code) | `3e85a4d` (docs)  |  **Tag:** v1.8.5
 
