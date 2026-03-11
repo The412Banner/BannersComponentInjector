@@ -60,6 +60,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 **Inject Components**
 - **Backup** — back up any component folder to `Downloads/BannersComponentInjector/<componentName>/` (or a custom location).
 - **Replace from local file** — pick a `.wcp` or `.zip` from your device and inject it into the component folder.
+- **Replace from My Downloads** — inject any file you've previously downloaded directly, without using the file picker.
 - **Replace from online source** — cross-repo search or drill-down browse; file detail sheet with Release Notes; "Download & Replace" injects directly without leaving the app.
 - **Restore** — restore any component to its backed-up state with one tap.
 - **Replacement notes** — the component list remembers what each folder was last replaced with; cleared automatically on restore.
@@ -85,6 +86,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 
 **My Downloads**
 - Browse saved files by Repository → Type → File.
+- **Inject into GameHub** — tap the inject icon on any file to choose an app and a component slot; result shown as a Done/Error snackbar.
 - **Pull-to-refresh** — swipe down to prune stale records (files deleted outside the app); snackbar shows how many were removed.
 - **Verify Downloads** — ☁ icon in the top bar runs the same stale-record check on demand.
 - **Backups folder** at the root gives quick access to all component backups.
@@ -93,9 +95,9 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 **General**
 - **Backup Manager** — centralised view of all saved backups with per-backup deletion.
 - **Custom storage locations** — independently set a custom folder for Downloads and for Backups via the SAF folder picker.
-- **In-app update checker** — checks GitHub for new releases on demand or automatically on launch (toggleable); downloads the APK with a progress bar and hands it to the system installer.
+- **In-app update checker** — checks GitHub for new releases on demand or automatically on launch (toggleable); shows a scrollable changelog before you decide; downloads the APK with a progress bar and hands it to the system installer.
 - **Clickable links in release notes** — URLs in component release notes and file detail sheets are tappable and open in your browser.
-- **Full theme customization** — 8 preset accent colours plus a custom HSV colour wheel with brightness slider and hex input.
+- **Full theme customization** — Dark mode, AMOLED black, Dynamic Color (Material You on Android 12+), 8 preset accent colours, and a custom HSV colour wheel with brightness slider and hex input.
 - **Native back button** — steps back through navigation states throughout the app.
 - **Settings on every screen** — accessible via the ⚙ icon from the App List, Component List, and Download screens.
 
@@ -186,6 +188,15 @@ This tab is the main workspace for managing components already installed inside 
 4. In the file picker, select your `.wcp` or `.zip` file.
 5. The app extracts the file into the component folder. A snackbar confirms success.
 6. The component card shows a **Replaced** note with the file name.
+
+---
+
+#### Replacing a Component — From My Downloads
+
+1. Tap the component card you want to replace.
+2. Tap **From My Downloads**.
+3. A sheet appears listing all previously downloaded files. Tap one to inject it directly — no file picker needed.
+4. A snackbar confirms success or shows the error.
 
 ---
 
@@ -293,6 +304,7 @@ Browse and manage all files previously downloaded via the Download Components ta
 
 - The list is grouped by **Repository → Type → File**.
 - A **Backups** folder at the root gives quick access to all component backups.
+- **Inject into GameHub** — tap the inject icon (↑ arrow) on any file card to open a two-step picker: choose the GameHub app, then choose the component slot. A snackbar shows Done or the error message.
 - **Swipe down** (pull-to-refresh) to verify all download records — stale records for files deleted outside the app are pruned.
 - Tap the **☁ icon** in the top bar to run the same check on demand.
 - Tap the **🗑** icon on any file to remove its download record.
@@ -319,22 +331,24 @@ Lists every saved backup across all components and apps. Tap the **🗑** icon n
 **Automatic check on launch:**
 1. Open **Settings** → **Updates**.
 2. Enable **Check for updates on launch**.
-3. Each time the app starts, it silently checks GitHub. If a newer version is found, a dialog appears with **Download & Install**, **View on GitHub**, or **Not Now**.
+3. Each time the app starts, it silently checks GitHub. If a newer version is found, a dialog appears showing the version, installed version, and a scrollable **What's new** changelog. Tap **Download & Install**, **View on GitHub**, or **Not Now**.
 
 **Manual check:**
 1. Open **Settings** → **Updates**.
 2. Toggle **Include pre-releases** if desired.
 3. Tap **Check for Updates**.
-4. If an update is available: **Download & Install** streams the APK with a live progress bar and launches the system installer, or **View on GitHub** opens the release page.
+4. If an update is available, a card shows the version and a scrollable changelog. Tap **Download & Install** to stream the APK with a live progress bar and launch the system installer, or **View on GitHub** to open the release page.
 
 ---
 
 ### Theme Customization
 
 1. Open **Settings** → **Appearance**.
-2. Choose one of the **8 preset swatches**: Orange (default), Blue, Purple, Green, Red, Teal, Pink, or Amber.
-3. For a fully custom colour, tap **Custom**: drag the colour wheel, use the Brightness slider, or type a hex value.
-4. The theme updates live and is saved automatically.
+2. **Display Mode** — toggle **Dark Mode** on or off. When dark mode is on, check **AMOLED Black** for a pure #000000 background ideal for OLED screens.
+3. **Material You** (Android 12+) — enable **Dynamic Color** to derive the theme palette from your wallpaper. This overrides the accent colour and disables the AMOLED option.
+4. When Dynamic Color is off, choose one of the **8 preset swatches**: Orange (default), Blue, Purple, Green, Red, Teal, Pink, or Amber.
+5. For a fully custom colour, tap **Custom**: drag the colour wheel, use the Brightness slider, or type a hex value.
+6. All changes update live and are saved automatically.
 
 ---
 
@@ -382,7 +396,10 @@ When browsing a repository's individual release tags, all assets are shown regar
 | Section | Setting | Description |
 |---------|---------|-------------|
 | **General** | Default Start Tab | Choose whether the app opens to Inject Components or Download Components. |
-| **Appearance** | Accent Color | 8 preset swatches or a fully custom colour via the HSV colour wheel + hex input. |
+| **Appearance** | Dark Mode | Toggle between light and dark theme. |
+| **Appearance** | AMOLED Black | Pure #000000 background; available when dark mode is on and Dynamic Color is off. |
+| **Appearance** | Dynamic Color | Use Material You wallpaper-derived colors (Android 12+); overrides accent and disables AMOLED. |
+| **Appearance** | Accent Color | 8 preset swatches or a fully custom colour via the HSV colour wheel + hex input. Hidden when Dynamic Color is on. |
 | **Prompts** | Backup warning | Toggle the "No Backup Found" warning shown before replacing an unbacked component. |
 | **Storage** | Downloads Location | Set a custom folder for downloaded component files. Defaults to `Downloads/BannersComponentInjector/`. |
 | **Storage** | Backups Location | Set a custom folder for component backups. Defaults to `Downloads/BannersComponentInjector/`. |
