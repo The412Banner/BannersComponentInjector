@@ -3,6 +3,7 @@ package com.banner.inject.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -89,7 +90,13 @@ fun SettingsSheet(
     accentColor: Color,
     onAccentColorChanged: (Color) -> Unit,
     onDismiss: () -> Unit,
-    onOpenBackupManager: () -> Unit
+    onOpenBackupManager: () -> Unit,
+    isDarkMode: Boolean = true,
+    onDarkModeChanged: (Boolean) -> Unit = {},
+    isAmoled: Boolean = false,
+    onAmoledChanged: (Boolean) -> Unit = {},
+    isDynamicColor: Boolean = false,
+    onDynamicColorChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -587,59 +594,199 @@ fun SettingsSheet(
                 }
             } else {
                 // ── Appearance Page ──────────────────────────────────────────
+                val isAndroid12Plus = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // ── Display Mode card ────────────────────────────────────
                     item {
                         Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
                             Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                                Text("Accent Color", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Spacer(Modifier.height(14.dp))
+                                Text("Display Mode", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(12.dp))
 
-                                val rows = ThemePrefs.PRESETS.chunked(4)
-                                rows.forEach { row ->
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                        row.forEach { (name, color) ->
-                                            ColorSwatch(
-                                                color = color,
-                                                isSelected = accentColor == color,
-                                                label = name,
-                                                onClick = {
-                                                    onAccentColorChanged(color)
-                                                    ThemePrefs.save(context, color)
-                                                    showCustomInput = false
-                                                }
-                                            )
-                                        }
+                                // Dark mode toggle
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        if (isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Dark Mode", fontSize = 14.sp)
+                                        Text(
+                                            "Dark background for low-light use",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                    Spacer(Modifier.height(10.dp))
-                                }
-
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                    ColorSwatch(
-                                        color = if (isCustom) accentColor else Color(0xFF707070),
-                                        isSelected = isCustom,
-                                        label = "Custom",
-                                        onClick = { showCustomInput = !showCustomInput }
-                                    )
-                                    repeat(3) { Spacer(Modifier.width(56.dp)) }
-                                }
-
-                                if (showCustomInput) {
-                                    Spacer(Modifier.height(12.dp))
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                                    Spacer(Modifier.height(12.dp))
-                                    HsvColorWheelPicker(
-                                        color = accentColor,
-                                        onColorChanged = { color -> onAccentColorChanged(color) },
-                                        onApply = { color ->
-                                            onAccentColorChanged(color)
-                                            ThemePrefs.save(context, color)
+                                    Switch(
+                                        checked = isDarkMode,
+                                        onCheckedChange = { value ->
+                                            onDarkModeChanged(value)
+                                            ThemePrefs.saveDarkMode(context, value)
+                                            // Disable AMOLED when switching to light
+                                            if (!value && isAmoled) {
+                                                onAmoledChanged(false)
+                                                ThemePrefs.saveAmoled(context, false)
+                                            }
                                         }
                                     )
+                                }
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 10.dp),
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+
+                                // AMOLED checkbox — indented, dimmed when dark mode is off
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(if (!isDarkMode) Modifier else Modifier),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Icon(
+                                        Icons.Default.Contrast,
+                                        contentDescription = null,
+                                        tint = if (isDarkMode) MaterialTheme.colorScheme.primary
+                                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "AMOLED Black",
+                                            fontSize = 14.sp,
+                                            color = if (isDarkMode) MaterialTheme.colorScheme.onSurface
+                                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                        )
+                                        Text(
+                                            "True black background for OLED screens",
+                                            fontSize = 11.sp,
+                                            color = if (isDarkMode) MaterialTheme.colorScheme.onSurfaceVariant
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                    }
+                                    Checkbox(
+                                        checked = isAmoled,
+                                        onCheckedChange = { value ->
+                                            if (isDarkMode) {
+                                                onAmoledChanged(value)
+                                                ThemePrefs.saveAmoled(context, value)
+                                            }
+                                        },
+                                        enabled = isDarkMode
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Material You card ────────────────────────────────────
+                    item {
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = if (isAndroid12Plus) MaterialTheme.colorScheme.primary
+                                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Dynamic Color",
+                                            fontSize = 14.sp,
+                                            color = if (isAndroid12Plus) MaterialTheme.colorScheme.onSurface
+                                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                        )
+                                        Text(
+                                            if (isAndroid12Plus) "Use colors from your wallpaper (Material You)"
+                                            else "Requires Android 12+",
+                                            fontSize = 11.sp,
+                                            color = if (isAndroid12Plus) MaterialTheme.colorScheme.onSurfaceVariant
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                    }
+                                    Switch(
+                                        checked = isDynamicColor,
+                                        enabled = isAndroid12Plus,
+                                        onCheckedChange = { value ->
+                                            onDynamicColorChanged(value)
+                                            ThemePrefs.saveDynamicColor(context, value)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Accent Color card (hidden when Dynamic Color is on) ──
+                    if (!isDynamicColor) {
+                        item {
+                            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                    Text("Accent Color", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Spacer(Modifier.height(14.dp))
+
+                                    val rows = ThemePrefs.PRESETS.chunked(4)
+                                    rows.forEach { row ->
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                            row.forEach { (name, color) ->
+                                                ColorSwatch(
+                                                    color = color,
+                                                    isSelected = accentColor == color,
+                                                    label = name,
+                                                    onClick = {
+                                                        onAccentColorChanged(color)
+                                                        ThemePrefs.save(context, color)
+                                                        showCustomInput = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(10.dp))
+                                    }
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                        ColorSwatch(
+                                            color = if (isCustom) accentColor else Color(0xFF707070),
+                                            isSelected = isCustom,
+                                            label = "Custom",
+                                            onClick = { showCustomInput = !showCustomInput }
+                                        )
+                                        repeat(3) { Spacer(Modifier.width(56.dp)) }
+                                    }
+
+                                    if (showCustomInput) {
+                                        Spacer(Modifier.height(12.dp))
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                                        Spacer(Modifier.height(12.dp))
+                                        HsvColorWheelPicker(
+                                            color = accentColor,
+                                            onColorChanged = { color -> onAccentColorChanged(color) },
+                                            onApply = { color ->
+                                                onAccentColorChanged(color)
+                                                ThemePrefs.save(context, color)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }

@@ -39,6 +39,12 @@ fun AppListScreen(
     appVersion: String,
     accentColor: Color,
     onAccentColorChanged: (Color) -> Unit,
+    isDarkMode: Boolean = true,
+    onDarkModeChanged: (Boolean) -> Unit = {},
+    isAmoled: Boolean = false,
+    onAmoledChanged: (Boolean) -> Unit = {},
+    isDynamicColor: Boolean = false,
+    onDynamicColorChanged: (Boolean) -> Unit = {},
     onAddCustomApp: (name: String, packageName: String) -> Unit,
     onRemoveCustomApp: (GameHubApp) -> Unit,
     hasAccessForPackage: (String) -> Boolean
@@ -138,7 +144,13 @@ fun AppListScreen(
             accentColor = accentColor,
             onAccentColorChanged = onAccentColorChanged,
             onDismiss = { showSettings = false },
-            onOpenBackupManager = { showSettings = false; showBackupManager = true }
+            onOpenBackupManager = { showSettings = false; showBackupManager = true },
+            isDarkMode = isDarkMode,
+            onDarkModeChanged = onDarkModeChanged,
+            isAmoled = isAmoled,
+            onAmoledChanged = onAmoledChanged,
+            isDynamicColor = isDynamicColor,
+            onDynamicColorChanged = onDynamicColorChanged
         )
     }
 

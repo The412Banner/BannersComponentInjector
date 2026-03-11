@@ -7,6 +7,9 @@ import androidx.compose.ui.graphics.toArgb
 object ThemePrefs {
     private const val PREFS_NAME = "bci_settings"
     private const val KEY_ACCENT = "accent_color"
+    private const val KEY_DARK_MODE = "dark_mode"
+    private const val KEY_AMOLED = "amoled_mode"
+    private const val KEY_DYNAMIC_COLOR = "dynamic_color"
 
     val DEFAULT = Color(0xFFFF6D00)
 
@@ -31,4 +34,28 @@ object ThemePrefs {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putInt(KEY_ACCENT, color.toArgb()).apply()
     }
+
+    fun loadDarkMode(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_DARK_MODE, true)
+
+    fun saveDarkMode(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_DARK_MODE, value).apply()
+
+    fun loadAmoled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AMOLED, false)
+
+    fun saveAmoled(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_AMOLED, value).apply()
+
+    fun loadDynamicColor(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_DYNAMIC_COLOR, false)
+
+    fun saveDynamicColor(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_DYNAMIC_COLOR, value).apply()
 }

@@ -64,8 +64,16 @@ class MainActivity : ComponentActivity() {
         requestStoragePermissionsIfNeeded()
         enableEdgeToEdge()
         var accentColor by mutableStateOf(ThemePrefs.load(this))
+        var isDarkMode by mutableStateOf(ThemePrefs.loadDarkMode(this))
+        var isAmoled by mutableStateOf(ThemePrefs.loadAmoled(this))
+        var isDynamicColor by mutableStateOf(ThemePrefs.loadDynamicColor(this))
         setContent {
-            BannersComponentInjectorTheme(accentColor = accentColor) {
+            BannersComponentInjectorTheme(
+                accentColor = accentColor,
+                darkMode = isDarkMode,
+                amoled = isAmoled,
+                dynamicColor = isDynamicColor
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val prefs = remember { getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
                     var currentTab by remember {
@@ -203,6 +211,12 @@ class MainActivity : ComponentActivity() {
                                     appVersion = appVersion,
                                     accentColor = accentColor,
                                     onAccentColorChanged = { accentColor = it },
+                                    isDarkMode = isDarkMode,
+                                    onDarkModeChanged = { isDarkMode = it },
+                                    isAmoled = isAmoled,
+                                    onAmoledChanged = { isAmoled = it },
+                                    isDynamicColor = isDynamicColor,
+                                    onDynamicColorChanged = { isDynamicColor = it },
                                     onAddCustomApp = { name, pkg -> vm.addCustomApp(name, pkg) },
                                     onRemoveCustomApp = { vm.removeCustomApp(it) },
                                     hasAccessForPackage = { vm.hasAccessForPackage(it) }
@@ -228,7 +242,13 @@ class MainActivity : ComponentActivity() {
                                     onDeleteBackupByName = { vm.deleteBackupByName(it) },
                                     appVersion = appVersion,
                                     accentColor = accentColor,
-                                    onAccentColorChanged = { accentColor = it }
+                                    onAccentColorChanged = { accentColor = it },
+                                    isDarkMode = isDarkMode,
+                                    onDarkModeChanged = { isDarkMode = it },
+                                    isAmoled = isAmoled,
+                                    onAmoledChanged = { isAmoled = it },
+                                    isDynamicColor = isDynamicColor,
+                                    onDynamicColorChanged = { isDynamicColor = it }
                                 )
                             }
                         }
@@ -258,7 +278,13 @@ class MainActivity : ComponentActivity() {
                                     accentColor = accentColor,
                                     onAccentColorChanged = { accentColor = it },
                                     onDismiss = { showSettings = false },
-                                    onOpenBackupManager = { showSettings = false; showBackupManager = true }
+                                    onOpenBackupManager = { showSettings = false; showBackupManager = true },
+                                    isDarkMode = isDarkMode,
+                                    onDarkModeChanged = { isDarkMode = it },
+                                    isAmoled = isAmoled,
+                                    onAmoledChanged = { isAmoled = it },
+                                    isDynamicColor = isDynamicColor,
+                                    onDynamicColorChanged = { isDynamicColor = it }
                                 )
                             }
                         }
@@ -283,7 +309,13 @@ class MainActivity : ComponentActivity() {
                                     accentColor = accentColor,
                                     onAccentColorChanged = { accentColor = it },
                                     onDismiss = { showSettings = false },
-                                    onOpenBackupManager = { showSettings = false }
+                                    onOpenBackupManager = { showSettings = false },
+                                    isDarkMode = isDarkMode,
+                                    onDarkModeChanged = { isDarkMode = it },
+                                    isAmoled = isAmoled,
+                                    onAmoledChanged = { isAmoled = it },
+                                    isDynamicColor = isDynamicColor,
+                                    onDynamicColorChanged = { isDynamicColor = it }
                                 )
                             }
                         }
