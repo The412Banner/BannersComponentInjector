@@ -6,6 +6,22 @@
 
 ---
 
+### [pre-release] — v1.8.8-pre — Update dialog fix + changelog (2026-03-11)
+**Commit:** `3d458a8`  |  **Tag:** v1.8.8-pre
+
+#### What changed
+- **Fix:** Update dialog during download was huge — `Modifier.fillMaxSize()` on the progress column changed to `fillMaxWidth()`; also fixed `Spacer.width` → `Spacer.height`
+- **Changelog in update dialog:** scrollable "What's new" section (max 180dp) shown in the launch-time AlertDialog between version line and buttons, pulled from the GitHub release body
+- **Changelog in Settings update card:** same section (max 150dp) shown in `UpdateState.Available` card in Settings → Updates
+- `UpdateRepository.ReleaseInfo` now includes `body: String?` parsed from GitHub API
+
+#### Files touched
+- `data/UpdateRepository.kt` — added `body: String?` to `ReleaseInfo`
+- `MainActivity.kt` — fixed dialog size, added changelog + imports
+- `ui/screens/SettingsSheet.kt` — added changelog to Available card + imports
+
+---
+
 ### [pre-release] — v1.8.7-pre — Light mode, AMOLED black, Dynamic Color (2026-03-11)
 **Commit:** `0224bec`  |  **Tag:** v1.8.7-pre
 
