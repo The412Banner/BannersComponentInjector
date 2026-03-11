@@ -271,7 +271,10 @@ class MainActivity : ComponentActivity() {
                                 repo = repo,
                                 onListBackups = { vm.listAllBackups() },
                                 onDeleteBackup = { vm.deleteBackupByName(it) },
-                                onShowSettings = { showSettings = true }
+                                onShowSettings = { showSettings = true },
+                                apps = uiState.apps,
+                                onGetComponentsForApp = { app -> vm.getComponentsForApp(app) },
+                                onInjectInto = { comp, uri -> vm.replaceWithWcp(comp, uri) }
                             )
 
                             if (showSettings) {

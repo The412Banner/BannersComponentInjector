@@ -1,9 +1,13 @@
 package com.banner.inject.ui.screens
 
+import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +26,9 @@ import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.formatSize
 
+// Tracks which replace source is pending confirmation in the no-backup warning
+private enum class ReplaceSource { LOCAL, MY_DOWNLOADS, REMOTE }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComponentDetailSheet(
@@ -33,10 +40,11 @@ fun ComponentDetailSheet(
     onDeleteBackup: () -> Unit
 ) {
     var showNoBackupWarning by remember { mutableStateOf(false) }
-    var pendingReplaceIsRemote by remember { mutableStateOf<Boolean?>(null) }
+    var pendingReplaceSource by remember { mutableStateOf<ReplaceSource?>(null) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showDeleteBackupConfirm by remember { mutableStateOf(false) }
     var showRemoteSourceSheet by remember { mutableStateOf(false) }
+    var showMyDownloadsSheet by remember { mutableStateOf(false) }
     var dontAskAgain by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -50,15 +58,15 @@ fun ComponentDetailSheet(
         if (uri != null) { onReplaceWcp(uri); onDismiss() }
     }
 
-    fun onReplaceRequested(isRemote: Boolean) {
+    fun onReplaceRequested(source: ReplaceSource) {
         if (!component.hasBackup && !skipWarning) {
-            pendingReplaceIsRemote = isRemote
+            pendingReplaceSource = source
             showNoBackupWarning = true
         } else {
-            if (isRemote) {
-                showRemoteSourceSheet = true
-            } else {
-                wcpPicker.launch(arrayOf("*/*"))
+            when (source) {
+                ReplaceSource.REMOTE -> showRemoteSourceSheet = true
+                ReplaceSource.MY_DOWNLOADS -> showMyDownloadsSheet = true
+                ReplaceSource.LOCAL -> wcpPicker.launch(arrayOf("*/*"))
             }
         }
     }
@@ -161,9 +169,9 @@ fun ComponentDetailSheet(
 
             Spacer(Modifier.height(8.dp))
 
-            // Replace with WCP (Local)
+            // Replace with local file
             Button(
-                onClick = { onReplaceRequested(isRemote = false) },
+                onClick = { onReplaceRequested(ReplaceSource.LOCAL) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
@@ -171,12 +179,24 @@ fun ComponentDetailSheet(
                 Spacer(Modifier.width(8.dp))
                 Text("Select Local File")
             }
-            
+
+            Spacer(Modifier.height(8.dp))
+
+            // Replace from My Downloads
+            FilledTonalButton(
+                onClick = { onReplaceRequested(ReplaceSource.MY_DOWNLOADS) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("From My Downloads")
+            }
+
             Spacer(Modifier.height(8.dp))
 
             // Replace with Remote Source
             Button(
-                onClick = { onReplaceRequested(isRemote = true) },
+                onClick = { onReplaceRequested(ReplaceSource.REMOTE) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
             ) {
@@ -218,7 +238,18 @@ fun ComponentDetailSheet(
             component = component,
             repo = remoteRepo,
             onDismiss = { showRemoteSourceSheet = false },
-            onDownloadAndReplace = { uri -> 
+            onDownloadAndReplace = { uri ->
+                onReplaceWcp(uri)
+                onDismiss()
+            }
+        )
+    }
+
+    if (showMyDownloadsSheet) {
+        MyDownloadsPicker(
+            repo = remoteRepo,
+            onDismiss = { showMyDownloadsSheet = false },
+            onSelect = { uri ->
                 onReplaceWcp(uri)
                 onDismiss()
             }
@@ -253,19 +284,19 @@ fun ComponentDetailSheet(
                     if (dontAskAgain) prefs.edit().putBoolean("skip_backup_warning", true).apply()
                     showNoBackupWarning = false
                     dontAskAgain = false
-                    if (pendingReplaceIsRemote == true) {
-                        showRemoteSourceSheet = true
-                    } else {
-                        wcpPicker.launch(arrayOf("*/*"))
+                    when (pendingReplaceSource) {
+                        ReplaceSource.REMOTE -> showRemoteSourceSheet = true
+                        ReplaceSource.MY_DOWNLOADS -> showMyDownloadsSheet = true
+                        else -> wcpPicker.launch(arrayOf("*/*"))
                     }
-                    pendingReplaceIsRemote = null
+                    pendingReplaceSource = null
                 }) { Text("Replace Anyway", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showNoBackupWarning = false
                     dontAskAgain = false
-                    pendingReplaceIsRemote = null
+                    pendingReplaceSource = null
                 }) { Text("Cancel") }
             }
         )
@@ -306,4 +337,148 @@ fun ComponentDetailSheet(
             }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MyDownloadsPicker(
+    repo: RemoteSourceRepository,
+    onDismiss: () -> Unit,
+    onSelect: (Uri) -> Unit
+) {
+    val context = LocalContext.current
+    val downloads = remember { repo.getAllDownloads() }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Download, null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "From My Downloads",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Select a previously downloaded file to inject",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(16.dp))
+
+            if (downloads.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.CloudDownload, null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "No downloads yet",
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Download components from the Download tab first.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(downloads.sortedByDescending { it.downloadedAt }) { record ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                val uri = resolveDownloadUri(context, record)
+                                if (uri != null) {
+                                    onSelect(uri)
+                                    onDismiss()
+                                }
+                            },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Description, null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        record.fileName,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "${record.sourceName} · ${record.componentType.uppercase()}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                if (record.fileSizeBytes > 0) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        RemoteSourceRepository.formatFileSize(record.fileSizeBytes),
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Resolves a [RemoteSourceRepository.DownloadedFile] to a content [Uri] usable by the content resolver. */
+private fun resolveDownloadUri(
+    context: Context,
+    record: RemoteSourceRepository.DownloadedFile
+): Uri? {
+    if (record.uriString != null) return Uri.parse(record.uriString)
+    // Filesystem fallback — query MediaStore Downloads by filename
+    val proj = arrayOf(MediaStore.Downloads._ID)
+    val sel = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+    context.contentResolver.query(
+        MediaStore.Downloads.EXTERNAL_CONTENT_URI, proj, sel, arrayOf(record.fileName), null
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val id = cursor.getLong(0)
+            return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+        }
+    }
+    return null
 }

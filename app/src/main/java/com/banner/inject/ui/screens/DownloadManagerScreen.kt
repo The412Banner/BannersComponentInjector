@@ -19,10 +19,13 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.data.BackupManager
 import com.banner.inject.data.RemoteSourceRepository
+import com.banner.inject.model.ComponentEntry
+import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.MainTab
 import com.banner.inject.model.formatSize
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +44,10 @@ fun DownloadManagerScreen(
     repo: RemoteSourceRepository,
     onListBackups: () -> List<BackupManager.BackupInfo>,
     onDeleteBackup: (String) -> Unit,
-    onShowSettings: () -> Unit
+    onShowSettings: () -> Unit,
+    apps: List<GameHubApp> = emptyList(),
+    onGetComponentsForApp: suspend (GameHubApp) -> List<ComponentEntry> = { emptyList() },
+    onInjectInto: (ComponentEntry, Uri) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -67,6 +73,7 @@ fun DownloadManagerScreen(
     var selectedType by remember { mutableStateOf<String?>(null) }
     var recordToDelete by remember { mutableStateOf<RemoteSourceRepository.DownloadedFile?>(null) }
     var showClearAllDialog by remember { mutableStateOf(false) }
+    var pendingInjectFile by remember { mutableStateOf<RemoteSourceRepository.DownloadedFile?>(null) }
 
     // Backups section state
     var showingBackups by remember { mutableStateOf(false) }
@@ -500,7 +507,8 @@ fun DownloadManagerScreen(
                                             record.fileName,
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 13.sp,
-                                            maxLines = 2
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.height(2.dp))
                                         Text(
@@ -513,6 +521,18 @@ fun DownloadManagerScreen(
                                             },
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    // Inject into GameHub
+                                    IconButton(
+                                        onClick = { pendingInjectFile = record },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.SystemUpdateAlt,
+                                            contentDescription = "Inject into GameHub",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                     IconButton(
@@ -599,6 +619,295 @@ fun DownloadManagerScreen(
             }
         )
     }
+
+    // Inject from My Downloads picker
+    pendingInjectFile?.let { record ->
+        InjectPickerSheet(
+            record = record,
+            apps = apps,
+            onGetComponentsForApp = onGetComponentsForApp,
+            onDismiss = { pendingInjectFile = null },
+            onConfirm = { component, uri ->
+                onInjectInto(component, uri)
+                pendingInjectFile = null
+                snackbarHostState.let { host ->
+                    scope.launch { host.showSnackbar("Injecting ${record.fileName} into ${component.folderName}…") }
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InjectPickerSheet(
+    record: RemoteSourceRepository.DownloadedFile,
+    apps: List<GameHubApp>,
+    onGetComponentsForApp: suspend (GameHubApp) -> List<ComponentEntry>,
+    onDismiss: () -> Unit,
+    onConfirm: (ComponentEntry, Uri) -> Unit
+) {
+    val context = LocalContext.current
+
+    // step: "app" | "loading" | "component" | "error"
+    var step by remember { mutableStateOf("app") }
+    var selectedApp by remember { mutableStateOf<GameHubApp?>(null) }
+    var componentList by remember { mutableStateOf<List<ComponentEntry>>(emptyList()) }
+
+    // Auto-skip app selection if only one accessible app
+    val accessibleApps = remember(apps) { apps.filter { it.hasAccess } }
+
+    LaunchedEffect(selectedApp) {
+        val app = selectedApp ?: return@LaunchedEffect
+        step = "loading"
+        val comps = onGetComponentsForApp(app)
+        componentList = comps
+        step = if (comps.isEmpty()) "error" else "component"
+    }
+
+    val resolvedUri = remember(record) {
+        if (record.uriString != null) Uri.parse(record.uriString) else null
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (step == "component") {
+                    IconButton(
+                        onClick = { step = "app"; selectedApp = null; componentList = emptyList() },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+                Icon(
+                    Icons.Default.SystemUpdateAlt, null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        when (step) {
+                            "component" -> "Select Component"
+                            else -> "Inject into GameHub"
+                        },
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        record.fileName,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            when (step) {
+                "app" -> {
+                    if (accessibleApps.isEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.AppBlocking, null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "No accessible apps",
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Grant folder access to a GameHub app in the Inject tab first.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        Text(
+                            "Select which app to inject into:",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(accessibleApps) { app ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().clickable { selectedApp = app },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.PhoneAndroid, null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            app.known.displayName,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Icon(
+                                            Icons.Default.ArrowForward, null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "loading" -> {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Loading components…",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                "component" -> {
+                    Text(
+                        "Select which component to replace:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(componentList) { component ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    val uri = resolvedUri ?: resolveManagerDownloadUri(context, record)
+                                    if (uri != null) onConfirm(component, uri)
+                                },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Layers, null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            component.folderName,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            "${component.fileCount} files · ${component.formattedSize}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.Default.ArrowForward, null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "error" -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.FolderOff, null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "No components found",
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "The selected app's components folder is empty or unreadable.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Resolves a [RemoteSourceRepository.DownloadedFile] to a usable content [Uri]. */
+private fun resolveManagerDownloadUri(
+    context: android.content.Context,
+    record: RemoteSourceRepository.DownloadedFile
+): Uri? {
+    if (record.uriString != null) return Uri.parse(record.uriString)
+    val proj = arrayOf(android.provider.MediaStore.Downloads._ID)
+    val sel = "${android.provider.MediaStore.Downloads.DISPLAY_NAME} = ?"
+    context.contentResolver.query(
+        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, proj, sel, arrayOf(record.fileName), null
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val id = cursor.getLong(0)
+            return android.content.ContentUris.withAppendedId(
+                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, id
+            )
+        }
+    }
+    return null
 }
 
 private fun formatManagerSize(bytes: Long): String = when {

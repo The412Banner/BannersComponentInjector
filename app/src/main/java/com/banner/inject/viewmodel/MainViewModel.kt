@@ -307,6 +307,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun listAllBackups(): List<BackupManager.BackupInfo> = backupManager.listAllBackups()
 
+    /** Loads components for [app] without touching the main UI state. Used by inject-from-downloads flow. */
+    suspend fun getComponentsForApp(app: GameHubApp): List<ComponentEntry> {
+        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+            ?: return emptyList()
+        return try {
+            val root = withContext(Dispatchers.IO) { repo.getRootDocument(uri) }
+                ?: return emptyList()
+            if (!root.canRead()) return emptyList()
+            val dirs = withContext(Dispatchers.IO) { repo.scanComponentDirs(root) }
+            val list = mutableListOf<ComponentEntry>()
+            repo.scanComponents(dirs, backupManager)
+                .flowOn(Dispatchers.IO)
+                .collect { list.add(it) }
+            list.sortedBy { it.folderName.lowercase() }
+        } catch (_: Exception) { emptyList() }
+    }
+
     fun deleteBackupByName(componentName: String) {
         backupManager.deleteBackup(componentName)
         val matching = _uiState.value.components.firstOrNull { it.folderName == componentName }
