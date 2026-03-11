@@ -6,6 +6,26 @@
 
 ---
 
+### [pre-release] — v1.8.7-pre — Light mode, AMOLED black, Dynamic Color (2026-03-11)
+**Commit:** `0224bec`  |  **Tag:** v1.8.7-pre
+
+#### What changed
+- **Dark Mode toggle** in Appearance settings — switches between full light and dark schemes
+- **AMOLED Black checkbox** (only active when dark mode is on) — true black (`#000000`) background + `#111111` surface variant; text brightened to `#EEEEEE`/`#CCCCCC` for contrast
+- **Dynamic Color toggle** (Android 12+ only) — uses Material You wallpaper-derived scheme; grayed out with note on Android 11 and below; accent picker hidden while active
+- **Light mode color scheme** — `lightColorScheme` built from accent, auto-darkens overly bright accents for white-surface readability
+- **Tertiary color** added to both dark and light schemes (`#66BB6A` / `#388E3C`) — fixes downloaded checkmark rendering in all modes
+
+#### Files touched
+- `ui/theme/ThemePrefs.kt` — load/save for `dark_mode`, `amoled_mode`, `dynamic_color`
+- `ui/theme/Theme.kt` — `buildDarkScheme(amoled)`, `buildLightScheme()`, updated `BannersComponentInjectorTheme` signature
+- `ui/screens/SettingsSheet.kt` — Display Mode card + Material You card; 6 new params with defaults; accent picker conditional on dynamic color off
+- `ui/screens/AppListScreen.kt` — 6 new theme params forwarded to SettingsSheet
+- `ui/screens/HomeScreen.kt` — same
+- `MainActivity.kt` — 3 new state vars wired to theme + all 4 SettingsSheet call sites
+
+---
+
 ### [pre-release] — v1.8.6-pre — Inject from My Downloads (2026-03-11)
 **Commit:** `426f1c7`  |  **Tag:** v1.8.6-pre
 
