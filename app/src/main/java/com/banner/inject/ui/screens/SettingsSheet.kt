@@ -15,6 +15,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -464,6 +466,33 @@ fun SettingsSheet(
                                                 }
                                                 Spacer(Modifier.height(4.dp))
                                                 Text("Installed: v$appVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+
+                                                if (!s.release.body.isNullOrBlank()) {
+                                                    Spacer(Modifier.height(10.dp))
+                                                    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+                                                    Spacer(Modifier.height(8.dp))
+                                                    Text(
+                                                        "What's new",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                                    )
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .heightIn(max = 150.dp)
+                                                            .verticalScroll(rememberScrollState())
+                                                    ) {
+                                                        Text(
+                                                            s.release.body,
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                                                            lineHeight = 16.sp
+                                                        )
+                                                    }
+                                                }
+
                                                 Spacer(Modifier.height(12.dp))
 
                                                 if (s.release.apkUrl != null) {

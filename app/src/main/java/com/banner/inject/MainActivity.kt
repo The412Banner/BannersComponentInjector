@@ -12,8 +12,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material3.AlertDialog
@@ -122,11 +129,11 @@ class MainActivity : ComponentActivity() {
                             text = {
                                 if (launchUpdateDownloading) {
                                     androidx.compose.foundation.layout.Column(
-                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                                        modifier = Modifier.fillMaxSize()
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         CircularProgressIndicator(progress = { launchUpdateProgress })
-                                        Spacer(Modifier.width(8.dp))
+                                        Spacer(Modifier.height(8.dp))
                                         Text(
                                             "Downloading… ${(launchUpdateProgress * 100).toInt()}%",
                                             fontSize = 13.sp
@@ -139,12 +146,37 @@ class MainActivity : ComponentActivity() {
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 15.sp
                                         )
-                                        Spacer(Modifier.width(4.dp))
+                                        Spacer(Modifier.height(2.dp))
                                         Text(
                                             "Installed: v$appVersion",
                                             fontSize = 12.sp,
                                             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        if (!release.body.isNullOrBlank()) {
+                                            Spacer(Modifier.height(12.dp))
+                                            HorizontalDivider()
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                "What's new",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            androidx.compose.foundation.layout.Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(max = 180.dp)
+                                                    .verticalScroll(rememberScrollState())
+                                            ) {
+                                                Text(
+                                                    release.body,
+                                                    fontSize = 12.sp,
+                                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    lineHeight = 18.sp
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             },

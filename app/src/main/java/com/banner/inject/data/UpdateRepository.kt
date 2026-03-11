@@ -21,7 +21,8 @@ object UpdateRepository {
         val versionName: String,   // e.g. "1.2.6-pre" (tag without leading "v")
         val htmlUrl: String,
         val isPreRelease: Boolean,
-        val apkUrl: String?        // direct download URL for the APK asset
+        val apkUrl: String?,       // direct download URL for the APK asset
+        val body: String? = null   // release notes / changelog
     )
 
     suspend fun fetchLatestRelease(includePreReleases: Boolean): ReleaseInfo? =
@@ -54,7 +55,8 @@ object UpdateRepository {
                     versionName = tagName.removePrefix("v"),
                     htmlUrl = release.getString("html_url"),
                     isPreRelease = isPreRelease,
-                    apkUrl = apkUrl
+                    apkUrl = apkUrl,
+                    body = release.optString("body", null)?.takeIf { it.isNotBlank() }
                 )
             }
             null
