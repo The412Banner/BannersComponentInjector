@@ -170,7 +170,7 @@ class MainActivity : ComponentActivity() {
                                                     .verticalScroll(rememberScrollState())
                                             ) {
                                                 Text(
-                                                    release.body,
+                                                    stripMarkdown(release.body),
                                                     fontSize = 12.sp,
                                                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                                                     lineHeight = 18.sp
@@ -332,7 +332,9 @@ class MainActivity : ComponentActivity() {
                                 onShowSettings = { showSettings = true },
                                 apps = uiState.apps,
                                 onGetComponentsForApp = { app -> vm.getComponentsForApp(app) },
-                                onInjectInto = { comp, uri -> vm.replaceWithWcp(comp, uri) }
+                                onInjectInto = { comp, uri -> vm.replaceWithWcp(comp, uri) },
+                                opState = uiState.opState,
+                                onClearOpState = { vm.clearOpState() }
                             )
 
                             if (showSettings) {
@@ -356,6 +358,17 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun stripMarkdown(text: String): String = text
+        .replace(Regex("^#{1,6}\\s+", RegexOption.MULTILINE), "")
+        .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")
+        .replace(Regex("__(.+?)__"), "$1")
+        .replace(Regex("\\*(.+?)\\*"), "$1")
+        .replace(Regex("`(.+?)`"), "$1")
+        .replace(Regex("^[-*+]\\s+", RegexOption.MULTILINE), "• ")
+        .replace(Regex("^>\\s*", RegexOption.MULTILINE), "")
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
 
     private fun requestStoragePermissionsIfNeeded() {
         // READ_EXTERNAL_STORAGE only applies up to Android 12 (API 32)

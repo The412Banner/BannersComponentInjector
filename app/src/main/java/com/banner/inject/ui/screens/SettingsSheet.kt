@@ -81,6 +81,17 @@ private fun parseHex(hex: String): Color? {
     } catch (_: NumberFormatException) { null }
 }
 
+private fun stripMarkdown(text: String): String = text
+    .replace(Regex("^#{1,6}\\s+", RegexOption.MULTILINE), "")
+    .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")
+    .replace(Regex("__(.+?)__"), "$1")
+    .replace(Regex("\\*(.+?)\\*"), "$1")
+    .replace(Regex("`(.+?)`"), "$1")
+    .replace(Regex("^[-*+]\\s+", RegexOption.MULTILINE), "• ")
+    .replace(Regex("^>\\s*", RegexOption.MULTILINE), "")
+    .replace(Regex("\n{3,}"), "\n\n")
+    .trim()
+
 enum class SettingsPage {
     MAIN, APPEARANCE
 }
@@ -485,7 +496,7 @@ fun SettingsSheet(
                                                             .verticalScroll(rememberScrollState())
                                                     ) {
                                                         Text(
-                                                            s.release.body,
+                                                            stripMarkdown(s.release.body ?: ""),
                                                             fontSize = 11.sp,
                                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                                                             lineHeight = 16.sp
@@ -677,18 +688,17 @@ fun SettingsSheet(
                                     color = MaterialTheme.colorScheme.outline
                                 )
 
-                                // AMOLED checkbox — indented, dimmed when dark mode is off
+                                // AMOLED checkbox — indented, dimmed when dark mode is off or dynamic color is on
+                                val amoledEnabled = isDarkMode && !isDynamicColor
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .then(if (!isDarkMode) Modifier else Modifier),
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Spacer(Modifier.width(8.dp))
                                     Icon(
                                         Icons.Default.Contrast,
                                         contentDescription = null,
-                                        tint = if (isDarkMode) MaterialTheme.colorScheme.primary
+                                        tint = if (amoledEnabled) MaterialTheme.colorScheme.primary
                                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -697,25 +707,26 @@ fun SettingsSheet(
                                         Text(
                                             "AMOLED Black",
                                             fontSize = 14.sp,
-                                            color = if (isDarkMode) MaterialTheme.colorScheme.onSurface
+                                            color = if (amoledEnabled) MaterialTheme.colorScheme.onSurface
                                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                                         )
                                         Text(
-                                            "True black background for OLED screens",
+                                            if (isDynamicColor) "Not available with Dynamic Color"
+                                            else "True black background for OLED screens",
                                             fontSize = 11.sp,
-                                            color = if (isDarkMode) MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (amoledEnabled) MaterialTheme.colorScheme.onSurfaceVariant
                                                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                         )
                                     }
                                     Checkbox(
                                         checked = isAmoled,
                                         onCheckedChange = { value ->
-                                            if (isDarkMode) {
+                                            if (amoledEnabled) {
                                                 onAmoledChanged(value)
                                                 ThemePrefs.saveAmoled(context, value)
                                             }
                                         },
-                                        enabled = isDarkMode
+                                        enabled = amoledEnabled
                                     )
                                 }
                             }

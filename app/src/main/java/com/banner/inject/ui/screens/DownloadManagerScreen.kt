@@ -27,6 +27,7 @@ import com.banner.inject.data.RemoteSourceRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.MainTab
+import com.banner.inject.model.OpState
 import com.banner.inject.model.formatSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,7 +48,9 @@ fun DownloadManagerScreen(
     onShowSettings: () -> Unit,
     apps: List<GameHubApp> = emptyList(),
     onGetComponentsForApp: suspend (GameHubApp) -> List<ComponentEntry> = { emptyList() },
-    onInjectInto: (ComponentEntry, Uri) -> Unit = { _, _ -> }
+    onInjectInto: (ComponentEntry, Uri) -> Unit = { _, _ -> },
+    opState: OpState = OpState.Idle,
+    onClearOpState: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -74,6 +77,25 @@ fun DownloadManagerScreen(
     var recordToDelete by remember { mutableStateOf<RemoteSourceRepository.DownloadedFile?>(null) }
     var showClearAllDialog by remember { mutableStateOf(false) }
     var pendingInjectFile by remember { mutableStateOf<RemoteSourceRepository.DownloadedFile?>(null) }
+    var hadRecentInject by remember { mutableStateOf(false) }
+
+    // Show inject result when ViewModel finishes
+    LaunchedEffect(opState) {
+        if (!hadRecentInject) return@LaunchedEffect
+        when (opState) {
+            is OpState.Done -> {
+                snackbarHostState.showSnackbar(opState.message)
+                onClearOpState()
+                hadRecentInject = false
+            }
+            is OpState.Error -> {
+                snackbarHostState.showSnackbar("Inject failed: ${opState.message}")
+                onClearOpState()
+                hadRecentInject = false
+            }
+            else -> {}
+        }
+    }
 
     // Backups section state
     var showingBackups by remember { mutableStateOf(false) }
@@ -630,9 +652,7 @@ fun DownloadManagerScreen(
             onConfirm = { component, uri ->
                 onInjectInto(component, uri)
                 pendingInjectFile = null
-                snackbarHostState.let { host ->
-                    scope.launch { host.showSnackbar("Injecting ${record.fileName} into ${component.folderName}…") }
-                }
+                hadRecentInject = true
             }
         )
     }
