@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 
 data class SteamGameInfo(
@@ -108,4 +109,34 @@ object SteamRepository {
         cache.clear()
         failed.clear()
     }
+
+    // ── Search by name ────────────────────────────────────────────────────────
+
+    data class SearchResult(val appId: String, val name: String)
+
+    /** Searches the Steam Store for [query], returns up to 10 results. */
+    suspend fun searchByName(query: String): List<SearchResult> =
+        withContext(Dispatchers.IO) {
+            try {
+                val encoded = URLEncoder.encode(query, "UTF-8")
+                val url = "https://store.steampowered.com/api/storesearch/?term=$encoded&l=english&cc=US"
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.setRequestProperty("Accept", "application/json")
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.connect()
+                val text = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                val root = JSONObject(text)
+                val items = root.optJSONArray("items") ?: return@withContext emptyList()
+                buildList {
+                    for (i in 0 until minOf(items.length(), 10)) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val id = item.optInt("id", -1).takeIf { it > 0 } ?: continue
+                        val name = item.optString("name", "").takeIf { it.isNotBlank() } ?: continue
+                        add(SearchResult(id.toString(), name))
+                    }
+                }
+            } catch (_: Exception) { emptyList() }
+        }
 }

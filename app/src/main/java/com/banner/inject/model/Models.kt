@@ -62,6 +62,17 @@ enum class GameType { LOCAL, STEAM }
 
 data class GameEntry(val gameId: String, val type: GameType)
 
+data class GameOverride(
+    val gameId: String,
+    val customName: String? = null,
+    val customGenres: List<String>? = null,
+    val customDescription: String? = null,
+    val customReleaseYear: String? = null,
+    val customMetacriticScore: Int? = null,
+    /** For local games: Steam App ID to use for cover art and as metadata source. */
+    val linkedSteamAppId: String? = null
+)
+
 enum class MainTab(val title: String) {
     INJECT("Inject Components"),
     DOWNLOAD("Download Components"),

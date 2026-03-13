@@ -4,10 +4,14 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,15 +21,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
+import com.banner.inject.data.GameOverrideRepository
 import com.banner.inject.data.SteamGameInfo
 import com.banner.inject.data.SteamRepository
 import com.banner.inject.model.GameEntry
 import com.banner.inject.model.GameHubApp
+import com.banner.inject.model.GameOverride
 import com.banner.inject.model.GameType
 import com.banner.inject.model.MainTab
 import kotlinx.coroutines.launch
@@ -53,24 +61,34 @@ fun MyGamesScreen(
     initialLocalUriHintFor: (String) -> Uri,
     initialSteamUriHintFor: (String) -> Uri
 ) {
+    val context = LocalContext.current
+    val overrideRepo = remember { GameOverrideRepository(context) }
+    val overrides = remember { mutableStateMapOf<String, GameOverride>() }
+    val scope = rememberCoroutineScope()
+
+    // Load stored overrides whenever the games list changes
+    LaunchedEffect(games) {
+        games.forEach { game ->
+            overrideRepo.get(game.gameId)?.let { overrides[game.gameId] = it }
+        }
+    }
+
     var pendingLocalApp by remember { mutableStateOf<GameHubApp?>(null) }
     var pendingSteamApp by remember { mutableStateOf<GameHubApp?>(null) }
     var showSetupDialog by remember { mutableStateOf<GameHubApp?>(null) }
     var showManageAccessDialog by remember { mutableStateOf(false) }
+    var editingGame by remember { mutableStateOf<GameEntry?>(null) }
 
     val localFolderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
+        ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
-        val app = pendingLocalApp
-        pendingLocalApp = null
+        val app = pendingLocalApp; pendingLocalApp = null
         if (uri != null && app != null) onLocalAccessGranted(app, uri)
     }
-
     val steamFolderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
+        ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
-        val app = pendingSteamApp
-        pendingSteamApp = null
+        val app = pendingSteamApp; pendingSteamApp = null
         if (uri != null && app != null) onSteamAccessGranted(app, uri)
     }
 
@@ -91,8 +109,7 @@ fun MyGamesScreen(
                     title = {
                         Text(
                             if (selectedApp != null) selectedApp.known.displayName else "My Games",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontWeight = FontWeight.Bold, fontSize = 18.sp
                         )
                     },
                     actions = {
@@ -100,14 +117,13 @@ fun MyGamesScreen(
                             IconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                             }
-                            // Create ISOs only makes sense for local games
                             if (selectedApp.known.packageNames.any { hasLocalGamesAccess(it) }) {
                                 IconButton(onClick = onCreateIsos) {
-                                    Icon(Icons.Default.SaveAlt, contentDescription = "Create ISOs for local games")
+                                    Icon(Icons.Default.SaveAlt, contentDescription = "Create ISOs")
                                 }
                             }
                             IconButton(onClick = { showManageAccessDialog = true }) {
-                                Icon(Icons.Default.FolderShared, contentDescription = "Manage folder access")
+                                Icon(Icons.Default.FolderShared, contentDescription = "Manage access")
                             }
                         }
                     },
@@ -120,132 +136,100 @@ fun MyGamesScreen(
         }
     ) { padding ->
         if (selectedApp == null) {
-            // ── App selector ───────────────────────────────────────────────────
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    Text(
-                        "Select your GameHub version to browse installed games.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                    )
+            AppSelectorList(
+                padding = padding,
+                apps = apps,
+                hasLocalGamesAccess = hasLocalGamesAccess,
+                hasSteamGamesAccess = hasSteamGamesAccess,
+                onAppClick = { app ->
+                    val hasLocal = app.known.packageNames.any { hasLocalGamesAccess(it) }
+                    val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
+                    if (hasLocal || hasSteam) onSelectApp(app) else showSetupDialog = app
                 }
-                val eligible = apps.filter { it.isInstalled || it.known.packageNames.any { p -> hasLocalGamesAccess(p) || hasSteamGamesAccess(p) } }
-                if (eligible.isEmpty()) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("No GameHub variants installed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                } else {
-                    items(eligible, key = { it.known.packageNames.first() }) { app ->
-                        GamesAppCard(
-                            app = app,
-                            hasLocalAccess = app.known.packageNames.any { hasLocalGamesAccess(it) },
-                            hasSteamAccess = app.known.packageNames.any { hasSteamGamesAccess(it) },
-                            onClick = {
-                                val hasLocal = app.known.packageNames.any { hasLocalGamesAccess(it) }
-                                val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
-                                if (hasLocal || hasSteam) onSelectApp(app)
-                                else showSetupDialog = app
-                            }
-                        )
-                    }
+            )
+        } else if (isLoadingGames) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(12.dp))
+                    Text("Scanning games…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else if (games.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                    Icon(Icons.Default.SportsEsports, null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("No games found.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Install games in GameHub, or grant access to both folders.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), fontSize = 12.sp)
                 }
             }
         } else {
-            // ── Games list ────────────────────────────────────────────────────
-            if (isLoadingGames) {
-                Box(
-                    Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(12.dp))
-                        Text("Scanning games…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            } else if (games.isEmpty()) {
-                Box(
-                    Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.SportsEsports,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "No games found.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Install games in GameHub, or grant access to both folders.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontSize = 12.sp
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                if (localGames.isNotEmpty()) {
+                    item { SectionHeader("Local Games", localGames.size, Icons.Default.Computer) }
+                    items(localGames, key = { "local_${it.gameId}" }) { game ->
+                        GameCard(
+                            game = game,
+                            override = overrides[game.gameId],
+                            onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) },
+                            onEdit = { editingGame = game },
+                            onResetOverride = if (overrides.containsKey(game.gameId)) ({
+                                overrideRepo.clear(game.gameId)
+                                overrides.remove(game.gameId)
+                            }) else null
                         )
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    // ── Local Games section ────────────────────────────────────
-                    if (localGames.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Local Games",
-                                count = localGames.size,
-                                icon = Icons.Default.Computer
-                            )
-                        }
-                        items(localGames, key = { "local_${it.gameId}" }) { game ->
-                            GameCard(
-                                game = game,
-                                onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) }
-                            )
-                        }
+                if (steamGames.isNotEmpty()) {
+                    item {
+                        SectionHeader("Steam Games", steamGames.size, Icons.Default.Games,
+                            topPadding = if (localGames.isNotEmpty()) 8.dp else 0.dp)
                     }
-
-                    // ── Steam Games section ────────────────────────────────────
-                    if (steamGames.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "Steam Games",
-                                count = steamGames.size,
-                                icon = Icons.Default.Games,
-                                topPadding = if (localGames.isNotEmpty()) 8.dp else 0.dp
-                            )
-                        }
-                        items(steamGames, key = { "steam_${it.gameId}" }) { game ->
-                            GameCard(
-                                game = game,
-                                onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) }
-                            )
-                        }
+                    items(steamGames, key = { "steam_${it.gameId}" }) { game ->
+                        GameCard(
+                            game = game,
+                            override = overrides[game.gameId],
+                            onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) },
+                            onEdit = { editingGame = game },
+                            onResetOverride = if (overrides.containsKey(game.gameId)) ({
+                                overrideRepo.clear(game.gameId)
+                                overrides.remove(game.gameId)
+                            }) else null
+                        )
                     }
                 }
             }
         }
     }
 
-    // ── Setup dialog (no access yet) ──────────────────────────────────────────
+    // ── Edit sheet ────────────────────────────────────────────────────────────
+    editingGame?.let { game ->
+        val steamInfo = remember(game.gameId) { SteamRepository.getCached(game.gameId) }
+        GameEditSheet(
+            game = game,
+            initialOverride = overrides[game.gameId],
+            steamInfo = steamInfo,
+            onSave = { override ->
+                overrideRepo.save(override)
+                overrides[override.gameId] = override
+                // If a Steam App ID was linked, pre-fetch its metadata for cover art
+                override.linkedSteamAppId?.let { linkedId ->
+                    scope.launch { SteamRepository.fetch(linkedId) }
+                }
+                editingGame = null
+            },
+            onDismiss = { editingGame = null }
+        )
+    }
+
+    // ── Setup dialog (no access yet) ─────────────────────────────────────────
     showSetupDialog?.let { app ->
         AlertDialog(
             onDismissRequest = { showSetupDialog = null },
@@ -253,31 +237,20 @@ fun MyGamesScreen(
             title = { Text("Grant Folder Access", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Grant access to one or both game folders for ${app.known.displayName}.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    // Local games folder
+                    Text("Grant access to one or both game folders for ${app.known.displayName}.",
+                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     FolderGrantRow(
                         label = "Local Games",
                         path = "data/files/usr/home/virtual_containers",
                         isGranted = app.known.packageNames.any { hasLocalGamesAccess(it) },
-                        onGrant = {
-                            pendingLocalApp = app
-                            localFolderPicker.launch(initialLocalUriHintFor(app.activePackage))
-                        },
+                        onGrant = { pendingLocalApp = app; localFolderPicker.launch(initialLocalUriHintFor(app.activePackage)) },
                         onRevoke = { onRevokeLocalAccess(app) }
                     )
-                    // Steam games folder
                     FolderGrantRow(
                         label = "Steam Games",
                         path = "data/files/Steam/steamapps/shadercache",
                         isGranted = app.known.packageNames.any { hasSteamGamesAccess(it) },
-                        onGrant = {
-                            pendingSteamApp = app
-                            steamFolderPicker.launch(initialSteamUriHintFor(app.activePackage))
-                        },
+                        onGrant = { pendingSteamApp = app; steamFolderPicker.launch(initialSteamUriHintFor(app.activePackage)) },
                         onRevoke = { onRevokeSteamAccess(app) }
                     )
                 }
@@ -285,20 +258,15 @@ fun MyGamesScreen(
             confirmButton = {
                 val canProceed = app.known.packageNames.any { hasLocalGamesAccess(it) || hasSteamGamesAccess(it) }
                 TextButton(
-                    onClick = {
-                        showSetupDialog = null
-                        onSelectApp(app)
-                    },
+                    onClick = { showSetupDialog = null; onSelectApp(app) },
                     enabled = canProceed
                 ) { Text("View Games") }
             },
-            dismissButton = {
-                TextButton(onClick = { showSetupDialog = null }) { Text("Cancel") }
-            }
+            dismissButton = { TextButton(onClick = { showSetupDialog = null }) { Text("Cancel") } }
         )
     }
 
-    // ── Manage Access dialog (in-games-view) ─────────────────────────────────
+    // ── Manage Access dialog ──────────────────────────────────────────────────
     if (showManageAccessDialog && selectedApp != null) {
         AlertDialog(
             onDismissRequest = { showManageAccessDialog = false },
@@ -310,101 +278,621 @@ fun MyGamesScreen(
                         label = "Local Games",
                         path = "data/files/usr/home/virtual_containers",
                         isGranted = selectedApp.known.packageNames.any { hasLocalGamesAccess(it) },
-                        onGrant = {
-                            showManageAccessDialog = false
-                            pendingLocalApp = selectedApp
-                            localFolderPicker.launch(initialLocalUriHintFor(selectedApp.activePackage))
-                        },
-                        onRevoke = {
-                            showManageAccessDialog = false
-                            onRevokeLocalAccess(selectedApp)
-                        }
+                        onGrant = { showManageAccessDialog = false; pendingLocalApp = selectedApp; localFolderPicker.launch(initialLocalUriHintFor(selectedApp.activePackage)) },
+                        onRevoke = { showManageAccessDialog = false; onRevokeLocalAccess(selectedApp) }
                     )
                     FolderGrantRow(
                         label = "Steam Games",
                         path = "data/files/Steam/steamapps/shadercache",
                         isGranted = selectedApp.known.packageNames.any { hasSteamGamesAccess(it) },
-                        onGrant = {
-                            showManageAccessDialog = false
-                            pendingSteamApp = selectedApp
-                            steamFolderPicker.launch(initialSteamUriHintFor(selectedApp.activePackage))
-                        },
-                        onRevoke = {
-                            showManageAccessDialog = false
-                            onRevokeSteamAccess(selectedApp)
-                        }
+                        onGrant = { showManageAccessDialog = false; pendingSteamApp = selectedApp; steamFolderPicker.launch(initialSteamUriHintFor(selectedApp.activePackage)) },
+                        onRevoke = { showManageAccessDialog = false; onRevokeSteamAccess(selectedApp) }
                     )
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showManageAccessDialog = false }) { Text("Done") }
-            }
+            confirmButton = { TextButton(onClick = { showManageAccessDialog = false }) { Text("Done") } }
         )
     }
 }
 
-// ── Reusable composables ──────────────────────────────────────────────────────
+// ── App selector ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun FolderGrantRow(
-    label: String,
-    path: String,
-    isGranted: Boolean,
-    onGrant: () -> Unit,
-    onRevoke: () -> Unit
+private fun AppSelectorList(
+    padding: PaddingValues,
+    apps: List<GameHubApp>,
+    hasLocalGamesAccess: (String) -> Boolean,
+    hasSteamGamesAccess: (String) -> Boolean,
+    onAppClick: (GameHubApp) -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.small
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    label,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
-                if (isGranted) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {
-                        Text(
-                            "Granted",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+        item {
+            Text("Select your GameHub version to browse installed games.",
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
+        }
+        val eligible = apps.filter {
+            it.isInstalled || it.known.packageNames.any { p -> hasLocalGamesAccess(p) || hasSteamGamesAccess(p) }
+        }
+        if (eligible.isEmpty()) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("No GameHub variants installed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Spacer(Modifier.height(2.dp))
-            Text(path, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!isGranted) {
-                    FilledTonalButton(
-                        onClick = onGrant,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text("Grant Access", fontSize = 12.sp)
-                    }
+        } else {
+            items(eligible, key = { it.known.packageNames.first() }) { app ->
+                GamesAppCard(
+                    app = app,
+                    hasLocalAccess = app.known.packageNames.any { hasLocalGamesAccess(it) },
+                    hasSteamAccess = app.known.packageNames.any { hasSteamGamesAccess(it) },
+                    onClick = { onAppClick(app) }
+                )
+            }
+        }
+    }
+}
+
+// ── Game card dispatcher ──────────────────────────────────────────────────────
+
+@Composable
+private fun GameCard(
+    game: GameEntry,
+    override: GameOverride?,
+    onLaunch: () -> Unit,
+    onEdit: () -> Unit,
+    onResetOverride: (() -> Unit)?
+) {
+    if (game.type == GameType.STEAM) {
+        SteamGameCard(game, override, onLaunch, onEdit, onResetOverride)
+    } else {
+        LocalGameCard(game, override, onLaunch, onEdit, onResetOverride)
+    }
+}
+
+// ── Local game card ───────────────────────────────────────────────────────────
+
+@Composable
+private fun LocalGameCard(
+    game: GameEntry,
+    override: GameOverride?,
+    onLaunch: () -> Unit,
+    onEdit: () -> Unit,
+    onResetOverride: (() -> Unit)?
+) {
+    val linkedId = override?.linkedSteamAppId
+    val displayName = override?.customName ?: game.gameId
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            // Cover: linked Steam art or fallback icon
+            Box(modifier = Modifier.width(80.dp).height(130.dp)) {
+                if (linkedId != null) {
+                    SubcomposeAsyncImage(
+                        model = SteamRepository.coverUrl(linkedId),
+                        contentDescription = "Cover",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)),
+                        loading = {
+                            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            }
+                        },
+                        error = { LocalCoverFallback() }
+                    )
                 } else {
-                    OutlinedButton(
-                        onClick = onRevoke,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text("Revoke", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    LocalCoverFallback()
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (override?.customGenres?.isNotEmpty() == true) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        override.customGenres!!.take(3).forEach { GenreChip(it) }
+                    }
+                }
+                if (!override?.customDescription.isNullOrBlank()) {
+                    Text(override!!.customDescription!!, fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis, lineHeight = 15.sp)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Local ID: ${game.gameId}", fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    override?.customReleaseYear?.let { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) }
+                    override?.customMetacriticScore?.let { MetacriticBadge(it) }
+                }
+                Spacer(Modifier.height(2.dp))
+                FilledTonalButton(onClick = onLaunch,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)) {
+                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Play", fontSize = 12.sp)
+                }
+            }
+
+            // Hamburger menu
+            Box {
+                IconButton(onClick = { menuExpanded = true }, modifier = Modifier.padding(top = 4.dp)) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options",
+                        modifier = Modifier.size(20.dp))
+                }
+                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp)) },
+                        onClick = { menuExpanded = false; onEdit() }
+                    )
+                    if (onResetOverride != null) {
+                        DropdownMenuItem(
+                            text = { Text("Reset to defaults") },
+                            leadingIcon = { Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp)) },
+                            onClick = { menuExpanded = false; onResetOverride() }
+                        )
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun LocalCoverFallback() {
+    Box(
+        modifier = Modifier.fillMaxSize()
+            .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Default.Computer, null,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(28.dp))
+    }
+}
+
+// ── Steam game card ───────────────────────────────────────────────────────────
+
+@Composable
+private fun SteamGameCard(
+    game: GameEntry,
+    override: GameOverride?,
+    onLaunch: () -> Unit,
+    onEdit: () -> Unit,
+    onResetOverride: (() -> Unit)?
+) {
+    var info by remember(game.gameId) { mutableStateOf(SteamRepository.getCached(game.gameId)) }
+    val scope = rememberCoroutineScope()
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(game.gameId) {
+        if (info == null) scope.launch { info = SteamRepository.fetch(game.gameId) }
+    }
+
+    // Effective display values: override takes priority over fetched info
+    val displayName     = override?.customName        ?: info?.name             ?: game.gameId
+    val displayGenres   = override?.customGenres      ?: info?.genres           ?: emptyList()
+    val displayDesc     = override?.customDescription ?: info?.shortDescription
+    val displayYear     = override?.customReleaseYear ?: info?.releaseYear
+    val displayMeta     = override?.customMetacriticScore ?: info?.metacriticScore
+    val coverAppId      = override?.linkedSteamAppId  ?: game.gameId
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            // Cover image
+            Box(modifier = Modifier.width(80.dp).height(130.dp)) {
+                SubcomposeAsyncImage(
+                    model = SteamRepository.coverUrl(coverAppId),
+                    contentDescription = "Cover",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)),
+                    loading = {
+                        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                    },
+                    error = {
+                        SubcomposeAsyncImage(
+                            model = SteamRepository.headerUrl(coverAppId),
+                            contentDescription = "Cover",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            loading = {},
+                            error = {
+                                Box(Modifier.fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.tertiaryContainer),
+                                    contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Games, null,
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.size(28.dp))
+                                }
+                            }
+                        )
+                    }
+                )
+            }
+
+            // Info column
+            Column(
+                modifier = Modifier.weight(1f).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (displayGenres.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                        displayGenres.take(3).forEach { GenreChip(it) }
+                    }
+                }
+                if (!displayDesc.isNullOrBlank()) {
+                    Text(displayDesc, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("App ID: ${game.gameId}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    displayYear?.let { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) }
+                    displayMeta?.let { MetacriticBadge(it) }
+                }
+                Spacer(Modifier.height(2.dp))
+                FilledTonalButton(onClick = onLaunch,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)) {
+                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Play", fontSize = 12.sp)
+                }
+            }
+
+            // Hamburger menu
+            Box {
+                IconButton(onClick = { menuExpanded = true }, modifier = Modifier.padding(top = 4.dp)) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options", modifier = Modifier.size(20.dp))
+                }
+                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp)) },
+                        onClick = { menuExpanded = false; onEdit() }
+                    )
+                    if (onResetOverride != null) {
+                        DropdownMenuItem(
+                            text = { Text("Reset to defaults") },
+                            leadingIcon = { Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp)) },
+                            onClick = { menuExpanded = false; onResetOverride() }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Edit sheet ────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GameEditSheet(
+    game: GameEntry,
+    initialOverride: GameOverride?,
+    steamInfo: SteamGameInfo?,
+    onSave: (GameOverride) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+
+    // Pre-fill from override → steam info → defaults
+    var nameField   by remember { mutableStateOf(initialOverride?.customName        ?: steamInfo?.name             ?: "") }
+    var genresField by remember { mutableStateOf(
+        (initialOverride?.customGenres ?: steamInfo?.genres)?.joinToString(", ") ?: ""
+    )}
+    var descField   by remember { mutableStateOf(initialOverride?.customDescription ?: steamInfo?.shortDescription ?: "") }
+    var yearField   by remember { mutableStateOf(initialOverride?.customReleaseYear ?: steamInfo?.releaseYear      ?: "") }
+    var metaField   by remember { mutableStateOf(
+        (initialOverride?.customMetacriticScore ?: steamInfo?.metacriticScore)?.toString() ?: ""
+    )}
+    var linkedId    by remember { mutableStateOf(initialOverride?.linkedSteamAppId) }
+
+    // Search state
+    var searchResults by remember { mutableStateOf<List<SteamRepository.SearchResult>>(emptyList()) }
+    var isSearching   by remember { mutableStateOf(false) }
+    var searchError   by remember { mutableStateOf<String?>(null) }
+    var isFillingFromSearch by remember { mutableStateOf(false) }
+
+    fun doSearch() {
+        val query = nameField.trim()
+        if (query.isBlank()) return
+        scope.launch {
+            isSearching = true
+            searchError = null
+            searchResults = emptyList()
+            val results = SteamRepository.searchByName(query)
+            if (results.isEmpty()) searchError = "No results found for \"$query\""
+            else searchResults = results
+            isSearching = false
+        }
+    }
+
+    fun fillFromSteam(appId: String) {
+        scope.launch {
+            isFillingFromSearch = true
+            val info = SteamRepository.fetch(appId)
+            if (info != null) {
+                if (nameField.isBlank() || nameField == game.gameId) nameField = info.name
+                if (genresField.isBlank()) genresField = info.genres.joinToString(", ")
+                if (descField.isBlank()) descField = info.shortDescription ?: ""
+                if (yearField.isBlank()) yearField = info.releaseYear ?: ""
+                if (metaField.isBlank()) metaField = info.metacriticScore?.toString() ?: ""
+                linkedId = appId
+            }
+            searchResults = emptyList()
+            isFillingFromSearch = false
+        }
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancel")
+                        }
+                    },
+                    title = {
+                        Text("Edit Game", fontWeight = FontWeight.Bold, fontSize = 17.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    },
+                    actions = {
+                        TextButton(onClick = {
+                            val metaInt = metaField.trim().toIntOrNull()?.takeIf { it in 1..100 }
+                            val genreList = genresField.split(",")
+                                .map { it.trim() }.filter { it.isNotBlank() }
+                                .takeIf { it.isNotEmpty() }
+                            onSave(GameOverride(
+                                gameId = game.gameId,
+                                customName = nameField.trim().takeIf { it.isNotBlank() },
+                                customGenres = genreList,
+                                customDescription = descField.trim().takeIf { it.isNotBlank() },
+                                customReleaseYear = yearField.trim().takeIf { it.isNotBlank() },
+                                customMetacriticScore = metaInt,
+                                linkedSteamAppId = linkedId
+                            ))
+                        }) {
+                            Text("Save", fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary, fontSize = 15.sp)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Cover preview
+                linkedId?.let { id ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SubcomposeAsyncImage(
+                            model = SteamRepository.coverUrl(id),
+                            contentDescription = "Cover preview",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(width = 60.dp, height = 90.dp)
+                                .clip(MaterialTheme.shapes.small),
+                            loading = {
+                                Box(Modifier.fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)))
+                            },
+                            error = {}
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Linked to Steam App ID:", fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(id, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary)
+                            TextButton(
+                                onClick = { linkedId = null },
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) { Text("Unlink", fontSize = 12.sp, color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                    HorizontalDivider()
+                }
+
+                // ── Game Name + Search ────────────────────────────────────
+                Text("Game Name", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = nameField,
+                    onValueChange = { nameField = it; searchResults = emptyList(); searchError = null },
+                    placeholder = { Text("Enter game name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (nameField.isNotBlank()) {
+                            IconButton(onClick = { nameField = ""; searchResults = emptyList() }) {
+                                Icon(Icons.Default.Clear, null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                )
+
+                // Search button
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = { doSearch() },
+                        enabled = nameField.isNotBlank() && !isSearching,
+                        modifier = Modifier.height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
+                        if (isSearching) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(6.dp))
+                        } else {
+                            Icon(Icons.Default.Search, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text("Search Steam", fontSize = 13.sp)
+                    }
+                    if (isFillingFromSearch) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text("Loading…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                // Search error
+                searchError?.let {
+                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                }
+
+                // Search results
+                if (searchResults.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column {
+                            Text("Tap a result to auto-fill all fields:",
+                                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                            HorizontalDivider()
+                            searchResults.forEachIndexed { index, result ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { fillFromSteam(result.appId) }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    SubcomposeAsyncImage(
+                                        model = SteamRepository.coverUrl(result.appId),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(width = 30.dp, height = 45.dp)
+                                            .clip(MaterialTheme.shapes.extraSmall),
+                                        loading = {
+                                            Box(Modifier.fillMaxSize()
+                                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)))
+                                        },
+                                        error = {}
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(result.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("App ID: ${result.appId}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Icon(Icons.Default.ChevronRight, null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                                }
+                                if (index < searchResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                // ── Genres ────────────────────────────────────────────────
+                Text("Genres", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = genresField,
+                    onValueChange = { genresField = it },
+                    placeholder = { Text("e.g. Action, RPG, Strategy") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = { Text("Comma-separated", fontSize = 10.sp) }
+                )
+
+                // ── Description ───────────────────────────────────────────
+                Text("Description", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = descField,
+                    onValueChange = { descField = it },
+                    placeholder = { Text("Short description shown on the card") },
+                    minLines = 3,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // ── Release Year + Metacritic (side by side) ──────────────
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Release Year", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = yearField,
+                            onValueChange = { if (it.length <= 4) yearField = it.filter { c -> c.isDigit() } },
+                            placeholder = { Text("e.g. 2023") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Metacritic Score", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = metaField,
+                            onValueChange = { if (it.length <= 3) metaField = it.filter { c -> c.isDigit() } },
+                            placeholder = { Text("1–100") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            supportingText = { Text("Leave blank to hide", fontSize = 10.sp) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // Info about what game ID will be used for launching
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
+                    Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        Text(
+                            if (game.type == GameType.STEAM) "Launched with Steam App ID: ${game.gameId}"
+                            else "Launched with Local ID: ${game.gameId}",
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Reusable small composables ────────────────────────────────────────────────
 
 @Composable
 private fun SectionHeader(
@@ -414,29 +902,14 @@ private fun SectionHeader(
     topPadding: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
             .padding(start = 12.dp, end = 12.dp, top = topPadding + 12.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            "($count)",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+        Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+        Text("($count)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
 }
@@ -449,33 +922,21 @@ private fun GamesAppCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 0.dp),
+        modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.small,
+        Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = MaterialTheme.shapes.small,
                 color = if (app.isInstalled) MaterialTheme.colorScheme.primaryContainer
                         else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                modifier = Modifier.size(44.dp)
-            ) {
+                modifier = Modifier.size(44.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.SportsEsports,
-                        contentDescription = null,
+                    Icon(Icons.Default.SportsEsports, null,
                         tint = if (app.isInstalled) MaterialTheme.colorScheme.onPrimaryContainer
                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
+                        modifier = Modifier.size(24.dp))
                 }
             }
             Spacer(Modifier.width(14.dp))
@@ -483,16 +944,13 @@ private fun GamesAppCard(
                 Text(app.known.displayName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AccessChip(label = "Local", isGranted = hasLocalAccess)
-                    AccessChip(label = "Steam", isGranted = hasSteamAccess)
+                    AccessChip("Local", hasLocalAccess)
+                    AccessChip("Steam", hasSteamAccess)
                 }
             }
             Icon(
-                if (hasLocalAccess || hasSteamAccess) Icons.Default.ChevronRight
-                else Icons.Default.FolderOpen,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+                if (hasLocalAccess || hasSteamAccess) Icons.Default.ChevronRight else Icons.Default.FolderOpen,
+                null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
             )
         }
     }
@@ -505,242 +963,43 @@ private fun AccessChip(label: String, isGranted: Boolean) {
                 else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
         shape = MaterialTheme.shapes.extraSmall
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Icon(
-                if (isGranted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                contentDescription = null,
-                tint = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer
-                       else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(10.dp)
-            )
-            Text(
-                label,
-                fontSize = 10.sp,
-                color = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = if (isGranted) FontWeight.Medium else FontWeight.Normal
-            )
+        Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Icon(if (isGranted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null,
+                tint = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(10.dp))
+            Text(label, fontSize = 10.sp,
+                color = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isGranted) FontWeight.Medium else FontWeight.Normal)
         }
     }
 }
 
 @Composable
-private fun GameCard(
-    game: GameEntry,
-    onLaunch: () -> Unit
+private fun FolderGrantRow(
+    label: String, path: String, isGranted: Boolean, onGrant: () -> Unit, onRevoke: () -> Unit
 ) {
-    if (game.type == GameType.STEAM) {
-        SteamGameCard(game = game, onLaunch = onLaunch)
-    } else {
-        LocalGameCard(game = game, onLaunch = onLaunch)
-    }
-}
-
-@Composable
-private fun LocalGameCard(game: GameEntry, onLaunch: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.Computer,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(22.dp)
-                    )
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                if (isGranted) {
+                    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.extraSmall) {
+                        Text("Granted", fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(game.gameId, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 2)
-                Text("Local ID: ${game.gameId}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(
-                onClick = onLaunch,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-            ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Play", fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SteamGameCard(game: GameEntry, onLaunch: () -> Unit) {
-    var info by remember(game.gameId) { mutableStateOf(SteamRepository.getCached(game.gameId)) }
-    val scope = rememberCoroutineScope()
-
-    // Fetch metadata when card first appears
-    LaunchedEffect(game.gameId) {
-        if (info == null) {
-            scope.launch {
-                info = SteamRepository.fetch(game.gameId)
-            }
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top
-        ) {
-            // ── Cover image ───────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .width(80.dp)
-                    .height(130.dp)
-            ) {
-                SubcomposeAsyncImage(
-                    model = SteamRepository.coverUrl(game.gameId),
-                    contentDescription = "Cover",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(
-                        RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
-                    ),
-                    loading = {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        }
-                    },
-                    error = {
-                        // Fallback to header.jpg if portrait cover not available
-                        SubcomposeAsyncImage(
-                            model = SteamRepository.headerUrl(game.gameId),
-                            contentDescription = "Cover",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                            loading = {},
-                            error = {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.tertiaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Games,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                        )
-                    }
-                )
-            }
-
-            // ── Info column ───────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Game name
-                Text(
-                    text = info?.name ?: game.gameId,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (info != null) {
-                    // Genres row
-                    if (info!!.genres.isNotEmpty()) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            info!!.genres.take(3).forEach { genre ->
-                                GenreChip(genre)
-                            }
-                        }
-                    }
-
-                    // Short description
-                    if (!info!!.shortDescription.isNullOrBlank()) {
-                        Text(
-                            text = info!!.shortDescription!!,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            lineHeight = 15.sp
-                        )
-                    }
-
-                    // Bottom row: App ID + release year + Metacritic
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "App ID: ${game.gameId}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        info!!.releaseYear?.let { year ->
-                            Text(
-                                year,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        }
-                        info!!.metacriticScore?.let { score ->
-                            MetacriticBadge(score)
-                        }
-                    }
-                } else {
-                    // Still loading or fetch failed — show App ID as subtitle
-                    Text(
-                        "Steam App ID: ${game.gameId}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(Modifier.height(2.dp))
-                FilledTonalButton(
-                    onClick = onLaunch,
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Play", fontSize = 12.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(path, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(6.dp))
+            if (!isGranted) {
+                FilledTonalButton(onClick = onGrant, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)) { Text("Grant Access", fontSize = 12.sp) }
+            } else {
+                OutlinedButton(onClick = onRevoke, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)) {
+                    Text("Revoke", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -749,34 +1008,21 @@ private fun SteamGameCard(game: GameEntry, onLaunch: () -> Unit) {
 
 @Composable
 private fun GenreChip(genre: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        shape = MaterialTheme.shapes.extraSmall
-    ) {
-        Text(
-            text = genre,
-            fontSize = 9.sp,
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-        )
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.extraSmall) {
+        Text(genre, fontSize = 9.sp, color = MaterialTheme.colorScheme.onTertiaryContainer,
+            fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
     }
 }
 
 @Composable
 private fun MetacriticBadge(score: Int) {
     val bgColor = when {
-        score >= 75 -> Color(0xFF6AB04C)   // green
-        score >= 50 -> Color(0xFFFFBE76)   // yellow
-        else        -> Color(0xFFEB4D4B)   // red
+        score >= 75 -> Color(0xFF6AB04C)
+        score >= 50 -> Color(0xFFFFBE76)
+        else        -> Color(0xFFEB4D4B)
     }
     Surface(color = bgColor, shape = MaterialTheme.shapes.extraSmall) {
-        Text(
-            text = score.toString(),
-            fontSize = 10.sp,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-        )
+        Text(score.toString(), fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
     }
 }
