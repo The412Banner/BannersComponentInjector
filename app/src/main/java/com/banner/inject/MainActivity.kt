@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Snackbar
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NewReleases
@@ -54,6 +55,7 @@ import com.banner.inject.ui.screens.BackupManagerSheet
 import com.banner.inject.ui.screens.ComponentListScreen
 import com.banner.inject.ui.screens.DownloadManagerScreen
 import com.banner.inject.ui.screens.DownloadScreen
+import com.banner.inject.ui.screens.MyGamesScreen
 import com.banner.inject.ui.screens.SettingsSheet
 import com.banner.inject.ui.theme.BannersComponentInjectorTheme
 import com.banner.inject.ui.theme.ThemePrefs
@@ -85,7 +87,12 @@ class MainActivity : ComponentActivity() {
                     val prefs = remember { getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
                     var currentTab by remember {
                         val savedTab = prefs.getString("default_start_tab", "INJECT") ?: "INJECT"
-                        val initialTab = if (savedTab == "DOWNLOAD") MainTab.DOWNLOAD else MainTab.INJECT
+                        val initialTab = when (savedTab) {
+                            "DOWNLOAD" -> MainTab.DOWNLOAD
+                            "MANAGERS" -> MainTab.MANAGERS
+                            "GAMES"    -> MainTab.GAMES
+                            else       -> MainTab.INJECT
+                        }
                         mutableStateOf(initialTab)
                     }
                     val vm: MainViewModel = viewModel()
@@ -351,6 +358,51 @@ class MainActivity : ComponentActivity() {
                                     isDynamicColor = isDynamicColor,
                                     onDynamicColorChanged = { isDynamicColor = it }
                                 )
+                            }
+                        }
+                        MainTab.GAMES -> {
+                            var isoSnackbarMessage by remember { mutableStateOf<String?>(null) }
+
+                            MyGamesScreen(
+                                currentTab = currentTab,
+                                onTabSelected = { currentTab = it },
+                                apps = uiState.apps,
+                                selectedApp = uiState.selectedGamesApp,
+                                games = uiState.games,
+                                isLoadingGames = uiState.isLoadingGames,
+                                hasGamesAccess = { vm.hasGamesAccess(it) },
+                                onSelectApp = { vm.selectGamesApp(it) },
+                                onGamesAccessGranted = { app, uri -> vm.grantGamesAccess(app, uri) },
+                                onRevokeGamesAccess = { vm.revokeGamesAccess(it) },
+                                onBack = { vm.clearSelectedGamesApp() },
+                                onRefresh = { vm.refreshGames() },
+                                onLaunchGame = { pkg, gameId -> vm.launchGame(pkg, gameId) },
+                                onCreateIsos = {
+                                    vm.createIsoFiles { count ->
+                                        isoSnackbarMessage = "$count ISO file${if (count != 1) "s" else ""} created in virtual_containers"
+                                    }
+                                },
+                                initialGamesUriHintFor = { vm.initialGamesUriHintFor(it) }
+                            )
+
+                            isoSnackbarMessage?.let { msg ->
+                                androidx.compose.runtime.LaunchedEffect(msg) {
+                                    kotlinx.coroutines.delay(3000)
+                                    isoSnackbarMessage = null
+                                }
+                                androidx.compose.foundation.layout.Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    Snackbar(
+                                        modifier = Modifier.padding(16.dp),
+                                        action = {
+                                            TextButton(onClick = { isoSnackbarMessage = null }) {
+                                                Text("OK")
+                                            }
+                                        }
+                                    ) { Text(msg) }
+                                }
                             }
                         }
                     }

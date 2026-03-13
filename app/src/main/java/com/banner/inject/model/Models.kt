@@ -58,8 +58,11 @@ fun formatSize(bytes: Long): String = when {
     else                    -> "$bytes B"
 }
 
+data class GameEntry(val gameId: String)
+
 enum class MainTab(val title: String) {
     INJECT("Inject Components"),
     DOWNLOAD("Download Components"),
-    MANAGERS("My Downloads")
+    MANAGERS("My Downloads"),
+    GAMES("My Games")
 }
