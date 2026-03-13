@@ -3,22 +3,32 @@ package com.banner.inject.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
+import com.banner.inject.data.SteamGameInfo
+import com.banner.inject.data.SteamRepository
 import com.banner.inject.model.GameEntry
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.GameType
 import com.banner.inject.model.MainTab
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -523,7 +533,15 @@ private fun GameCard(
     game: GameEntry,
     onLaunch: () -> Unit
 ) {
-    val isSteam = game.type == GameType.STEAM
+    if (game.type == GameType.STEAM) {
+        SteamGameCard(game = game, onLaunch = onLaunch)
+    } else {
+        LocalGameCard(game = game, onLaunch = onLaunch)
+    }
+}
+
+@Composable
+private fun LocalGameCard(game: GameEntry, onLaunch: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -532,40 +550,27 @@ private fun GameCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = if (isSteam) MaterialTheme.colorScheme.tertiaryContainer
-                        else MaterialTheme.colorScheme.secondaryContainer,
+                color = MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        if (isSteam) Icons.Default.Games else Icons.Default.Computer,
+                        Icons.Default.Computer,
                         contentDescription = null,
-                        tint = if (isSteam) MaterialTheme.colorScheme.onTertiaryContainer
-                               else MaterialTheme.colorScheme.onSecondaryContainer,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(22.dp)
                     )
                 }
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    game.gameId,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    maxLines = 2
-                )
-                Text(
-                    if (isSteam) "Steam App ID: ${game.gameId}" else "Local ID: ${game.gameId}",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(game.gameId, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 2)
+                Text("Local ID: ${game.gameId}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.width(8.dp))
             FilledTonalButton(
@@ -577,5 +582,200 @@ private fun GameCard(
                 Text("Play", fontSize = 13.sp)
             }
         }
+    }
+}
+
+@Composable
+private fun SteamGameCard(game: GameEntry, onLaunch: () -> Unit) {
+    var info by remember(game.gameId) { mutableStateOf(SteamRepository.getCached(game.gameId)) }
+    val scope = rememberCoroutineScope()
+
+    // Fetch metadata when card first appears
+    LaunchedEffect(game.gameId) {
+        if (info == null) {
+            scope.launch {
+                info = SteamRepository.fetch(game.gameId)
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 3.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+        ) {
+            // ── Cover image ───────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .width(80.dp)
+                    .fillMaxHeight()
+            ) {
+                SubcomposeAsyncImage(
+                    model = SteamRepository.coverUrl(game.gameId),
+                    contentDescription = "Cover",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(
+                        RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+                    ),
+                    loading = {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                    },
+                    error = {
+                        // Fallback to header.jpg if portrait cover not available
+                        SubcomposeAsyncImage(
+                            model = SteamRepository.headerUrl(game.gameId),
+                            contentDescription = "Cover",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            loading = {},
+                            error = {
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.tertiaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Games,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                )
+            }
+
+            // ── Info column ───────────────────────────────────────────────
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Game name
+                Text(
+                    text = info?.name ?: game.gameId,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                if (info != null) {
+                    // Genres row
+                    if (info!!.genres.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            info!!.genres.take(3).forEach { genre ->
+                                GenreChip(genre)
+                            }
+                        }
+                    }
+
+                    // Short description
+                    if (!info!!.shortDescription.isNullOrBlank()) {
+                        Text(
+                            text = info!!.shortDescription!!,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 15.sp
+                        )
+                    }
+
+                    // Bottom row: App ID + release year + Metacritic
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "App ID: ${game.gameId}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        info!!.releaseYear?.let { year ->
+                            Text(
+                                year,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        info!!.metacriticScore?.let { score ->
+                            MetacriticBadge(score)
+                        }
+                    }
+                } else {
+                    // Still loading or fetch failed — show App ID as subtitle
+                    Text(
+                        "Steam App ID: ${game.gameId}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(Modifier.height(2.dp))
+                FilledTonalButton(
+                    onClick = onLaunch,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Play", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreChip(genre: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = MaterialTheme.shapes.extraSmall
+    ) {
+        Text(
+            text = genre,
+            fontSize = 9.sp,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun MetacriticBadge(score: Int) {
+    val bgColor = when {
+        score >= 75 -> Color(0xFF6AB04C)   // green
+        score >= 50 -> Color(0xFFFFBE76)   // yellow
+        else        -> Color(0xFFEB4D4B)   // red
+    }
+    Surface(color = bgColor, shape = MaterialTheme.shapes.extraSmall) {
+        Text(
+            text = score.toString(),
+            fontSize = 10.sp,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+        )
     }
 }
