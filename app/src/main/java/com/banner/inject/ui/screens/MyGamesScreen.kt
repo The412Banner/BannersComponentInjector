@@ -607,13 +607,14 @@ private fun SteamGameCard(game: GameEntry, onLaunch: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
         ) {
             // ── Cover image ───────────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .width(80.dp)
-                    .fillMaxHeight()
+                    .height(130.dp)
             ) {
                 SubcomposeAsyncImage(
                     model = SteamRepository.coverUrl(game.gameId),
