@@ -47,19 +47,15 @@ fun MyGamesScreen(
     selectedApp: GameHubApp?,
     games: List<GameEntry>,
     isLoadingGames: Boolean,
-    hasLocalGamesAccess: (String) -> Boolean,
-    hasSteamGamesAccess: (String) -> Boolean,
+    hasDataAccess: (String) -> Boolean,
     onSelectApp: (GameHubApp) -> Unit,
-    onLocalAccessGranted: (GameHubApp, Uri) -> Unit,
-    onSteamAccessGranted: (GameHubApp, Uri) -> Unit,
-    onRevokeLocalAccess: (GameHubApp) -> Unit,
-    onRevokeSteamAccess: (GameHubApp) -> Unit,
+    onAccessGranted: (GameHubApp, Uri) -> Unit,
+    onRevokeAccess: (GameHubApp) -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onLaunchGame: (packageName: String, gameId: String) -> Unit,
     onCreateIsos: () -> Unit,
-    initialLocalUriHintFor: (String) -> Uri,
-    initialSteamUriHintFor: (String) -> Uri
+    initialDataUriHintFor: (String) -> Uri
 ) {
     val context = LocalContext.current
     val overrideRepo = remember { GameOverrideRepository(context) }
@@ -73,23 +69,16 @@ fun MyGamesScreen(
         }
     }
 
-    var pendingLocalApp by remember { mutableStateOf<GameHubApp?>(null) }
-    var pendingSteamApp by remember { mutableStateOf<GameHubApp?>(null) }
+    var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
     var showSetupDialog by remember { mutableStateOf<GameHubApp?>(null) }
     var showManageAccessDialog by remember { mutableStateOf(false) }
     var editingGame by remember { mutableStateOf<GameEntry?>(null) }
 
-    val localFolderPicker = rememberLauncherForActivityResult(
+    val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
-        val app = pendingLocalApp; pendingLocalApp = null
-        if (uri != null && app != null) onLocalAccessGranted(app, uri)
-    }
-    val steamFolderPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        val app = pendingSteamApp; pendingSteamApp = null
-        if (uri != null && app != null) onSteamAccessGranted(app, uri)
+        val app = pendingApp; pendingApp = null
+        if (uri != null && app != null) onAccessGranted(app, uri)
     }
 
     val localGames = games.filter { it.type == GameType.LOCAL }
@@ -117,7 +106,7 @@ fun MyGamesScreen(
                             IconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                             }
-                            if (selectedApp.known.packageNames.any { hasLocalGamesAccess(it) }) {
+                            if (selectedApp.known.packageNames.any { hasDataAccess(it) }) {
                                 IconButton(onClick = onCreateIsos) {
                                     Icon(Icons.Default.SaveAlt, contentDescription = "Create ISOs")
                                 }
@@ -139,12 +128,10 @@ fun MyGamesScreen(
             AppSelectorList(
                 padding = padding,
                 apps = apps,
-                hasLocalGamesAccess = hasLocalGamesAccess,
-                hasSteamGamesAccess = hasSteamGamesAccess,
+                hasDataAccess = hasDataAccess,
                 onAppClick = { app ->
-                    val hasLocal = app.known.packageNames.any { hasLocalGamesAccess(it) }
-                    val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
-                    if (hasLocal || hasSteam) onSelectApp(app) else showSetupDialog = app
+                    if (app.known.packageNames.any { hasDataAccess(it) }) onSelectApp(app)
+                    else showSetupDialog = app
                 }
             )
         } else if (isLoadingGames) {
@@ -237,29 +224,23 @@ fun MyGamesScreen(
             title = { Text("Grant Folder Access", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Grant access to one or both game folders for ${app.known.displayName}.",
-                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    FolderGrantRow(
-                        label = "Local Games",
-                        path = "data/files/usr/home/virtual_containers",
-                        isGranted = app.known.packageNames.any { hasLocalGamesAccess(it) },
-                        onGrant = { pendingLocalApp = app; localFolderPicker.launch(initialLocalUriHintFor(app.activePackage)) },
-                        onRevoke = { onRevokeLocalAccess(app) }
+                    Text(
+                        "Grant access to ${app.known.displayName}'s data folder. The app will automatically find both local import games and Steam games from there.",
+                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     FolderGrantRow(
-                        label = "Steam Games",
-                        path = "data/files/Steam/steamapps/shadercache",
-                        isGranted = app.known.packageNames.any { hasSteamGamesAccess(it) },
-                        onGrant = { pendingSteamApp = app; steamFolderPicker.launch(initialSteamUriHintFor(app.activePackage)) },
-                        onRevoke = { onRevokeSteamAccess(app) }
+                        label = "GameHub Data Folder",
+                        path = "Android/data/${app.activePackage}",
+                        isGranted = app.known.packageNames.any { hasDataAccess(it) },
+                        onGrant = { pendingApp = app; folderPicker.launch(initialDataUriHintFor(app.activePackage)) },
+                        onRevoke = { onRevokeAccess(app) }
                     )
                 }
             },
             confirmButton = {
-                val canProceed = app.known.packageNames.any { hasLocalGamesAccess(it) || hasSteamGamesAccess(it) }
                 TextButton(
                     onClick = { showSetupDialog = null; onSelectApp(app) },
-                    enabled = canProceed
+                    enabled = app.known.packageNames.any { hasDataAccess(it) }
                 ) { Text("View Games") }
             },
             dismissButton = { TextButton(onClick = { showSetupDialog = null }) { Text("Cancel") } }
@@ -273,22 +254,17 @@ fun MyGamesScreen(
             icon = { Icon(Icons.Default.FolderShared, null, tint = MaterialTheme.colorScheme.primary) },
             title = { Text("Manage Folder Access", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FolderGrantRow(
-                        label = "Local Games",
-                        path = "data/files/usr/home/virtual_containers",
-                        isGranted = selectedApp.known.packageNames.any { hasLocalGamesAccess(it) },
-                        onGrant = { showManageAccessDialog = false; pendingLocalApp = selectedApp; localFolderPicker.launch(initialLocalUriHintFor(selectedApp.activePackage)) },
-                        onRevoke = { showManageAccessDialog = false; onRevokeLocalAccess(selectedApp) }
-                    )
-                    FolderGrantRow(
-                        label = "Steam Games",
-                        path = "data/files/Steam/steamapps/shadercache",
-                        isGranted = selectedApp.known.packageNames.any { hasSteamGamesAccess(it) },
-                        onGrant = { showManageAccessDialog = false; pendingSteamApp = selectedApp; steamFolderPicker.launch(initialSteamUriHintFor(selectedApp.activePackage)) },
-                        onRevoke = { showManageAccessDialog = false; onRevokeSteamAccess(selectedApp) }
-                    )
-                }
+                FolderGrantRow(
+                    label = "GameHub Data Folder",
+                    path = "Android/data/${selectedApp.activePackage}",
+                    isGranted = selectedApp.known.packageNames.any { hasDataAccess(it) },
+                    onGrant = {
+                        showManageAccessDialog = false
+                        pendingApp = selectedApp
+                        folderPicker.launch(initialDataUriHintFor(selectedApp.activePackage))
+                    },
+                    onRevoke = { showManageAccessDialog = false; onRevokeAccess(selectedApp) }
+                )
             },
             confirmButton = { TextButton(onClick = { showManageAccessDialog = false }) { Text("Done") } }
         )
@@ -301,8 +277,7 @@ fun MyGamesScreen(
 private fun AppSelectorList(
     padding: PaddingValues,
     apps: List<GameHubApp>,
-    hasLocalGamesAccess: (String) -> Boolean,
-    hasSteamGamesAccess: (String) -> Boolean,
+    hasDataAccess: (String) -> Boolean,
     onAppClick: (GameHubApp) -> Unit
 ) {
     LazyColumn(
@@ -316,7 +291,7 @@ private fun AppSelectorList(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
         }
         val eligible = apps.filter {
-            it.isInstalled || it.known.packageNames.any { p -> hasLocalGamesAccess(p) || hasSteamGamesAccess(p) }
+            it.isInstalled || it.known.packageNames.any { p -> hasDataAccess(p) }
         }
         if (eligible.isEmpty()) {
             item {
@@ -328,8 +303,7 @@ private fun AppSelectorList(
             items(eligible, key = { it.known.packageNames.first() }) { app ->
                 GamesAppCard(
                     app = app,
-                    hasLocalAccess = app.known.packageNames.any { hasLocalGamesAccess(it) },
-                    hasSteamAccess = app.known.packageNames.any { hasSteamGamesAccess(it) },
+                    hasAccess = app.known.packageNames.any { hasDataAccess(it) },
                     onClick = { onAppClick(app) }
                 )
             }
@@ -917,8 +891,7 @@ private fun SectionHeader(
 @Composable
 private fun GamesAppCard(
     app: GameHubApp,
-    hasLocalAccess: Boolean,
-    hasSteamAccess: Boolean,
+    hasAccess: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -942,14 +915,13 @@ private fun GamesAppCard(
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(app.known.displayName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AccessChip("Local", hasLocalAccess)
-                    AccessChip("Steam", hasSteamAccess)
+                if (hasAccess) {
+                    Spacer(Modifier.height(4.dp))
+                    AccessChip("Access Granted", granted = true)
                 }
             }
             Icon(
-                if (hasLocalAccess || hasSteamAccess) Icons.Default.ChevronRight else Icons.Default.FolderOpen,
+                if (hasAccess) Icons.Default.ChevronRight else Icons.Default.FolderOpen,
                 null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
             )
         }
@@ -957,20 +929,20 @@ private fun GamesAppCard(
 }
 
 @Composable
-private fun AccessChip(label: String, isGranted: Boolean) {
+private fun AccessChip(label: String, granted: Boolean) {
     Surface(
-        color = if (isGranted) MaterialTheme.colorScheme.primaryContainer
+        color = if (granted) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
         shape = MaterialTheme.shapes.extraSmall
     ) {
         Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            Icon(if (isGranted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null,
-                tint = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(if (granted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null,
+                tint = if (granted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(10.dp))
             Text(label, fontSize = 10.sp,
-                color = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = if (isGranted) FontWeight.Medium else FontWeight.Normal)
+                color = if (granted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (granted) FontWeight.Medium else FontWeight.Normal)
         }
     }
 }

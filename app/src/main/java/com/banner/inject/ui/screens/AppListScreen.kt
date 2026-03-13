@@ -166,7 +166,7 @@ fun AppListScreen(
             text = {
                 Column {
                     Text(
-                        "In the folder picker, select ${app.known.displayName} from the sidebar, then navigate to the components folder and tap \"Use this folder\".",
+                        "In the folder picker, navigate to the data folder for ${app.known.displayName} and tap \"Use this folder\". The app will find components and games automatically from there.",
                         fontSize = 14.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -176,14 +176,14 @@ fun AppListScreen(
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text(
-                                "Path to select:",
+                                "Folder to select:",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "data/files/usr/home/components",
+                                "Android/data/${app.activePackage}",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium

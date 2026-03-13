@@ -389,13 +389,10 @@ class MainActivity : ComponentActivity() {
                                 selectedApp = uiState.selectedGamesApp,
                                 games = uiState.games,
                                 isLoadingGames = uiState.isLoadingGames,
-                                hasLocalGamesAccess = { vm.hasGamesAccess(it) },
-                                hasSteamGamesAccess = { vm.hasSteamGamesAccess(it) },
+                                hasDataAccess = { vm.hasDataAccess(it) },
                                 onSelectApp = { vm.selectGamesApp(it) },
-                                onLocalAccessGranted = { app, uri -> vm.grantGamesAccess(app, uri) },
-                                onSteamAccessGranted = { app, uri -> vm.grantSteamGamesAccess(app, uri) },
-                                onRevokeLocalAccess = { vm.revokeGamesAccess(it) },
-                                onRevokeSteamAccess = { vm.revokeSteamGamesAccess(it) },
+                                onAccessGranted = { app, uri -> vm.grantAccess(app, uri) },
+                                onRevokeAccess = { vm.revokeAccess(it) },
                                 onBack = { vm.clearSelectedGamesApp() },
                                 onRefresh = { vm.refreshGames() },
                                 onLaunchGame = { pkg, gameId -> vm.launchGame(pkg, gameId) },
@@ -404,8 +401,7 @@ class MainActivity : ComponentActivity() {
                                         isoSnackbarMessage = "$count ISO file${if (count != 1) "s" else ""} created in virtual_containers"
                                     }
                                 },
-                                initialLocalUriHintFor = { vm.initialGamesUriHintFor(it) },
-                                initialSteamUriHintFor = { vm.initialSteamUriHintFor(it) }
+                                initialDataUriHintFor = { vm.initialUriHintFor(it) }
                             )
 
                             isoSnackbarMessage?.let { msg ->

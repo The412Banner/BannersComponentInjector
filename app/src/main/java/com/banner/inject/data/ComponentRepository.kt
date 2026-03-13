@@ -20,6 +20,16 @@ class ComponentRepository(private val context: Context) {
     fun getRootDocument(uri: Uri): DocumentFile? =
         DocumentFile.fromTreeUri(context, uri)
 
+    /**
+     * Navigates from the granted [dataRoot] (Android/data/<pkg>) down to the
+     * components folder: files/usr/home/components/
+     */
+    fun navigateToComponents(dataRoot: DocumentFile): DocumentFile? =
+        dataRoot.findFile("files")
+            ?.findFile("usr")
+            ?.findFile("home")
+            ?.findFile("components")
+
     fun scanComponentDirs(rootDoc: DocumentFile): List<DocumentFile> =
         rootDoc.listFiles()?.filter { it.isDirectory } ?: emptyList()
 

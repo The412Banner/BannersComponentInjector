@@ -66,7 +66,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 catch (_: Exception) { false }
             }
             val installedPkg = installedPkgs.firstOrNull()
-            val accessPkg = known.packageNames.firstOrNull { pkg -> prefs.contains(uriKey(pkg)) }
+            val accessPkg = known.packageNames.firstOrNull { pkg -> prefs.contains(dataUriKey(pkg)) }
             GameHubApp(
                 known = known,
                 // Custom apps are always treated as installed so the card is always tappable
@@ -80,8 +80,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(apps = apps) }
     }
 
-    /** Returns true if a specific package name has a stored SAF URI. */
-    fun hasAccessForPackage(packageName: String): Boolean = prefs.contains(uriKey(packageName))
+    /** Returns true if the data/ root grant exists for this package. */
+    fun hasAccessForPackage(packageName: String): Boolean = prefs.contains(dataUriKey(packageName))
 
     fun addCustomApp(name: String, packageName: String) {
         val current = loadCustomApps().toMutableList()
@@ -91,7 +91,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeCustomApp(app: GameHubApp) {
-        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+        val uri = app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
         if (uri != null) {
             try {
                 context.contentResolver.releasePersistableUriPermission(
@@ -101,7 +101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (_: Exception) {}
         }
         val edit = prefs.edit()
-        app.known.packageNames.forEach { pkg -> edit.remove(uriKey(pkg)) }
+        app.known.packageNames.forEach { pkg -> edit.remove(dataUriKey(pkg)) }
         edit.apply()
         val current = loadCustomApps().filter { it.packageNames != app.known.packageNames }
         saveCustomApps(current)
@@ -135,22 +135,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putString("custom_gamehub_apps", arr.toString()).apply()
     }
 
-    /** Called with the URI returned from ACTION_OPEN_DOCUMENT_TREE for a given app. */
+    /**
+     * Called with the URI returned from ACTION_OPEN_DOCUMENT_TREE for a given app.
+     * The URI points to the app's data/ root — all sub-paths are derived from it.
+     */
     fun grantAccess(app: GameHubApp, uri: Uri) {
         context.contentResolver.takePersistableUriPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
-        // Store URI only for activePackage so multi-installed packages each get their own URI
-        prefs.edit().putString(uriKey(app.activePackage), uri.toString()).apply()
+        prefs.edit().putString(dataUriKey(app.activePackage), uri.toString()).apply()
         refreshAppList()
         selectApp(app.copy(hasAccess = true))
     }
 
     fun selectApp(app: GameHubApp) {
-        // Prioritize the URI for the specific activePackage, then fall back to any in the group
-        val uri = storedUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+        val uri = storedDataUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
             ?: return
         _uiState.update { it.copy(selectedApp = app, components = emptyList(), isLoadingComponents = true) }
         loadComponents(uri)
@@ -161,7 +162,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun revokeAccess(app: GameHubApp) {
-        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+        val uri = app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
         if (uri != null) {
             try {
                 context.contentResolver.releasePersistableUriPermission(
@@ -171,17 +172,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (_: Exception) {}
         }
         val edit = prefs.edit()
-        app.known.packageNames.forEach { pkg -> edit.remove(uriKey(pkg)) }
+        app.known.packageNames.forEach { pkg -> edit.remove(dataUriKey(pkg)) }
         edit.apply()
         refreshAppList()
-        if (_uiState.value.selectedApp?.known == app.known) {
-            clearSelectedApp()
-        }
+        if (_uiState.value.selectedApp?.known == app.known) clearSelectedApp()
+        if (_uiState.value.selectedGamesApp?.known == app.known) clearSelectedGamesApp()
     }
 
     fun refresh() {
         val app = _uiState.value.selectedApp ?: return
-        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull() ?: return
+        val uri = app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull() ?: return
         loadComponents(uri)
     }
 
@@ -198,18 +198,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun loadComponents(uri: Uri) {
+    private fun loadComponents(dataUri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingComponents = true, components = emptyList(), totalComponentCount = 0, loadedComponentCount = 0) }
             try {
-                val root = withContext(Dispatchers.IO) { repo.getRootDocument(uri) }
-                if (root == null || !root.canRead()) {
+                val dataRoot = withContext(Dispatchers.IO) { repo.getRootDocument(dataUri) }
+                if (dataRoot == null || !dataRoot.canRead()) {
                     _uiState.update {
                         it.copy(isLoadingComponents = false, opState = OpState.Error("Cannot read folder. Re-grant access."))
                     }
                     return@launch
                 }
-                val dirs = withContext(Dispatchers.IO) { repo.scanComponentDirs(root) }
+                val componentsDir = withContext(Dispatchers.IO) { repo.navigateToComponents(dataRoot) }
+                if (componentsDir == null || !componentsDir.canRead()) {
+                    _uiState.update {
+                        it.copy(isLoadingComponents = false, opState = OpState.Error("Components folder not found. Launch GameHub once to create it."))
+                    }
+                    return@launch
+                }
+                val dirs = withContext(Dispatchers.IO) { repo.scanComponentDirs(componentsDir) }
                 _uiState.update { it.copy(totalComponentCount = dirs.size) }
                 repo.scanComponents(dirs, backupManager)
                     .flowOn(Dispatchers.IO)
@@ -232,11 +239,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Build the SAF hint URI for the given package's components path on external storage. */
+    /** Build the SAF hint URI pointing at the app's data/ root on external storage. */
     fun initialUriHintFor(packageName: String): Uri =
         Uri.parse(
             "content://com.android.externalstorage.documents/document/" +
-                Uri.encode("primary:Android/data/$packageName/files/usr/home/components")
+                Uri.encode("primary:Android/data/$packageName")
         )
 
     // ── Component operations ───────────────────────────────────────────────────
@@ -317,13 +324,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Loads components for [app] without touching the main UI state. Used by inject-from-downloads flow. */
     suspend fun getComponentsForApp(app: GameHubApp): List<ComponentEntry> {
-        val uri = app.known.packageNames.mapNotNull { storedUri(it) }.firstOrNull()
+        val dataUri = app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
             ?: return emptyList()
         return try {
-            val root = withContext(Dispatchers.IO) { repo.getRootDocument(uri) }
+            val dataRoot = withContext(Dispatchers.IO) { repo.getRootDocument(dataUri) }
                 ?: return emptyList()
-            if (!root.canRead()) return emptyList()
-            val dirs = withContext(Dispatchers.IO) { repo.scanComponentDirs(root) }
+            if (!dataRoot.canRead()) return emptyList()
+            val componentsDir = withContext(Dispatchers.IO) { repo.navigateToComponents(dataRoot) }
+                ?: return emptyList()
+            if (!componentsDir.canRead()) return emptyList()
+            val dirs = withContext(Dispatchers.IO) { repo.scanComponentDirs(componentsDir) }
             val list = mutableListOf<ComponentEntry>()
             repo.scanComponents(dirs, backupManager)
                 .flowOn(Dispatchers.IO)
@@ -340,66 +350,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── My Games ───────────────────────────────────────────────────────────────
 
-    fun hasGamesAccess(packageName: String): Boolean = prefs.contains(gamesUriKey(packageName))
-    fun hasSteamGamesAccess(packageName: String): Boolean = prefs.contains(steamGamesUriKey(packageName))
-
-    fun grantGamesAccess(app: GameHubApp, uri: Uri) {
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        prefs.edit().putString(gamesUriKey(app.activePackage), uri.toString()).apply()
-        refreshGamesWithStoredUris(app)
-    }
-
-    fun grantSteamGamesAccess(app: GameHubApp, uri: Uri) {
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        prefs.edit().putString(steamGamesUriKey(app.activePackage), uri.toString()).apply()
-        refreshGamesWithStoredUris(app)
-    }
-
-    fun revokeGamesAccess(app: GameHubApp) {
-        val uri = app.known.packageNames.mapNotNull { storedGamesUri(it) }.firstOrNull()
-        if (uri != null) {
-            try {
-                context.contentResolver.releasePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: Exception) {}
-        }
-        val edit = prefs.edit()
-        app.known.packageNames.forEach { pkg -> edit.remove(gamesUriKey(pkg)) }
-        edit.apply()
-        val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
-        if (!hasSteam) clearSelectedGamesApp() else refreshGamesWithStoredUris(app)
-    }
-
-    fun revokeSteamGamesAccess(app: GameHubApp) {
-        val uri = app.known.packageNames.mapNotNull { storedSteamGamesUri(it) }.firstOrNull()
-        if (uri != null) {
-            try {
-                context.contentResolver.releasePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: Exception) {}
-        }
-        val edit = prefs.edit()
-        app.known.packageNames.forEach { pkg -> edit.remove(steamGamesUriKey(pkg)) }
-        edit.apply()
-        val hasLocal = app.known.packageNames.any { hasGamesAccess(it) }
-        if (!hasLocal) clearSelectedGamesApp() else refreshGamesWithStoredUris(app)
-    }
+    /** True when the data root grant exists, which covers both components and games. */
+    fun hasDataAccess(packageName: String): Boolean = prefs.contains(dataUriKey(packageName))
 
     fun selectGamesApp(app: GameHubApp) {
-        val hasLocal = app.known.packageNames.any { hasGamesAccess(it) }
-        val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
-        if (!hasLocal && !hasSteam) return
-        refreshGamesWithStoredUris(app)
+        val uri = storedDataUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
+            ?: return
+        _uiState.update { it.copy(selectedGamesApp = app, games = emptyList(), isLoadingGames = true) }
+        loadGames(uri)
     }
 
     fun clearSelectedGamesApp() {
@@ -408,34 +367,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshGames() {
         val app = _uiState.value.selectedGamesApp ?: return
-        refreshGamesWithStoredUris(app)
+        val uri = storedDataUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
+            ?: return
+        _uiState.update { it.copy(games = emptyList(), isLoadingGames = true) }
+        loadGames(uri)
     }
 
-    private fun refreshGamesWithStoredUris(app: GameHubApp) {
-        val localUri = storedGamesUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedGamesUri(it) }.firstOrNull()
-        val steamUri = storedSteamGamesUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedSteamGamesUri(it) }.firstOrNull()
-        _uiState.update { it.copy(selectedGamesApp = app, games = emptyList(), isLoadingGames = true) }
-        loadGames(localUri, steamUri)
-    }
-
-    private fun loadGames(localUri: Uri?, steamUri: Uri?) {
+    private fun loadGames(dataUri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingGames = true, games = emptyList()) }
             try {
-                val allGames = mutableListOf<GameEntry>()
-                if (localUri != null) {
-                    val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(localUri) }
-                    if (root != null && root.canRead()) {
-                        allGames += withContext(Dispatchers.IO) { gameRepo.scanLocalGames(root) }
-                    }
+                val dataRoot = withContext(Dispatchers.IO) { gameRepo.getRootDocument(dataUri) }
+                if (dataRoot == null || !dataRoot.canRead()) {
+                    _uiState.update { it.copy(isLoadingGames = false) }
+                    return@launch
                 }
-                if (steamUri != null) {
-                    val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(steamUri) }
-                    if (root != null && root.canRead()) {
-                        allGames += withContext(Dispatchers.IO) { gameRepo.scanSteamGames(root) }
-                    }
+                val allGames = mutableListOf<GameEntry>()
+                val localRoot = withContext(Dispatchers.IO) { gameRepo.navigateToVirtualContainers(dataRoot) }
+                if (localRoot != null && localRoot.canRead()) {
+                    allGames += withContext(Dispatchers.IO) { gameRepo.scanLocalGames(localRoot) }
+                }
+                val steamRoot = withContext(Dispatchers.IO) { gameRepo.navigateToShadercache(dataRoot) }
+                if (steamRoot != null && steamRoot.canRead()) {
+                    allGames += withContext(Dispatchers.IO) { gameRepo.scanSteamGames(steamRoot) }
                 }
                 _uiState.update { it.copy(games = allGames, isLoadingGames = false) }
             } catch (e: Exception) {
@@ -455,28 +410,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Creates .iso files in virtual_containers/ for all LOCAL games. Returns count written. */
     fun createIsoFiles(onResult: (Int) -> Unit) {
         val app = _uiState.value.selectedGamesApp ?: return
-        val uri = storedGamesUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedGamesUri(it) }.firstOrNull()
+        val dataUri = storedDataUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
             ?: return
         viewModelScope.launch {
-            val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(uri) } ?: return@launch
+            val dataRoot = withContext(Dispatchers.IO) { gameRepo.getRootDocument(dataUri) } ?: return@launch
+            val localRoot = withContext(Dispatchers.IO) { gameRepo.navigateToVirtualContainers(dataRoot) } ?: return@launch
             val localGames = _uiState.value.games.filter { it.type == GameType.LOCAL }
-            val count = gameRepo.createIsoFiles(root, localGames)
+            val count = gameRepo.createIsoFiles(localRoot, localGames)
             onResult(count)
         }
     }
-
-    fun initialGamesUriHintFor(packageName: String): Uri =
-        Uri.parse(
-            "content://com.android.externalstorage.documents/document/" +
-                Uri.encode("primary:Android/data/$packageName/files/usr/home/virtual_containers")
-        )
-
-    fun initialSteamUriHintFor(packageName: String): Uri =
-        Uri.parse(
-            "content://com.android.externalstorage.documents/document/" +
-                Uri.encode("primary:Android/data/$packageName/files/Steam/steamapps/shadercache")
-        )
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -497,17 +441,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) { false }
     }
 
-    private fun uriKey(packageName: String) = "uri_$packageName"
+    /** Single pref key covering the data/ root grant — used for both components and games. */
+    private fun dataUriKey(packageName: String) = "data_uri_$packageName"
 
-    private fun storedUri(packageName: String): Uri? =
-        prefs.getString(uriKey(packageName), null)?.let { Uri.parse(it) }
-
-    private fun gamesUriKey(packageName: String) = "games_uri_$packageName"
-    private fun steamGamesUriKey(packageName: String) = "steam_games_uri_$packageName"
-
-    private fun storedGamesUri(packageName: String): Uri? =
-        prefs.getString(gamesUriKey(packageName), null)?.let { Uri.parse(it) }
-
-    private fun storedSteamGamesUri(packageName: String): Uri? =
-        prefs.getString(steamGamesUriKey(packageName), null)?.let { Uri.parse(it) }
+    private fun storedDataUri(packageName: String): Uri? =
+        prefs.getString(dataUriKey(packageName), null)?.let { Uri.parse(it) }
 }

@@ -15,6 +15,26 @@ class GameRepository(private val context: Context) {
         DocumentFile.fromTreeUri(context, uri)
 
     /**
+     * Navigates from the granted data root down to virtual_containers/:
+     * data/ → files/usr/home/virtual_containers/
+     */
+    fun navigateToVirtualContainers(dataRoot: DocumentFile): DocumentFile? =
+        dataRoot.findFile("files")
+            ?.findFile("usr")
+            ?.findFile("home")
+            ?.findFile("virtual_containers")
+
+    /**
+     * Navigates from the granted data root down to the Steam shadercache:
+     * data/ → files/Steam/steamapps/shadercache/
+     */
+    fun navigateToShadercache(dataRoot: DocumentFile): DocumentFile? =
+        dataRoot.findFile("files")
+            ?.findFile("Steam")
+            ?.findFile("steamapps")
+            ?.findFile("shadercache")
+
+    /**
      * Scans virtual_containers/ for LOCAL game folders.
      * Only includes directories whose name starts with "local" (case-insensitive).
      */
