@@ -183,10 +183,18 @@ fun AppListScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Android/data/${app.activePackage}",
+                                "${app.activePackage}/data",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "⚠ If you previously granted access in v1.9.0 or older, that grant pointed to the components/ subfolder and will no longer work. Re-grant by selecting the data/ folder above.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
