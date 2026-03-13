@@ -1,7 +1,10 @@
 package com.banner.inject.data
 
+import android.content.Context
+import android.content.SharedPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -21,9 +24,23 @@ data class SteamGameInfo(
 
 object SteamRepository {
 
-    // In-memory cache — survives config changes via the singleton, cleared on process restart
+    // In-memory cache — survives config changes, cleared on process restart
     private val cache = ConcurrentHashMap<String, SteamGameInfo>()
     private val failed = ConcurrentHashMap<String, Boolean>()  // don't retry known-bad IDs
+
+    // Disk cache — persists across restarts; null until init() is called
+    private var prefs: SharedPreferences? = null
+
+    /**
+     * Must be called once with the application context before any fetch/getCached calls.
+     * Safe to call multiple times (idempotent).
+     */
+    fun init(context: Context) {
+        if (prefs == null) {
+            prefs = context.applicationContext
+                .getSharedPreferences("steam_meta_cache", Context.MODE_PRIVATE)
+        }
+    }
 
     /** Returns the portrait cover URL for a given App ID (no network call needed). */
     fun coverUrl(appId: String) =
@@ -32,13 +49,24 @@ object SteamRepository {
     fun headerUrl(appId: String) =
         "https://cdn.akamai.steamstatic.com/steam/apps/$appId/header.jpg"
 
-    /** Returns cached info immediately, or null if not yet fetched. */
-    fun getCached(appId: String): SteamGameInfo? = cache[appId]
+    /**
+     * Returns cached info immediately — checks memory first, then disk.
+     * Returns null if the app ID has never been successfully fetched.
+     */
+    fun getCached(appId: String): SteamGameInfo? =
+        cache[appId] ?: readFromDisk(appId)?.also { cache[appId] = it }
 
     /** Fetches and caches info for [appId]. Returns null on failure. */
     suspend fun fetch(appId: String): SteamGameInfo? {
+        // Memory hit
         cache[appId]?.let { return it }
         if (failed[appId] == true) return null
+
+        // Disk hit — avoids network when offline after a previous successful fetch
+        readFromDisk(appId)?.let {
+            cache[appId] = it
+            return it
+        }
 
         return withContext(Dispatchers.IO) {
             try {
@@ -75,7 +103,6 @@ object SteamRepository {
                     ?.optString("date", "")
                     ?.takeIf { it.isNotBlank() }
                     ?.let { dateStr ->
-                        // Dates come as "21 Aug, 2012" or "2012" or "Q1 2024" etc.
                         Regex("\\b(19|20)\\d{2}\\b").find(dateStr)?.value
                     }
 
@@ -97,6 +124,7 @@ object SteamRepository {
                     headerUrl = headerUrl(appId)
                 )
                 cache[appId] = info
+                writeToDisk(info)
                 info
             } catch (_: Exception) {
                 // Network error — don't mark as permanently failed so we can retry later
@@ -108,7 +136,47 @@ object SteamRepository {
     fun clearCache() {
         cache.clear()
         failed.clear()
+        prefs?.edit()?.clear()?.apply()
     }
+
+    // ── Disk persistence ──────────────────────────────────────────────────────
+
+    private fun writeToDisk(info: SteamGameInfo) {
+        prefs?.edit()?.putString(diskKey(info.appId), info.toJson())?.apply()
+    }
+
+    private fun readFromDisk(appId: String): SteamGameInfo? =
+        prefs?.getString(diskKey(appId), null)?.let { fromJson(it) }
+
+    private fun diskKey(appId: String) = "meta_$appId"
+
+    private fun SteamGameInfo.toJson(): String = JSONObject().apply {
+        put("appId", appId)
+        put("name", name)
+        put("genres", JSONArray(genres))
+        putOpt("releaseYear", releaseYear)
+        putOpt("metacriticScore", metacriticScore)
+        putOpt("shortDescription", shortDescription)
+    }.toString()
+
+    private fun fromJson(json: String): SteamGameInfo? = try {
+        val obj = JSONObject(json)
+        val appId = obj.getString("appId")
+        val genres = buildList {
+            val arr = obj.optJSONArray("genres")
+            if (arr != null) for (i in 0 until arr.length()) add(arr.getString(i))
+        }
+        SteamGameInfo(
+            appId = appId,
+            name = obj.getString("name"),
+            genres = genres,
+            releaseYear = obj.optString("releaseYear", "").takeIf { it.isNotBlank() },
+            metacriticScore = obj.optInt("metacriticScore", -1).takeIf { it > 0 },
+            shortDescription = obj.optString("shortDescription", "").takeIf { it.isNotBlank() },
+            coverUrl = coverUrl(appId),
+            headerUrl = headerUrl(appId)
+        )
+    } catch (_: Exception) { null }
 
     // ── Search by name ────────────────────────────────────────────────────────
 

@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.banner.inject.data.BackupManager
 import com.banner.inject.data.ComponentRepository
 import com.banner.inject.data.GameRepository
+import com.banner.inject.data.SteamRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameEntry
 import com.banner.inject.model.GameType
@@ -55,6 +56,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
+        SteamRepository.init(context)
         refreshAppList()
     }
 
