@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.documentfile.provider.DocumentFile
 import com.banner.inject.model.GameEntry
+import com.banner.inject.model.GameType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -13,24 +14,39 @@ class GameRepository(private val context: Context) {
     fun getRootDocument(uri: android.net.Uri): DocumentFile? =
         DocumentFile.fromTreeUri(context, uri)
 
-    /** Scans virtual_containers/ for game folder names. Skips .iso files. */
-    fun scanGames(rootDoc: DocumentFile): List<GameEntry> =
+    /**
+     * Scans virtual_containers/ for LOCAL game folders.
+     * Only includes directories whose name starts with "local" (case-insensitive).
+     */
+    fun scanLocalGames(rootDoc: DocumentFile): List<GameEntry> =
+        rootDoc.listFiles()
+            ?.filter { it.isDirectory && it.name?.startsWith("local", ignoreCase = true) == true }
+            ?.mapNotNull { it.name?.takeIf { n -> n.isNotBlank() } }
+            ?.sorted()
+            ?.map { GameEntry(it, GameType.LOCAL) }
+            ?: emptyList()
+
+    /**
+     * Scans Steam/steamapps/shadercache/ for Steam game folders.
+     * Every directory is a Steam App ID.
+     */
+    fun scanSteamGames(rootDoc: DocumentFile): List<GameEntry> =
         rootDoc.listFiles()
             ?.filter { it.isDirectory }
             ?.mapNotNull { it.name?.takeIf { n -> n.isNotBlank() } }
             ?.sorted()
-            ?.map { GameEntry(it) }
+            ?.map { GameEntry(it, GameType.STEAM) }
             ?: emptyList()
 
     /**
-     * Creates/updates a `<gameId>.iso` text file in the virtual_containers/ root for each game.
-     * Each file contains the gameId as plain text — used by GameHub's own launcher.
+     * Creates/updates a `<gameId>.iso` text file in the virtual_containers/ root
+     * for each LOCAL game. Used by GameHub's own launcher to recognize local imports.
      * Returns the count of ISOs written.
      */
-    suspend fun createIsoFiles(rootDoc: DocumentFile, games: List<GameEntry>): Int =
+    suspend fun createIsoFiles(rootDoc: DocumentFile, localGames: List<GameEntry>): Int =
         withContext(Dispatchers.IO) {
             var written = 0
-            games.forEach { game ->
+            localGames.filter { it.type == GameType.LOCAL }.forEach { game ->
                 val isoName = "${game.gameId}.iso"
                 var isoFile = rootDoc.findFile(isoName)
                 if (isoFile == null) {
@@ -50,8 +66,10 @@ class GameRepository(private val context: Context) {
 
     /**
      * Launches a game in the given GameHub package.
-     * Maps to: am start -n <pkg>/com.xj.landscape.launcher.ui.gamedetail.GameDetailActivity
-     *          -a <pkg>.LAUNCH_GAME --es localGameId <gameId> --es steamAppId <gameId> --ez autoStartGame true
+     * For LOCAL games: localGameId = gameId, steamAppId = gameId
+     * For STEAM games: steamAppId = gameId, localGameId = gameId
+     * (GameHub uses whichever is relevant; passing both as the same value matches
+     *  the original am start commands used by the GameHub launcher)
      */
     fun launchGame(packageName: String, gameId: String): Result<Unit> = runCatching {
         val intent = Intent().apply {

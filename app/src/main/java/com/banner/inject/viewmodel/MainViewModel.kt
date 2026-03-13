@@ -13,6 +13,7 @@ import com.banner.inject.data.ComponentRepository
 import com.banner.inject.data.GameRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameEntry
+import com.banner.inject.model.GameType
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.KNOWN_GAMEHUB_APPS
 import com.banner.inject.model.KnownApp
@@ -340,6 +341,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ── My Games ───────────────────────────────────────────────────────────────
 
     fun hasGamesAccess(packageName: String): Boolean = prefs.contains(gamesUriKey(packageName))
+    fun hasSteamGamesAccess(packageName: String): Boolean = prefs.contains(steamGamesUriKey(packageName))
 
     fun grantGamesAccess(app: GameHubApp, uri: Uri) {
         context.contentResolver.takePersistableUriPermission(
@@ -347,7 +349,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
         prefs.edit().putString(gamesUriKey(app.activePackage), uri.toString()).apply()
-        selectGamesApp(app.copy(hasAccess = true))
+        refreshGamesWithStoredUris(app)
+    }
+
+    fun grantSteamGamesAccess(app: GameHubApp, uri: Uri) {
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        prefs.edit().putString(steamGamesUriKey(app.activePackage), uri.toString()).apply()
+        refreshGamesWithStoredUris(app)
     }
 
     fun revokeGamesAccess(app: GameHubApp) {
@@ -363,15 +374,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val edit = prefs.edit()
         app.known.packageNames.forEach { pkg -> edit.remove(gamesUriKey(pkg)) }
         edit.apply()
-        if (_uiState.value.selectedGamesApp?.known == app.known) clearSelectedGamesApp()
+        val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
+        if (!hasSteam) clearSelectedGamesApp() else refreshGamesWithStoredUris(app)
+    }
+
+    fun revokeSteamGamesAccess(app: GameHubApp) {
+        val uri = app.known.packageNames.mapNotNull { storedSteamGamesUri(it) }.firstOrNull()
+        if (uri != null) {
+            try {
+                context.contentResolver.releasePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+        }
+        val edit = prefs.edit()
+        app.known.packageNames.forEach { pkg -> edit.remove(steamGamesUriKey(pkg)) }
+        edit.apply()
+        val hasLocal = app.known.packageNames.any { hasGamesAccess(it) }
+        if (!hasLocal) clearSelectedGamesApp() else refreshGamesWithStoredUris(app)
     }
 
     fun selectGamesApp(app: GameHubApp) {
-        val uri = storedGamesUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedGamesUri(it) }.firstOrNull()
-            ?: return
-        _uiState.update { it.copy(selectedGamesApp = app, games = emptyList(), isLoadingGames = true) }
-        loadGames(uri)
+        val hasLocal = app.known.packageNames.any { hasGamesAccess(it) }
+        val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
+        if (!hasLocal && !hasSteam) return
+        refreshGamesWithStoredUris(app)
     }
 
     fun clearSelectedGamesApp() {
@@ -380,25 +408,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshGames() {
         val app = _uiState.value.selectedGamesApp ?: return
-        val uri = storedGamesUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedGamesUri(it) }.firstOrNull()
-            ?: return
-        loadGames(uri)
+        refreshGamesWithStoredUris(app)
     }
 
-    private fun loadGames(uri: Uri) {
+    private fun refreshGamesWithStoredUris(app: GameHubApp) {
+        val localUri = storedGamesUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedGamesUri(it) }.firstOrNull()
+        val steamUri = storedSteamGamesUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedSteamGamesUri(it) }.firstOrNull()
+        _uiState.update { it.copy(selectedGamesApp = app, games = emptyList(), isLoadingGames = true) }
+        loadGames(localUri, steamUri)
+    }
+
+    private fun loadGames(localUri: Uri?, steamUri: Uri?) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingGames = true, games = emptyList()) }
             try {
-                val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(uri) }
-                if (root == null || !root.canRead()) {
-                    _uiState.update {
-                        it.copy(isLoadingGames = false, opState = OpState.Error("Cannot read virtual_containers. Re-grant access."))
+                val allGames = mutableListOf<GameEntry>()
+                if (localUri != null) {
+                    val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(localUri) }
+                    if (root != null && root.canRead()) {
+                        allGames += withContext(Dispatchers.IO) { gameRepo.scanLocalGames(root) }
                     }
-                    return@launch
                 }
-                val games = withContext(Dispatchers.IO) { gameRepo.scanGames(root) }
-                _uiState.update { it.copy(games = games, isLoadingGames = false) }
+                if (steamUri != null) {
+                    val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(steamUri) }
+                    if (root != null && root.canRead()) {
+                        allGames += withContext(Dispatchers.IO) { gameRepo.scanSteamGames(root) }
+                    }
+                }
+                _uiState.update { it.copy(games = allGames, isLoadingGames = false) }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoadingGames = false, opState = OpState.Error(e.message ?: "Failed to scan games"))
@@ -413,7 +452,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Creates .iso files in virtual_containers/ for all scanned games. Returns count written. */
+    /** Creates .iso files in virtual_containers/ for all LOCAL games. Returns count written. */
     fun createIsoFiles(onResult: (Int) -> Unit) {
         val app = _uiState.value.selectedGamesApp ?: return
         val uri = storedGamesUri(app.activePackage)
@@ -421,8 +460,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ?: return
         viewModelScope.launch {
             val root = withContext(Dispatchers.IO) { gameRepo.getRootDocument(uri) } ?: return@launch
-            val games = _uiState.value.games
-            val count = gameRepo.createIsoFiles(root, games)
+            val localGames = _uiState.value.games.filter { it.type == GameType.LOCAL }
+            val count = gameRepo.createIsoFiles(root, localGames)
             onResult(count)
         }
     }
@@ -431,6 +470,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         Uri.parse(
             "content://com.android.externalstorage.documents/document/" +
                 Uri.encode("primary:Android/data/$packageName/files/usr/home/virtual_containers")
+        )
+
+    fun initialSteamUriHintFor(packageName: String): Uri =
+        Uri.parse(
+            "content://com.android.externalstorage.documents/document/" +
+                Uri.encode("primary:Android/data/$packageName/files/Steam/steamapps/shadercache")
         )
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -458,7 +503,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         prefs.getString(uriKey(packageName), null)?.let { Uri.parse(it) }
 
     private fun gamesUriKey(packageName: String) = "games_uri_$packageName"
+    private fun steamGamesUriKey(packageName: String) = "steam_games_uri_$packageName"
 
     private fun storedGamesUri(packageName: String): Uri? =
         prefs.getString(gamesUriKey(packageName), null)?.let { Uri.parse(it) }
+
+    private fun storedSteamGamesUri(packageName: String): Uri? =
+        prefs.getString(steamGamesUriKey(packageName), null)?.let { Uri.parse(it) }
 }

@@ -58,7 +58,9 @@ fun formatSize(bytes: Long): String = when {
     else                    -> "$bytes B"
 }
 
-data class GameEntry(val gameId: String)
+enum class GameType { LOCAL, STEAM }
+
+data class GameEntry(val gameId: String, val type: GameType)
 
 enum class MainTab(val title: String) {
     INJECT("Inject Components"),

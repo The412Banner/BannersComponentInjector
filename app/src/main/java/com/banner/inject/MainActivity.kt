@@ -371,10 +371,13 @@ class MainActivity : ComponentActivity() {
                                 selectedApp = uiState.selectedGamesApp,
                                 games = uiState.games,
                                 isLoadingGames = uiState.isLoadingGames,
-                                hasGamesAccess = { vm.hasGamesAccess(it) },
+                                hasLocalGamesAccess = { vm.hasGamesAccess(it) },
+                                hasSteamGamesAccess = { vm.hasSteamGamesAccess(it) },
                                 onSelectApp = { vm.selectGamesApp(it) },
-                                onGamesAccessGranted = { app, uri -> vm.grantGamesAccess(app, uri) },
-                                onRevokeGamesAccess = { vm.revokeGamesAccess(it) },
+                                onLocalAccessGranted = { app, uri -> vm.grantGamesAccess(app, uri) },
+                                onSteamAccessGranted = { app, uri -> vm.grantSteamGamesAccess(app, uri) },
+                                onRevokeLocalAccess = { vm.revokeGamesAccess(it) },
+                                onRevokeSteamAccess = { vm.revokeSteamGamesAccess(it) },
                                 onBack = { vm.clearSelectedGamesApp() },
                                 onRefresh = { vm.refreshGames() },
                                 onLaunchGame = { pkg, gameId -> vm.launchGame(pkg, gameId) },
@@ -383,7 +386,8 @@ class MainActivity : ComponentActivity() {
                                         isoSnackbarMessage = "$count ISO file${if (count != 1) "s" else ""} created in virtual_containers"
                                     }
                                 },
-                                initialGamesUriHintFor = { vm.initialGamesUriHintFor(it) }
+                                initialLocalUriHintFor = { vm.initialGamesUriHintFor(it) },
+                                initialSteamUriHintFor = { vm.initialSteamUriHintFor(it) }
                             )
 
                             isoSnackbarMessage?.let { msg ->

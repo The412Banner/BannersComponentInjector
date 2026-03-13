@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.banner.inject.model.GameEntry
 import com.banner.inject.model.GameHubApp
+import com.banner.inject.model.GameType
 import com.banner.inject.model.MainTab
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,27 +29,43 @@ fun MyGamesScreen(
     selectedApp: GameHubApp?,
     games: List<GameEntry>,
     isLoadingGames: Boolean,
-    hasGamesAccess: (String) -> Boolean,
+    hasLocalGamesAccess: (String) -> Boolean,
+    hasSteamGamesAccess: (String) -> Boolean,
     onSelectApp: (GameHubApp) -> Unit,
-    onGamesAccessGranted: (GameHubApp, Uri) -> Unit,
-    onRevokeGamesAccess: (GameHubApp) -> Unit,
+    onLocalAccessGranted: (GameHubApp, Uri) -> Unit,
+    onSteamAccessGranted: (GameHubApp, Uri) -> Unit,
+    onRevokeLocalAccess: (GameHubApp) -> Unit,
+    onRevokeSteamAccess: (GameHubApp) -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onLaunchGame: (packageName: String, gameId: String) -> Unit,
     onCreateIsos: () -> Unit,
-    initialGamesUriHintFor: (String) -> Uri
+    initialLocalUriHintFor: (String) -> Uri,
+    initialSteamUriHintFor: (String) -> Uri
 ) {
-    var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
-    var showGrantGuide by remember { mutableStateOf<GameHubApp?>(null) }
-    var showRevokeDialog by remember { mutableStateOf<GameHubApp?>(null) }
+    var pendingLocalApp by remember { mutableStateOf<GameHubApp?>(null) }
+    var pendingSteamApp by remember { mutableStateOf<GameHubApp?>(null) }
+    var showSetupDialog by remember { mutableStateOf<GameHubApp?>(null) }
+    var showManageAccessDialog by remember { mutableStateOf(false) }
 
-    val folderPicker = rememberLauncherForActivityResult(
+    val localFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
-        val app = pendingApp
-        pendingApp = null
-        if (uri != null && app != null) onGamesAccessGranted(app, uri)
+        val app = pendingLocalApp
+        pendingLocalApp = null
+        if (uri != null && app != null) onLocalAccessGranted(app, uri)
     }
+
+    val steamFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        val app = pendingSteamApp
+        pendingSteamApp = null
+        if (uri != null && app != null) onSteamAccessGranted(app, uri)
+    }
+
+    val localGames = games.filter { it.type == GameType.LOCAL }
+    val steamGames = games.filter { it.type == GameType.STEAM }
 
     Scaffold(
         topBar = {
@@ -73,11 +90,14 @@ fun MyGamesScreen(
                             IconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                             }
-                            IconButton(onClick = onCreateIsos) {
-                                Icon(Icons.Default.SaveAlt, contentDescription = "Create ISOs")
+                            // Create ISOs only makes sense for local games
+                            if (selectedApp.known.packageNames.any { hasLocalGamesAccess(it) }) {
+                                IconButton(onClick = onCreateIsos) {
+                                    Icon(Icons.Default.SaveAlt, contentDescription = "Create ISOs for local games")
+                                }
                             }
-                            IconButton(onClick = { showRevokeDialog = selectedApp }) {
-                                Icon(Icons.Default.LinkOff, contentDescription = "Revoke access")
+                            IconButton(onClick = { showManageAccessDialog = true }) {
+                                Icon(Icons.Default.FolderShared, contentDescription = "Manage folder access")
                             }
                         }
                     },
@@ -90,7 +110,7 @@ fun MyGamesScreen(
         }
     ) { padding ->
         if (selectedApp == null) {
-            // App selector list
+            // ── App selector ───────────────────────────────────────────────────
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -106,7 +126,7 @@ fun MyGamesScreen(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                     )
                 }
-                val eligible = apps.filter { it.isInstalled || it.known.packageNames.any { p -> hasGamesAccess(p) } }
+                val eligible = apps.filter { it.isInstalled || it.known.packageNames.any { p -> hasLocalGamesAccess(p) || hasSteamGamesAccess(p) } }
                 if (eligible.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -117,27 +137,23 @@ fun MyGamesScreen(
                     items(eligible, key = { it.known.packageNames.first() }) { app ->
                         GamesAppCard(
                             app = app,
-                            hasGamesAccess = hasGamesAccess,
+                            hasLocalAccess = app.known.packageNames.any { hasLocalGamesAccess(it) },
+                            hasSteamAccess = app.known.packageNames.any { hasSteamGamesAccess(it) },
                             onClick = {
-                                val access = app.known.packageNames.any { hasGamesAccess(it) }
-                                if (access) {
-                                    onSelectApp(app)
-                                } else {
-                                    showGrantGuide = app
-                                }
-                            },
-                            onRevokeClick = { showRevokeDialog = app }
+                                val hasLocal = app.known.packageNames.any { hasLocalGamesAccess(it) }
+                                val hasSteam = app.known.packageNames.any { hasSteamGamesAccess(it) }
+                                if (hasLocal || hasSteam) onSelectApp(app)
+                                else showSetupDialog = app
+                            }
                         )
                     }
                 }
             }
         } else {
-            // Games list
+            // ── Games list ────────────────────────────────────────────────────
             if (isLoadingGames) {
                 Box(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -148,9 +164,7 @@ fun MyGamesScreen(
                 }
             } else if (games.isEmpty()) {
                 Box(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                    Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -165,13 +179,13 @@ fun MyGamesScreen(
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "No games found in virtual_containers.",
+                            "No games found.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Install and set up a game in GameHub first.",
+                            "Install games in GameHub, or grant access to both folders.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             fontSize = 12.sp
                         )
@@ -179,108 +193,255 @@ fun MyGamesScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    item {
-                        Text(
-                            "${games.size} game${if (games.size != 1) "s" else ""} found",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
+                    // ── Local Games section ────────────────────────────────────
+                    if (localGames.isNotEmpty()) {
+                        item {
+                            SectionHeader(
+                                title = "Local Games",
+                                count = localGames.size,
+                                icon = Icons.Default.Computer
+                            )
+                        }
+                        items(localGames, key = { "local_${it.gameId}" }) { game ->
+                            GameCard(
+                                game = game,
+                                onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) }
+                            )
+                        }
                     }
-                    items(games, key = { it.gameId }) { game ->
-                        GameCard(
-                            game = game,
-                            onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) }
-                        )
+
+                    // ── Steam Games section ────────────────────────────────────
+                    if (steamGames.isNotEmpty()) {
+                        item {
+                            SectionHeader(
+                                title = "Steam Games",
+                                count = steamGames.size,
+                                icon = Icons.Default.Games,
+                                topPadding = if (localGames.isNotEmpty()) 8.dp else 0.dp
+                            )
+                        }
+                        items(steamGames, key = { "steam_${it.gameId}" }) { game ->
+                            GameCard(
+                                game = game,
+                                onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) }
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    // Grant guide dialog
-    showGrantGuide?.let { app ->
+    // ── Setup dialog (no access yet) ──────────────────────────────────────────
+    showSetupDialog?.let { app ->
         AlertDialog(
-            onDismissRequest = { showGrantGuide = null },
+            onDismissRequest = { showSetupDialog = null },
             icon = { Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Grant Games Folder Access") },
+            title = { Text("Grant Folder Access", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "In the folder picker, select ${app.known.displayName} from the sidebar, then navigate to the virtual_containers folder and tap \"Use this folder\".",
-                        fontSize = 14.sp
+                        "Grant access to one or both game folders for ${app.known.displayName}.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(12.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.background,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(
-                                "Path to select:",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "data/files/usr/home/virtual_containers",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
+                    // Local games folder
+                    FolderGrantRow(
+                        label = "Local Games",
+                        path = "data/files/usr/home/virtual_containers",
+                        isGranted = app.known.packageNames.any { hasLocalGamesAccess(it) },
+                        onGrant = {
+                            pendingLocalApp = app
+                            localFolderPicker.launch(initialLocalUriHintFor(app.activePackage))
+                        },
+                        onRevoke = { onRevokeLocalAccess(app) }
+                    )
+                    // Steam games folder
+                    FolderGrantRow(
+                        label = "Steam Games",
+                        path = "data/files/Steam/steamapps/shadercache",
+                        isGranted = app.known.packageNames.any { hasSteamGamesAccess(it) },
+                        onGrant = {
+                            pendingSteamApp = app
+                            steamFolderPicker.launch(initialSteamUriHintFor(app.activePackage))
+                        },
+                        onRevoke = { onRevokeSteamAccess(app) }
+                    )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showGrantGuide = null
-                    pendingApp = app
-                    folderPicker.launch(initialGamesUriHintFor(app.activePackage))
-                }) { Text("Open Folder Picker") }
+                val canProceed = app.known.packageNames.any { hasLocalGamesAccess(it) || hasSteamGamesAccess(it) }
+                TextButton(
+                    onClick = {
+                        showSetupDialog = null
+                        onSelectApp(app)
+                    },
+                    enabled = canProceed
+                ) { Text("View Games") }
             },
             dismissButton = {
-                TextButton(onClick = { showGrantGuide = null }) { Text("Cancel") }
+                TextButton(onClick = { showSetupDialog = null }) { Text("Cancel") }
             }
         )
     }
 
-    // Revoke access dialog
-    showRevokeDialog?.let { app ->
+    // ── Manage Access dialog (in-games-view) ─────────────────────────────────
+    if (showManageAccessDialog && selectedApp != null) {
         AlertDialog(
-            onDismissRequest = { showRevokeDialog = null },
-            title = { Text("Remove Games Access") },
-            text = { Text("Remove games folder access for ${app.known.displayName}? You can re-grant it any time.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showRevokeDialog = null
-                    onRevokeGamesAccess(app)
-                }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+            onDismissRequest = { showManageAccessDialog = false },
+            icon = { Icon(Icons.Default.FolderShared, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Manage Folder Access", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FolderGrantRow(
+                        label = "Local Games",
+                        path = "data/files/usr/home/virtual_containers",
+                        isGranted = selectedApp.known.packageNames.any { hasLocalGamesAccess(it) },
+                        onGrant = {
+                            showManageAccessDialog = false
+                            pendingLocalApp = selectedApp
+                            localFolderPicker.launch(initialLocalUriHintFor(selectedApp.activePackage))
+                        },
+                        onRevoke = {
+                            showManageAccessDialog = false
+                            onRevokeLocalAccess(selectedApp)
+                        }
+                    )
+                    FolderGrantRow(
+                        label = "Steam Games",
+                        path = "data/files/Steam/steamapps/shadercache",
+                        isGranted = selectedApp.known.packageNames.any { hasSteamGamesAccess(it) },
+                        onGrant = {
+                            showManageAccessDialog = false
+                            pendingSteamApp = selectedApp
+                            steamFolderPicker.launch(initialSteamUriHintFor(selectedApp.activePackage))
+                        },
+                        onRevoke = {
+                            showManageAccessDialog = false
+                            onRevokeSteamAccess(selectedApp)
+                        }
+                    )
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showRevokeDialog = null }) { Text("Cancel") }
+            confirmButton = {
+                TextButton(onClick = { showManageAccessDialog = false }) { Text("Done") }
             }
         )
     }
 }
 
+// ── Reusable composables ──────────────────────────────────────────────────────
+
+@Composable
+private fun FolderGrantRow(
+    label: String,
+    path: String,
+    isGranted: Boolean,
+    onGrant: () -> Unit,
+    onRevoke: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isGranted) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(
+                            "Granted",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(path, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!isGranted) {
+                    FilledTonalButton(
+                        onClick = onGrant,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Grant Access", fontSize = 12.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onRevoke,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Revoke", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    count: Int,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, top = topPadding + 12.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            title,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            "($count)",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp))
+}
+
 @Composable
 private fun GamesAppCard(
     app: GameHubApp,
-    hasGamesAccess: (String) -> Boolean,
-    onClick: () -> Unit,
-    onRevokeClick: () -> Unit
+    hasLocalAccess: Boolean,
+    hasSteamAccess: Boolean,
+    onClick: () -> Unit
 ) {
-    val accessGranted = app.known.packageNames.any { hasGamesAccess(it) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 0.dp),
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -299,7 +460,7 @@ private fun GamesAppCard(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Default.SportsEsports,
+                        Icons.Default.SportsEsports,
                         contentDescription = null,
                         tint = if (app.isInstalled) MaterialTheme.colorScheme.onPrimaryContainer
                                else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -309,62 +470,50 @@ private fun GamesAppCard(
             }
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    app.known.displayName,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    when {
-                        accessGranted -> "Tap to view games"
-                        app.isInstalled -> "Installed — tap to grant access"
-                        else -> "Not installed"
-                    },
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (accessGranted) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            "Access",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                Text(app.known.displayName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AccessChip(label = "Local", isGranted = hasLocalAccess)
+                    AccessChip(label = "Steam", isGranted = hasSteamAccess)
                 }
-                IconButton(onClick = onRevokeClick, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Icons.Default.LinkOff,
-                        contentDescription = "Revoke access",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            } else {
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
             }
+            Icon(
+                if (hasLocalAccess || hasSteamAccess) Icons.Default.ChevronRight
+                else Icons.Default.FolderOpen,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccessChip(label: String, isGranted: Boolean) {
+    Surface(
+        color = if (isGranted) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+        shape = MaterialTheme.shapes.extraSmall
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                if (isGranted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer
+                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(10.dp)
+            )
+            Text(
+                label,
+                fontSize = 10.sp,
+                color = if (isGranted) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isGranted) FontWeight.Medium else FontWeight.Normal
+            )
         }
     }
 }
@@ -374,8 +523,11 @@ private fun GameCard(
     game: GameEntry,
     onLaunch: () -> Unit
 ) {
+    val isSteam = game.type == GameType.STEAM
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 3.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -387,19 +539,21 @@ private fun GameCard(
         ) {
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.size(44.dp)
+                color = if (isSteam) MaterialTheme.colorScheme.tertiaryContainer
+                        else MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        Icons.Default.Games,
+                        if (isSteam) Icons.Default.Games else Icons.Default.Computer,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(24.dp)
+                        tint = if (isSteam) MaterialTheme.colorScheme.onTertiaryContainer
+                               else MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     game.gameId,
@@ -408,7 +562,7 @@ private fun GameCard(
                     maxLines = 2
                 )
                 Text(
-                    "ID: ${game.gameId}",
+                    if (isSteam) "Steam App ID: ${game.gameId}" else "Local ID: ${game.gameId}",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
