@@ -109,7 +109,9 @@ fun SettingsSheet(
     isAmoled: Boolean = false,
     onAmoledChanged: (Boolean) -> Unit = {},
     isDynamicColor: Boolean = false,
-    onDynamicColorChanged: (Boolean) -> Unit = {}
+    onDynamicColorChanged: (Boolean) -> Unit = {},
+    showMyGamesTab: Boolean = false,
+    onShowMyGamesTabChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -264,6 +266,36 @@ fun SettingsSheet(
                                         Text("Download Components", fontSize = 12.sp)
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // ── My Games tab ─────────────────────────────────────────
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Show My Games Tab", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        "Adds a tab to browse and launch games installed in GameHub",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = showMyGamesTab,
+                                    onCheckedChange = {
+                                        onShowMyGamesTabChanged(it)
+                                        prefs.edit().putBoolean("show_my_games_tab", it).apply()
+                                    }
+                                )
                             }
                         }
                     }

@@ -6,6 +6,41 @@
 
 ---
 
+### [stable] — v1.9.0 — Stable release (2026-03-11)
+**Commit:** `86e3989` (code) / `2a64101` (docs)  |  **Tag:** v1.9.0
+
+#### What changed (since v1.8.5)
+- From My Downloads button in ComponentDetailSheet
+- Inject into GameHub button in DownloadManagerScreen (two-step app→component picker, Done/Error snackbar)
+- Light mode / Dark mode toggle in Settings → Appearance
+- AMOLED black checkbox (disabled when Dynamic Color on)
+- Dynamic Color (Material You) toggle — Android 12+; hides accent picker, disables AMOLED
+- In-app changelog in update dialog (scrollable, max 180dp) and Settings update card (max 150dp)
+- Update dialog size fix (fillMaxSize → fillMaxWidth)
+- Markdown stripping in all changelog Text composables
+- AMOLED disabled with subtitle when Dynamic Color is on
+
+#### Files touched
+- All BCI UI and data source files (multiple screens)
+- README.md — full rewrite for v1.9.0
+
+---
+
+### [pre-release] — v1.8.9-pre — Polish fixes: inject feedback, AMOLED+DynColor, markdown strip (2026-03-11)
+**Commit:** `86e3989`  |  **Tag:** v1.8.9-pre
+
+#### What changed
+- **Inject feedback:** DownloadManagerScreen shows Done/Error snackbar after inject via `opState` LaunchedEffect; `hadRecentInject` gate prevents false positives from unrelated state changes
+- **AMOLED + Dynamic Color:** AMOLED checkbox is disabled when Dynamic Color is on (`amoledEnabled = isDarkMode && !isDynamicColor`); shows "Not available with Dynamic Color" subtitle
+- **Markdown stripping:** changelog text in both the SettingsSheet update card and MainActivity launch-time AlertDialog now runs through `stripMarkdown()` — removes `#`, `**`, `*`, `` ` ``, converts `-`/`+` bullets to `•`, strips blockquotes
+
+#### Files touched
+- `ui/screens/DownloadManagerScreen.kt` — inject result snackbar via LaunchedEffect(opState)
+- `ui/screens/SettingsSheet.kt` — apply `stripMarkdown()` to changelog Text
+- `MainActivity.kt` — apply `stripMarkdown()` to changelog Text in AlertDialog (already done in previous commit, no further change)
+
+---
+
 ### [pre-release] — v1.8.8-pre — Update dialog fix + changelog (2026-03-11)
 **Commit:** `3d458a8`  |  **Tag:** v1.8.8-pre
 

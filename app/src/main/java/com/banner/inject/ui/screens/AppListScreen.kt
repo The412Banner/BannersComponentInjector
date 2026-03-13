@@ -45,6 +45,8 @@ fun AppListScreen(
     onAmoledChanged: (Boolean) -> Unit = {},
     isDynamicColor: Boolean = false,
     onDynamicColorChanged: (Boolean) -> Unit = {},
+    showMyGamesTab: Boolean = false,
+    onShowMyGamesTabChanged: (Boolean) -> Unit = {},
     onAddCustomApp: (name: String, packageName: String) -> Unit,
     onRemoveCustomApp: (GameHubApp) -> Unit,
     hasAccessForPackage: (String) -> Boolean
@@ -150,7 +152,9 @@ fun AppListScreen(
             isAmoled = isAmoled,
             onAmoledChanged = onAmoledChanged,
             isDynamicColor = isDynamicColor,
-            onDynamicColorChanged = onDynamicColorChanged
+            onDynamicColorChanged = onDynamicColorChanged,
+            showMyGamesTab = showMyGamesTab,
+            onShowMyGamesTabChanged = onShowMyGamesTabChanged
         )
     }
 

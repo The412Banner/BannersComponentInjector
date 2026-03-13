@@ -53,7 +53,9 @@ fun ComponentListScreen(
     isAmoled: Boolean = false,
     onAmoledChanged: (Boolean) -> Unit = {},
     isDynamicColor: Boolean = false,
-    onDynamicColorChanged: (Boolean) -> Unit = {}
+    onDynamicColorChanged: (Boolean) -> Unit = {},
+    showMyGamesTab: Boolean = false,
+    onShowMyGamesTabChanged: (Boolean) -> Unit = {}
 ) {
     var selectedComponent by remember { mutableStateOf<ComponentEntry?>(null) }
     var showBackupManager by remember { mutableStateOf(false) }
@@ -249,7 +251,9 @@ fun ComponentListScreen(
             isAmoled = isAmoled,
             onAmoledChanged = onAmoledChanged,
             isDynamicColor = isDynamicColor,
-            onDynamicColorChanged = onDynamicColorChanged
+            onDynamicColorChanged = onDynamicColorChanged,
+            showMyGamesTab = showMyGamesTab,
+            onShowMyGamesTabChanged = onShowMyGamesTabChanged
         )
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +57,7 @@ import com.banner.inject.ui.screens.BackupManagerSheet
 import com.banner.inject.ui.screens.ComponentListScreen
 import com.banner.inject.ui.screens.DownloadManagerScreen
 import com.banner.inject.ui.screens.DownloadScreen
+import com.banner.inject.ui.screens.LocalShowGamesTab
 import com.banner.inject.ui.screens.MyGamesScreen
 import com.banner.inject.ui.screens.SettingsSheet
 import com.banner.inject.ui.theme.BannersComponentInjectorTheme
@@ -73,10 +75,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestStoragePermissionsIfNeeded()
         enableEdgeToEdge()
+        val settingsPrefs = getSharedPreferences("bci_settings", Context.MODE_PRIVATE)
         var accentColor by mutableStateOf(ThemePrefs.load(this))
         var isDarkMode by mutableStateOf(ThemePrefs.loadDarkMode(this))
         var isAmoled by mutableStateOf(ThemePrefs.loadAmoled(this))
         var isDynamicColor by mutableStateOf(ThemePrefs.loadDynamicColor(this))
+        var showMyGamesTab by mutableStateOf(settingsPrefs.getBoolean("show_my_games_tab", false))
         setContent {
             BannersComponentInjectorTheme(
                 accentColor = accentColor,
@@ -84,6 +88,7 @@ class MainActivity : ComponentActivity() {
                 amoled = isAmoled,
                 dynamicColor = isDynamicColor
             ) {
+                CompositionLocalProvider(LocalShowGamesTab provides showMyGamesTab) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val prefs = remember { getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
                     var currentTab by remember {
@@ -96,6 +101,11 @@ class MainActivity : ComponentActivity() {
                         }
                         mutableStateOf(initialTab)
                     }
+                    // Fall back to INJECT if Games tab gets hidden while on it
+                    LaunchedEffect(showMyGamesTab) {
+                        if (!showMyGamesTab && currentTab == MainTab.GAMES) currentTab = MainTab.INJECT
+                    }
+
                     val vm: MainViewModel = viewModel()
                     val uiState by vm.uiState.collectAsState()
                     val repo = remember { RemoteSourceRepository(this@MainActivity) }
@@ -259,7 +269,9 @@ class MainActivity : ComponentActivity() {
                                     onDynamicColorChanged = { isDynamicColor = it },
                                     onAddCustomApp = { name, pkg -> vm.addCustomApp(name, pkg) },
                                     onRemoveCustomApp = { vm.removeCustomApp(it) },
-                                    hasAccessForPackage = { vm.hasAccessForPackage(it) }
+                                    hasAccessForPackage = { vm.hasAccessForPackage(it) },
+                                    showMyGamesTab = showMyGamesTab,
+                                    onShowMyGamesTabChanged = { showMyGamesTab = it }
                                 )
                             } else {
                                 ComponentListScreen(
@@ -288,7 +300,9 @@ class MainActivity : ComponentActivity() {
                                     isAmoled = isAmoled,
                                     onAmoledChanged = { isAmoled = it },
                                     isDynamicColor = isDynamicColor,
-                                    onDynamicColorChanged = { isDynamicColor = it }
+                                    onDynamicColorChanged = { isDynamicColor = it },
+                                    showMyGamesTab = showMyGamesTab,
+                                    onShowMyGamesTabChanged = { showMyGamesTab = it }
                                 )
                             }
                         }
@@ -324,7 +338,9 @@ class MainActivity : ComponentActivity() {
                                     isAmoled = isAmoled,
                                     onAmoledChanged = { isAmoled = it },
                                     isDynamicColor = isDynamicColor,
-                                    onDynamicColorChanged = { isDynamicColor = it }
+                                    onDynamicColorChanged = { isDynamicColor = it },
+                                    showMyGamesTab = showMyGamesTab,
+                                    onShowMyGamesTabChanged = { showMyGamesTab = it }
                                 )
                             }
                         }
@@ -357,7 +373,9 @@ class MainActivity : ComponentActivity() {
                                     isAmoled = isAmoled,
                                     onAmoledChanged = { isAmoled = it },
                                     isDynamicColor = isDynamicColor,
-                                    onDynamicColorChanged = { isDynamicColor = it }
+                                    onDynamicColorChanged = { isDynamicColor = it },
+                                    showMyGamesTab = showMyGamesTab,
+                                    onShowMyGamesTabChanged = { showMyGamesTab = it }
                                 )
                             }
                         }
@@ -412,6 +430,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                } // CompositionLocalProvider
             }
         }
     }
