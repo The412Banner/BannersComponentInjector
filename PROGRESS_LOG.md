@@ -6,6 +6,30 @@
 
 ---
 
+### [beta] — beta-v1.9.1-b8 — Single data/ folder grant covers all access (2026-03-13)
+**Commit:** `c6c9277`  |  **Tag:** beta-v1.9.1-b8  |  **Branch:** beta
+
+#### What changed
+- **Single SAF grant** at `Android/data/<pkg>` replaces 3 separate grants
+- `ComponentRepository.navigateToComponents(dataRoot)` — `files/usr/home/components/`
+- `GameRepository.navigateToVirtualContainers(dataRoot)` — `files/usr/home/virtual_containers/`
+- `GameRepository.navigateToShadercache(dataRoot)` — `files/Steam/steamapps/shadercache/`
+- `MainViewModel`: single `data_uri_<pkg>` pref key; `hasDataAccess()`; `loadComponents()`/`loadGames()` both navigate from data root; `revokeAccess` also clears games app; `createIsoFiles` navigates to virtual_containers
+- `MyGamesScreen`: one folder picker, `hasDataAccess`, `onAccessGranted`/`onRevokeAccess`, dialogs show `Android/data/<pkg>` path; `GamesAppCard` shows single "Access Granted" chip
+- `AppListScreen`: grant guide updated — "navigate to Android/data/<pkg>"
+- `MainActivity`: `onAccessGranted` routes to shared `vm.grantAccess()`
+- ⚠️ Existing grants invalidated — users must re-grant at `data/` level
+
+#### Files touched
+- `data/ComponentRepository.kt`
+- `data/GameRepository.kt`
+- `viewmodel/MainViewModel.kt`
+- `ui/screens/MyGamesScreen.kt`
+- `ui/screens/AppListScreen.kt`
+- `MainActivity.kt`
+
+---
+
 ### [beta] — beta-v1.9.1-b7 — Show My Games Tab toggle in Settings (2026-03-13)
 **Commit:** `37d2bcd`  |  **Tag:** beta-v1.9.1-b7  |  **Branch:** beta
 
