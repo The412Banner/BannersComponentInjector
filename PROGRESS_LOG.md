@@ -6,6 +6,28 @@
 
 ---
 
+### [beta] — beta-v1.9.1-b7 — Show My Games Tab toggle in Settings (2026-03-13)
+**Commit:** `37d2bcd`  |  **Tag:** beta-v1.9.1-b7  |  **Branch:** beta
+
+#### What changed
+- Added "Show My Games Tab" Switch in Settings → General section (default OFF)
+- `LocalShowGamesTab` CompositionLocal in MainTabRow drives tab visibility
+- `MainTabRow` filters GAMES tab from visible tabs when toggle is OFF
+- `MainActivity`: declares `showMyGamesTab` mutableStateOf (reads `bci_settings` prefs),
+  wraps content in `CompositionLocalProvider(LocalShowGamesTab provides showMyGamesTab)`,
+  adds `LaunchedEffect` fallback (if tab hidden while on GAMES → switch to INJECT),
+  wires toggle to all 5 SettingsSheet call sites
+- `AppListScreen` + `ComponentListScreen`: accept and forward `showMyGamesTab` / `onShowMyGamesTabChanged`
+
+#### Files touched
+- `MainActivity.kt`
+- `ui/screens/AppListScreen.kt`
+- `ui/screens/HomeScreen.kt`
+- `ui/screens/MainTabRow.kt` (CompositionLocal declared here)
+- `ui/screens/SettingsSheet.kt`
+
+---
+
 ### [stable] — v1.9.0 — Stable release (2026-03-11)
 **Commit:** `86e3989` (code) / `2a64101` (docs)  |  **Tag:** v1.9.0
 
