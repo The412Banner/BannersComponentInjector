@@ -6,6 +6,17 @@
 
 ---
 
+### [pre-release] — v1.9.1-pre — My Games tab, single grant, offline metadata (2026-03-13)
+**Commit:** `96ab8e2`  |  **Tag:** v1.9.1-pre  |  **Branch:** main
+
+#### What changed (since v1.9.0)
+- My Games tab: local imports + Steam games, card metadata, hamburger edit, Steam search, ISO creator, offline metadata persistence
+- Single SAF grant at `<package>/data` covers components + all game folders
+- Show My Games Tab toggle in Settings (default off)
+- All beta builds (b2–b10) merged to main and beta releases deleted
+
+---
+
 ### [beta] — beta-v1.9.1-b8 — Single data/ folder grant covers all access (2026-03-13)
 **Commit:** `c6c9277`  |  **Tag:** beta-v1.9.1-b8  |  **Branch:** beta
 
