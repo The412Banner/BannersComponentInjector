@@ -27,7 +27,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.banner.inject.data.GameOverrideRepository
 import com.banner.inject.data.SteamGameInfo
 import com.banner.inject.data.SteamRepository
@@ -433,6 +436,51 @@ private fun LocalGameCard(
     }
 }
 
+// Thumbnail for search results — tries portrait cover, falls back to header image.
+// Disk cache disabled so Coil never serves a cached 404.
+@Composable
+private fun SearchResultThumbnail(appId: String) {
+    val context = LocalContext.current
+    var useFallbackUrl by remember(appId) { mutableStateOf(false) }
+    val url = if (useFallbackUrl) SteamRepository.headerUrl(appId) else SteamRepository.coverUrl(appId)
+    val request = remember(url) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .diskCachePolicy(CachePolicy.DISABLED)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .build()
+    }
+    SubcomposeAsyncImage(
+        model = request,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .size(width = 30.dp, height = 45.dp)
+            .clip(MaterialTheme.shapes.extraSmall),
+        loading = {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+            )
+        },
+        error = {
+            if (!useFallbackUrl) {
+                useFallbackUrl = true  // retry with header.jpg
+            } else {
+                Box(
+                    Modifier.fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Games, null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp))
+                }
+            }
+        }
+    )
+}
+
 @Composable
 private fun LocalCoverFallback() {
     Box(
@@ -773,18 +821,7 @@ private fun GameEditSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    SubcomposeAsyncImage(
-                                        model = SteamRepository.coverUrl(result.appId),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.size(width = 30.dp, height = 45.dp)
-                                            .clip(MaterialTheme.shapes.extraSmall),
-                                        loading = {
-                                            Box(Modifier.fillMaxSize()
-                                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)))
-                                        },
-                                        error = {}
-                                    )
+                                    SearchResultThumbnail(appId = result.appId)
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(result.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text("App ID: ${result.appId}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
