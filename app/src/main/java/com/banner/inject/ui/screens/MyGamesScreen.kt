@@ -36,7 +36,9 @@ import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.GameOverride
 import com.banner.inject.model.GameType
 import com.banner.inject.model.MainTab
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,11 +64,14 @@ fun MyGamesScreen(
     val overrides = remember { mutableStateMapOf<String, GameOverride>() }
     val scope = rememberCoroutineScope()
 
-    // Load stored overrides whenever the games list changes
+    // Load stored overrides whenever the games list changes (disk reads on IO thread)
     LaunchedEffect(games) {
-        games.forEach { game ->
-            overrideRepo.get(game.gameId)?.let { overrides[game.gameId] = it }
+        val loaded = withContext(Dispatchers.IO) {
+            games.mapNotNull { game ->
+                overrideRepo.get(game.gameId)?.let { game.gameId to it }
+            }
         }
+        loaded.forEach { (id, override) -> overrides[id] = override }
     }
 
     var pendingApp by remember { mutableStateOf<GameHubApp?>(null) }
@@ -451,12 +456,12 @@ private fun SteamGameCard(
     onEdit: () -> Unit,
     onResetOverride: (() -> Unit)?
 ) {
-    var info by remember(game.gameId) { mutableStateOf(SteamRepository.getCached(game.gameId)) }
-    val scope = rememberCoroutineScope()
+    // Start null — memory cache is checked first inside fetch(), disk I/O stays off the main thread
+    var info by remember(game.gameId) { mutableStateOf<SteamGameInfo?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(game.gameId) {
-        if (info == null) scope.launch { info = SteamRepository.fetch(game.gameId) }
+        if (info == null) info = SteamRepository.fetch(game.gameId)
     }
 
     // Effective display values: override takes priority over fetched info
