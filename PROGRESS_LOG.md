@@ -6,6 +6,19 @@
 
 ---
 
+### [stable] — v1.9.7 — Remove local game from list / delete folder (2026-03-13)
+**Commit:** `0c1886e` (code) + `1af1fb3` (README)  |  **Tag:** v1.9.7  |  **Branch:** main
+
+#### What changed (since v1.9.5)
+- "Remove from list" — hides local game, folder untouched, persists in SharedPrefs
+- "Remove and delete folder" — SAF delete of virtual_containers/<gameId>/ + ISO stub; confirmation dialog
+
+#### Files touched
+- `data/GameRepository.kt`, `viewmodel/MainViewModel.kt`, `ui/screens/MyGamesScreen.kt`, `MainActivity.kt`
+- `README.md` — updated My Games section + Features bullets
+
+---
+
 ### [pre-release] — v1.9.6-pre — Remove local game from list / delete folder (2026-03-13)
 **Commit:** `b90fe2b`  |  **Tag:** v1.9.6-pre  |  **Branch:** main
 
