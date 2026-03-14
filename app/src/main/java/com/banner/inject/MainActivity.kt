@@ -424,6 +424,8 @@ class MainActivity : ComponentActivity() {
                                         isoSnackbarMessage = "$count ISO file${if (count != 1) "s" else ""} created in virtual_containers"
                                     }
                                 },
+                                onHideGame = { game -> vm.hideLocalGame(game.gameId) },
+                                onDeleteGame = { game, onResult -> vm.deleteLocalGameFolder(game.gameId, onResult) },
                                 initialDataUriHintFor = { vm.initialUriHintFor(it) }
                             )
 

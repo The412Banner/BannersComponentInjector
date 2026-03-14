@@ -60,6 +60,8 @@ fun MyGamesScreen(
     onRefresh: () -> Unit,
     onLaunchGame: (packageName: String, gameId: String) -> Unit,
     onCreateIsos: () -> Unit,
+    onHideGame: (GameEntry) -> Unit,
+    onDeleteGame: (GameEntry, onResult: (Boolean) -> Unit) -> Unit,
     initialDataUriHintFor: (String) -> Uri
 ) {
     val context = LocalContext.current
@@ -81,6 +83,8 @@ fun MyGamesScreen(
     var showSetupDialog by remember { mutableStateOf<GameHubApp?>(null) }
     var showManageAccessDialog by remember { mutableStateOf(false) }
     var editingGame by remember { mutableStateOf<GameEntry?>(null) }
+    var confirmDeleteGame by remember { mutableStateOf<GameEntry?>(null) }
+    var deleteInProgress by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -178,7 +182,9 @@ fun MyGamesScreen(
                             onResetOverride = if (overrides.containsKey(game.gameId)) ({
                                 overrideRepo.clear(game.gameId)
                                 overrides.remove(game.gameId)
-                            }) else null
+                            }) else null,
+                            onHideGame = { onHideGame(game) },
+                            onDeleteGame = { confirmDeleteGame = game }
                         )
                     }
                 }
@@ -221,6 +227,54 @@ fun MyGamesScreen(
                 editingGame = null
             },
             onDismiss = { editingGame = null }
+        )
+    }
+
+    // ── Delete confirmation dialog ────────────────────────────────────────────
+    confirmDeleteGame?.let { game ->
+        val displayName = game.gameId
+        AlertDialog(
+            onDismissRequest = { if (!deleteInProgress) confirmDeleteGame = null },
+            icon = { Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Game?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "\"$displayName\" and all its files will be permanently deleted from the virtual_containers folder.",
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "This cannot be undone.",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        deleteInProgress = true
+                        onDeleteGame(game) { success ->
+                            deleteInProgress = false
+                            confirmDeleteGame = null
+                        }
+                    },
+                    enabled = !deleteInProgress,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    if (deleteInProgress) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onError)
+                    } else {
+                        Text("Delete")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteGame = null }, enabled = !deleteInProgress) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 
@@ -327,12 +381,14 @@ private fun GameCard(
     override: GameOverride?,
     onLaunch: () -> Unit,
     onEdit: () -> Unit,
-    onResetOverride: (() -> Unit)?
+    onResetOverride: (() -> Unit)?,
+    onHideGame: (() -> Unit)? = null,
+    onDeleteGame: (() -> Unit)? = null
 ) {
     if (game.type == GameType.STEAM) {
         SteamGameCard(game, override, onLaunch, onEdit, onResetOverride)
     } else {
-        LocalGameCard(game, override, onLaunch, onEdit, onResetOverride)
+        LocalGameCard(game, override, onLaunch, onEdit, onResetOverride, onHideGame, onDeleteGame)
     }
 }
 
@@ -344,7 +400,9 @@ private fun LocalGameCard(
     override: GameOverride?,
     onLaunch: () -> Unit,
     onEdit: () -> Unit,
-    onResetOverride: (() -> Unit)?
+    onResetOverride: (() -> Unit)?,
+    onHideGame: (() -> Unit)? = null,
+    onDeleteGame: (() -> Unit)? = null
 ) {
     val linkedId = override?.linkedSteamAppId
     val displayName = override?.customName ?: game.gameId
@@ -428,6 +486,22 @@ private fun LocalGameCard(
                             text = { Text("Reset to defaults") },
                             leadingIcon = { Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp)) },
                             onClick = { menuExpanded = false; onResetOverride() }
+                        )
+                    }
+                    if (onHideGame != null) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        DropdownMenuItem(
+                            text = { Text("Remove from list") },
+                            leadingIcon = { Icon(Icons.Default.VisibilityOff, null, modifier = Modifier.size(18.dp)) },
+                            onClick = { menuExpanded = false; onHideGame() }
+                        )
+                    }
+                    if (onDeleteGame != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove and delete folder", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.DeleteForever, null,
+                                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                            onClick = { menuExpanded = false; onDeleteGame() }
                         )
                     }
                 }

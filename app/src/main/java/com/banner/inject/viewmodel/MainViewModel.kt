@@ -48,6 +48,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context: Context get() = getApplication()
     private val prefs = application.getSharedPreferences("bci_prefs", Context.MODE_PRIVATE)
+    private val hiddenGamesPrefs = application.getSharedPreferences("hidden_games_prefs", Context.MODE_PRIVATE)
     private val repo = ComponentRepository(application)
     private val backupManager = BackupManager(application)
     private val gameRepo = GameRepository(application)
@@ -386,9 +387,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 val allGames = mutableListOf<GameEntry>()
+                val hidden = loadHiddenGameIds()
                 val localRoot = withContext(Dispatchers.IO) { gameRepo.navigateToVirtualContainers(dataRoot) }
                 if (localRoot != null && localRoot.canRead()) {
                     allGames += withContext(Dispatchers.IO) { gameRepo.scanLocalGames(localRoot) }
+                        .filter { it.gameId !in hidden }
                 }
                 val steamRoot = withContext(Dispatchers.IO) { gameRepo.navigateToShadercache(dataRoot) }
                 if (steamRoot != null && steamRoot.canRead()) {
@@ -422,6 +425,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val count = gameRepo.createIsoFiles(localRoot, localGames)
             onResult(count)
         }
+    }
+
+    /** Hides [gameId] from the Local Games list without touching the folder. Persists across restarts. */
+    fun hideLocalGame(gameId: String) {
+        saveHiddenGameIds(loadHiddenGameIds() + gameId)
+        _uiState.update { state -> state.copy(games = state.games.filter { it.gameId != gameId }) }
+    }
+
+    /**
+     * Deletes the virtual container folder (and companion .iso stub) for [gameId],
+     * then removes it from the displayed list.
+     */
+    fun deleteLocalGameFolder(gameId: String, onResult: (Boolean) -> Unit) {
+        val app = _uiState.value.selectedGamesApp ?: return
+        val dataUri = storedDataUri(app.activePackage)
+            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
+            ?: return
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                try {
+                    val dataRoot = gameRepo.getRootDocument(dataUri) ?: return@withContext false
+                    val localRoot = gameRepo.navigateToVirtualContainers(dataRoot) ?: return@withContext false
+                    gameRepo.deleteLocalGameFolder(localRoot, gameId)
+                } catch (_: Exception) { false }
+            }
+            if (success) {
+                // Also remove from the hidden set in case it was hidden previously
+                saveHiddenGameIds(loadHiddenGameIds() - gameId)
+                _uiState.update { state -> state.copy(games = state.games.filter { it.gameId != gameId }) }
+            }
+            onResult(success)
+        }
+    }
+
+    private fun loadHiddenGameIds(): Set<String> =
+        hiddenGamesPrefs.getStringSet("hidden_local_games", emptySet()) ?: emptySet()
+
+    private fun saveHiddenGameIds(ids: Set<String>) {
+        hiddenGamesPrefs.edit().putStringSet("hidden_local_games", ids).apply()
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

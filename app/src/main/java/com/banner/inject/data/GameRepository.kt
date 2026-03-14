@@ -85,6 +85,20 @@ class GameRepository(private val context: Context) {
         }
 
     /**
+     * Deletes the virtual container folder for [gameId] from [virtualContainersRoot].
+     * Also removes the companion `<gameId>.iso` stub file if present.
+     * Returns true if the folder was found and deleted successfully.
+     */
+    suspend fun deleteLocalGameFolder(virtualContainersRoot: DocumentFile, gameId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val folder = virtualContainersRoot.findFile(gameId) ?: return@withContext false
+            val deleted = folder.delete()
+            // Best-effort cleanup of the companion ISO stub
+            virtualContainersRoot.findFile("$gameId.iso")?.delete()
+            deleted
+        }
+
+    /**
      * Launches a game in the given GameHub package.
      * For LOCAL games: localGameId = gameId, steamAppId = gameId
      * For STEAM games: steamAppId = gameId, localGameId = gameId
