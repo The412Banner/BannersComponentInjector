@@ -1165,6 +1165,19 @@ class RemoteSourceRepository(private val context: Context) {
     }
 
     /**
+     * Returns the set of source names that have at least one new fingerprint
+     * compared to the saved snapshot.  Empty set if no snapshot exists yet.
+     */
+    fun getNewSourceNames(): Set<String> {
+        val seen = loadSeenFingerprints()
+        if (seen.isEmpty()) return emptySet()
+        return currentFingerprints()
+            .filter { it !in seen }
+            .mapNotNull { fp -> fp.split("::").firstOrNull() }
+            .toSet()
+    }
+
+    /**
      * Returns true when the current cache contains items not present in the last
      * saved snapshot.  On first run (no saved snapshot) establishes a baseline
      * from the current cache and returns false so there is no phantom badge.

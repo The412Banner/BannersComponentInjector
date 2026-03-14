@@ -89,6 +89,8 @@ fun DownloadScreen(
     var detailTarget by remember { mutableStateOf<Pair<RemoteSourceRepository.RemoteItem, String>?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchCaching by remember { mutableStateOf(false) }
+    // Captured once on composition — which source names had new items when the tab was opened
+    val newSourceNames = remember { repo.getNewSourceNames() }
 
     val componentTypes = listOf("dxvk", "vkd3d", "box64", "fexcore", "wined3d", RemoteSourceRepository.GPU_DRIVER_TYPE, "drivers", "wine", "proton")
 
@@ -461,6 +463,21 @@ fun DownloadScreen(
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
+                                    if (source.name in newSourceNames) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = MaterialTheme.shapes.extraSmall
+                                        ) {
+                                            Text(
+                                                "NEW",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                     Box {
                                         IconButton(
                                             onClick = { sourceMenuExpanded = source },
