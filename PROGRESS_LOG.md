@@ -6,6 +6,25 @@
 
 ---
 
+### [stable] — v1.9.5 — My Games tab, new-component notifications (2026-03-13)
+**Commit:** `09d81cd` (code) + `e2ace95` (README)  |  **Tag:** v1.9.5  |  **Branch:** main
+
+#### What changed (since v1.9.0)
+- My Games tab: launch GameHub games; browse local + Steam games; offline Steam metadata; edit cards; ISO creator
+- Single `data/` grant — one SAF permission covers components, virtual containers, and shadercache
+- Show My Games Tab toggle in Settings (hidden by default)
+- Fix: disk I/O off main thread — cover art no longer stuck in loading state (v1.9.2)
+- Fix: search thumbnails always fetch fresh from CDN; portrait → header fallback chain (v1.9.3)
+- New-component dot badge on Download tab (fingerprint-based; clears on tab open) (v1.9.4)
+- "NEW" chip on individual source/repo cards when that source has unseen items (v1.9.5)
+
+#### Files touched
+- `data/RemoteSourceRepository.kt`, `ui/screens/MainTabRow.kt`, `MainActivity.kt`
+- `ui/screens/DownloadScreen.kt`, `ui/screens/MyGamesScreen.kt`
+- `README.md` — rewritten for v1.9.5
+
+---
+
 ### [pre-release] — v1.9.5-pre — "NEW" chip on source repo cards in Download tab (2026-03-13)
 **Commit:** `8f392b7`  |  **Tag:** v1.9.5-pre  |  **Branch:** main
 
