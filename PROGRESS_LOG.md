@@ -6,6 +6,18 @@
 
 ---
 
+### [pre-release] — v1.9.3-pre — Fix search thumbnails never loading (2026-03-14)
+**Commit:** `2920f59`  |  **Tag:** v1.9.3-pre  |  **Branch:** main
+
+#### What changed (since v1.9.2-pre)
+- Fix: search result thumbnails in Edit Game sheet never loaded — old code used `error={}` (renders nothing), Coil cached 404 responses for apps without portrait cover art
+- New `SearchResultThumbnail` composable: disk cache disabled, tries `library_600x900.jpg` → falls back to `header.jpg` → fallback icon
+
+#### Files touched
+- `ui/screens/MyGamesScreen.kt`
+
+---
+
 ### [pre-release] — v1.9.2-pre — Fix partial image loading in Edit Game search (2026-03-14)
 **Commit:** `d8593f9`  |  **Tag:** v1.9.2-pre  |  **Branch:** main
 
