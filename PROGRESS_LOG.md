@@ -6,6 +6,23 @@
 
 ---
 
+### [pre-release] — v1.9.6-pre — Remove local game from list / delete folder (2026-03-13)
+**Commit:** `b90fe2b`  |  **Tag:** v1.9.6-pre  |  **Branch:** main
+
+#### What changed (since v1.9.5)
+- "Remove from list" — hides a local game without touching the filesystem; hidden IDs stored in SharedPrefs, filtered on every scan (persists across restarts)
+- "Remove and delete folder" — deletes `virtual_containers/<gameId>/` via SAF + removes `<gameId>.iso` stub; protected by confirmation dialog with spinner
+- Both options appear only on local game cards, separated from Edit/Reset by a divider
+- Solves the GameHub leftover virtual container problem (GH uninstalls game but leaves the folder)
+
+#### Files touched
+- `data/GameRepository.kt` — `deleteLocalGameFolder()`
+- `viewmodel/MainViewModel.kt` — `hideLocalGame()`, `deleteLocalGameFolder()`, hidden IDs prefs, filter in `loadGames()`
+- `ui/screens/MyGamesScreen.kt` — new menu items, confirmation dialog, new callbacks
+- `MainActivity.kt` — `onHideGame` + `onDeleteGame` wired to ViewModel
+
+---
+
 ### [stable] — v1.9.5 — My Games tab, new-component notifications (2026-03-13)
 **Commit:** `09d81cd` (code) + `e2ace95` (README)  |  **Tag:** v1.9.5  |  **Branch:** main
 
