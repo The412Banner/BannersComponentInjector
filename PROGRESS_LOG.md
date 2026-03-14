@@ -6,6 +6,22 @@
 
 ---
 
+### [pre-release] — v1.9.4-pre — New-component badge on Download tab (2026-03-14)
+**Commit:** `a35fa37`  |  **Tag:** v1.9.4-pre  |  **Branch:** main
+
+#### What changed (since v1.9.3-pre)
+- On app launch, background `refreshAllCache` + fingerprint comparison detects new items in any source
+- Primary-color dot badge appears on "Download Components" tab when sources have items newer than the last visit
+- Badge clears + snapshot saved when user opens the Download tab
+- First-run: baseline established silently — no phantom badge on fresh install
+
+#### Files touched
+- `data/RemoteSourceRepository.kt` — `currentFingerprints()`, `hasNewItems()`, `markAllAsSeen()`, prefs storage
+- `ui/screens/MainTabRow.kt` — `LocalHasNewDownloads` CompositionLocal, dot badge in tab label
+- `MainActivity.kt` — `hasNewDownloads` state, background LaunchedEffect, tab-switch LaunchedEffect, CompositionLocalProvider
+
+---
+
 ### [pre-release] — v1.9.3-pre — Fix search thumbnails never loading (2026-03-14)
 **Commit:** `2920f59`  |  **Tag:** v1.9.3-pre  |  **Branch:** main
 
