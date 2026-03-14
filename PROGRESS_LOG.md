@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.9.5-pre — "NEW" chip on source repo cards in Download tab (2026-03-13)
+**Commit:** `8f392b7`  |  **Tag:** v1.9.5-pre  |  **Branch:** main
+
+#### What changed (since v1.9.4-pre)
+- "NEW" chip shown on individual source/repo cards in the Download Components screen when that specific source has new items (i.e. items not yet seen on a previous launch)
+- Chip uses `primaryContainer` background and `onPrimaryContainer` text; 9sp bold "NEW" label
+- `getNewSourceNames()` added to `RemoteSourceRepository` — derives set of source names with unacknowledged fingerprints; same prefs as the tab-level badge
+
+#### Files touched
+- `data/RemoteSourceRepository.kt` — `getNewSourceNames()`
+- `ui/screens/DownloadScreen.kt` — `remember { repo.getNewSourceNames() }`, "NEW" chip in source card
+
+---
+
 ### [pre-release] — v1.9.4-pre — New-component badge on Download tab (2026-03-14)
 **Commit:** `a35fa37`  |  **Tag:** v1.9.4-pre  |  **Branch:** main
 
