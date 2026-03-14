@@ -1,6 +1,6 @@
 # BannersComponentInjector
 
-**An external component manager for GameHub (Lite) and its variants — no root required.** 
+**An external component manager for GameHub (Lite) and its variants — no root required.**
 
 -ONLY FOR VERSIONS WITH FILES ACCESS PATCHED INTO THEM!
 
@@ -26,6 +26,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
   - [Inject Components Tab](#inject-components-tab)
     - [Backing Up a Component](#backing-up-a-component)
     - [Replacing a Component — Local File](#replacing-a-component--local-file)
+    - [Replacing a Component — From My Downloads](#replacing-a-component--from-my-downloads)
     - [Replacing a Component — Online Sources](#replacing-a-component--online-sources)
     - [Restoring a Component](#restoring-a-component)
   - [Download Components Tab](#download-components-tab)
@@ -36,6 +37,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
     - [Adding a Custom Repository](#adding-a-custom-repository)
     - [Editing a Repository](#editing-a-repository)
   - [My Downloads Tab](#my-downloads-tab)
+  - [My Games Tab](#my-games-tab)
   - [Backup Manager](#backup-manager)
   - [In-App Updates](#in-app-updates)
   - [Theme Customization](#theme-customization)
@@ -51,11 +53,12 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 
 **Core**
 - **No root required** — uses Android's Storage Access Framework (SAF) for secure folder access.
+- **Single data/ grant** — one SAF permission at `<package>/data` covers components, virtual containers, and shadercache simultaneously.
 - **Multi-app support** — automatically detects all installed GameHub variants side by side.
 - **Accurate GameHub detection** — borrowed package names (shared with PUBG Mobile, Genshin Impact, AnTuTu, etc.) are verified against the app's display label so real apps are never mistaken for GameHub variants.
 - **Custom app entries** — add any GameHub variant not in the built-in list by entering a display name and package name.
 - **Fast streaming scanner** — components appear progressively as folders are found, with a live "Loading X / Y" counter. Parallel scanning with semaphore limiting keeps load times fast even on large component trees.
-- **Three-tab layout** — Inject Components, Download Components, and My Downloads.
+- **Four-tab layout** — Inject Components, Download Components, My Downloads, and My Games (opt-in).
 
 **Inject Components**
 - **Backup** — back up any component folder to `Downloads/BannersComponentInjector/<componentName>/` (or a custom location).
@@ -77,6 +80,8 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Sort control** — Newest First, Oldest First, Name A→Z, Name Z→A.
 - **Already-downloaded indicator** — files you've previously saved are marked with a checkmark.
 - **Batch multi-select downloads** — enter multi-select mode; pick any number of files; "Download X files" downloads them all in parallel, skipping any already downloaded.
+- **New-item notification** — a dot badge appears on the Download tab when any source has items not seen since the last visit; clears when the tab is opened.
+- **"NEW" chip on source cards** — individual source/repo cards show a "NEW" badge when that specific source has unseen items.
 - **Custom repositories** — add any compatible URL; format is auto-detected. Supports plain GitHub repo links, GitHub Releases URLs, raw JSON feed URLs, and WCP hub JSON feeds.
 - **Multi-URL custom repositories** — combine multiple endpoints (e.g. WCP releases + GPU driver releases) into a single repository card.
 - **Reorder repositories** — use **Move Up** / **Move Down** in each repo's hamburger menu to arrange the list in any order you prefer.
@@ -91,6 +96,14 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Verify Downloads** — ☁ icon in the top bar runs the same stale-record check on demand.
 - **Backups folder** at the root gives quick access to all component backups.
 - Delete individual records or clear all at once.
+
+**My Games Tab (opt-in)**
+- Enable via Settings → **Show My Games Tab**.
+- Auto-discovers **Local games** (`virtual_containers/` dirs starting with "local") and **Steam games** (`shadercache/` dirs keyed by Steam App ID).
+- **Offline Steam metadata** — game name, cover art, genres, description, release year, and Metacritic score are fetched from the Steam Store API and persisted to disk; available without network after first load.
+- **Edit game cards** — tap any card to open an edit sheet; all fields (name, genres, description, release year, Metacritic score) are editable; "Search Steam" auto-fills fields and links cover art for local import games.
+- **Launch games** — tap the launch button to start a game directly via GameHub's game detail screen.
+- **ISO creator** — write a `.iso` stub to `virtual_containers/` for GameHub launcher compatibility.
 
 **General**
 - **Backup Manager** — centralised view of all saved backups with per-backup deletion.
@@ -146,11 +159,13 @@ BannersComponentInjector detects the following GameHub variants automatically:
 4. A guide dialog appears explaining which folder to select. Tap **Open Folder Picker**.
 5. In the Android folder picker:
    - Tap the **≡ hamburger menu** (top-left) and select your **GameHub app** from the sidebar.
-   - Navigate to: `data` → `files` → `usr` → `home` → `components`
+   - Navigate to: `data`
    - Tap **Use this folder** and then **Allow**.
 6. The app now has access. Tap the app card again to open the component list.
 
-> You only need to grant folder access once per app variant. Access is remembered across restarts. To remove access, tap the **🔗 unlink icon** next to the app card.
+> One grant at `<package>/data` covers everything — components, virtual containers, and shadercache. You only need to grant access once per app variant. Access is remembered across restarts. To remove access, tap the **🔗 unlink icon** next to the app card.
+
+> **Upgrading from v1.9.0:** Previous grants pointed to `components/` and are no longer valid. Re-grant at `<package>/data` when prompted.
 
 ### Adding a Variant Not in the List
 
@@ -228,6 +243,8 @@ This tab is the main workspace for managing components already installed inside 
 ### Download Components Tab
 
 This tab lets you browse online repositories and save component files to your device for later use.
+
+A **dot badge** on the tab label indicates one or more sources have items you haven't seen yet. Source/repo cards that have unseen items show a **"NEW"** chip. Both clear when you open the tab.
 
 #### Cross-Repo Search
 
@@ -311,6 +328,34 @@ Browse and manage all files previously downloaded via the Download Components ta
 - Tap **Clear All** in the top bar to remove all records at once.
 
 > Removing a record only removes the tracking entry — it does not delete the file from your device.
+
+---
+
+### My Games Tab
+
+Enable this tab in **Settings → Show My Games Tab**.
+
+Once enabled, select a GameHub variant (grant `data/` access if not already done). The tab auto-discovers two types of games:
+
+- **Local games** — any directory in `virtual_containers/` whose name starts with "local" (case-insensitive).
+- **Steam games** — any directory in `shadercache/` (directory name = Steam App ID).
+
+**Steam metadata** (name, cover art, genres, description, release year, Metacritic score) is fetched from the Steam Store API and cached to disk — available offline after the first load.
+
+#### Editing a Game Card
+
+Tap any game card to open the edit sheet:
+- Edit **name**, **genres**, **description**, **release year**, and **Metacritic score** manually, or
+- Tap **Search Steam** and type a game name to auto-fill all fields and link the cover art (useful for local import games that aren't already on Steam).
+- Tap **Save** to apply.
+
+#### Launching a Game
+
+Tap the **Launch** button on any game card to start the game directly via GameHub's game detail screen.
+
+#### ISO Creator
+
+Tap the **Create ISO** button on a game card to write a `.iso` stub to `virtual_containers/` — required for GameHub launcher compatibility with certain game entries.
 
 ---
 
@@ -406,6 +451,7 @@ When browsing a repository's individual release tags, all assets are shown regar
 | **Updates** | Check for updates on launch | When enabled, the app silently checks for a newer release on every startup and shows a dialog if one is found. |
 | **Updates** | Include pre-releases | When enabled, the update checker also considers pre-release builds. |
 | **Updates** | Check for Updates | Manually checks GitHub for a newer version and offers in-app download + install. |
+| **Utilities** | Show My Games Tab | Shows or hides the My Games tab. Off by default. |
 | **Utilities** | Backup Manager | Opens the centralised backup list. |
 | **Utilities** | Open Downloads Folder | Opens the system Downloads folder. |
 | **Utilities** | Report Issue / Feedback | Opens the GitHub Issues page in your browser. |
@@ -437,6 +483,7 @@ The APK is output to `app/build/outputs/apk/debug/`.
 - Apache Commons Compress — WCP/tar extraction
 - `com.github.luben:zstd-jni` — Zstandard decompression
 - `org.tukaani:xz` — XZ decompression
+- Coil 2.6.0 — image loading (Steam cover art)
 - Material Icons Extended
 
 ---
