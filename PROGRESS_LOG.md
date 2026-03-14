@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.9.2-pre — Fix partial image loading in Edit Game search (2026-03-14)
+**Commit:** `d8593f9`  |  **Tag:** v1.9.2-pre  |  **Branch:** main
+
+#### What changed (since v1.9.1-pre)
+- Fix: cover thumbnails in Edit Game → Search Steam results were stuck in loading state since v1.9.1-pre added disk cache
+- Root cause: synchronous SharedPreferences + JSON reads on main thread blocked Coil's image callbacks
+- `SteamGameCard` now loads info entirely via `LaunchedEffect` + `fetch()` (off main thread); removed disk I/O from `remember{}`
+- `LaunchedEffect(games)` now batches override reads on `Dispatchers.IO` before applying to state map
+
+#### Files touched
+- `ui/screens/MyGamesScreen.kt`
+
+---
+
 ### [pre-release] — v1.9.1-pre — My Games tab, single grant, offline metadata (2026-03-13)
 **Commit:** `96ab8e2`  |  **Tag:** v1.9.1-pre  |  **Branch:** main
 
