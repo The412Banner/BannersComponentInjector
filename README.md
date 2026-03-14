@@ -104,6 +104,8 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Edit game cards** — tap any card to open an edit sheet; all fields (name, genres, description, release year, Metacritic score) are editable; "Search Steam" auto-fills fields and links cover art for local import games.
 - **Launch games** — tap the launch button to start a game directly via GameHub's game detail screen.
 - **ISO creator** — write a `.iso` stub to `virtual_containers/` for GameHub launcher compatibility.
+- **Remove from list** — hide a local game without touching the filesystem; persists across restarts.
+- **Remove and delete folder** — permanently delete the virtual container folder (+ ISO stub) for a local game via SAF; protected by a confirmation dialog. Fixes the GameHub leftover-folder problem.
 
 **General**
 - **Backup Manager** — centralised view of all saved backups with per-backup deletion.
@@ -356,6 +358,16 @@ Tap the **Launch** button on any game card to start the game directly via GameHu
 #### ISO Creator
 
 Tap the **Create ISO** button on a game card to write a `.iso` stub to `virtual_containers/` — required for GameHub launcher compatibility with certain game entries.
+
+#### Removing Local Games
+
+Local game cards have two removal options in the **⋮ menu** (below a divider, separate from Edit/Reset):
+
+- **Remove from list** — hides the game from My Games without touching any files. The `virtual_containers/<gameId>` folder stays intact on disk. The hidden state is saved to SharedPrefs and persists across app restarts. Useful for dummy entries or old installs you don't want to see.
+
+- **Remove and delete folder** — shows a confirmation dialog, then permanently deletes the `virtual_containers/<gameId>/` directory via SAF and removes the companion `<gameId>.iso` stub if present. Use this to properly clean up games that GameHub's dashboard uninstalled but left the virtual container folder behind.
+
+> These options appear only on local game cards. Steam game cards are not affected.
 
 ---
 
