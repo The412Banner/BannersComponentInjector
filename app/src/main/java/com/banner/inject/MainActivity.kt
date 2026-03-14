@@ -57,6 +57,7 @@ import com.banner.inject.ui.screens.BackupManagerSheet
 import com.banner.inject.ui.screens.ComponentListScreen
 import com.banner.inject.ui.screens.DownloadManagerScreen
 import com.banner.inject.ui.screens.DownloadScreen
+import com.banner.inject.ui.screens.LocalHasNewDownloads
 import com.banner.inject.ui.screens.LocalShowGamesTab
 import com.banner.inject.ui.screens.MyGamesScreen
 import com.banner.inject.ui.screens.SettingsSheet
@@ -88,7 +89,11 @@ class MainActivity : ComponentActivity() {
                 amoled = isAmoled,
                 dynamicColor = isDynamicColor
             ) {
-                CompositionLocalProvider(LocalShowGamesTab provides showMyGamesTab) {
+                var hasNewDownloads by remember { mutableStateOf(false) }
+                CompositionLocalProvider(
+                    LocalShowGamesTab provides showMyGamesTab,
+                    LocalHasNewDownloads provides hasNewDownloads
+                ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val prefs = remember { getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
                     var currentTab by remember {
@@ -110,6 +115,24 @@ class MainActivity : ComponentActivity() {
                     val uiState by vm.uiState.collectAsState()
                     val repo = remember { RemoteSourceRepository(this@MainActivity) }
                     val scope = rememberCoroutineScope()
+
+                    // Background source refresh on launch — populates cache and checks for new items
+                    LaunchedEffect(Unit) {
+                        val allTypes = listOf(
+                            "dxvk", "vkd3d", "box64", "fexcore", "wined3d",
+                            RemoteSourceRepository.GPU_DRIVER_TYPE, "wine", "proton"
+                        )
+                        try { repo.refreshAllCache(repo.getAllSources(), allTypes) } catch (_: Exception) {}
+                        hasNewDownloads = repo.hasNewItems()
+                    }
+
+                    // Clear badge when user opens the Download tab
+                    LaunchedEffect(currentTab) {
+                        if (currentTab == MainTab.DOWNLOAD) {
+                            repo.markAllAsSeen()
+                            hasNewDownloads = false
+                        }
+                    }
 
                     val appVersion = remember {
                         packageManager.getPackageInfo(packageName, 0).versionName ?: "?"

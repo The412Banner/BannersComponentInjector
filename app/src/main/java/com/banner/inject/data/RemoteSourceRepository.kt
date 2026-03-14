@@ -1147,4 +1147,54 @@ class RemoteSourceRepository(private val context: Context) {
         }
         return conn
     }
+
+    // ── New-item notification ──────────────────────────────────────────────────
+
+    /**
+     * Builds a fingerprint set for the current cache: one entry per non-empty
+     * source×type bucket, encoding the latest item's versionName.
+     * Format: "$sourceName::$componentType::$versionName"
+     */
+    fun currentFingerprints(): Set<String> {
+        val result = mutableSetOf<String>()
+        cache.forEach { (key, items) ->
+            val first = items.firstOrNull() ?: return@forEach
+            result.add("$key::${first.versionName}")
+        }
+        return result
+    }
+
+    /**
+     * Returns true when the current cache contains items not present in the last
+     * saved snapshot.  On first run (no saved snapshot) establishes a baseline
+     * from the current cache and returns false so there is no phantom badge.
+     */
+    fun hasNewItems(): Boolean {
+        val seen = loadSeenFingerprints()
+        val current = currentFingerprints()
+        if (seen.isEmpty()) {
+            if (current.isNotEmpty()) saveSeenFingerprints(current)
+            return false
+        }
+        return current.any { it !in seen }
+    }
+
+    /** Saves the current cache fingerprints as the "seen" baseline. */
+    fun markAllAsSeen() {
+        saveSeenFingerprints(currentFingerprints())
+    }
+
+    private fun loadSeenFingerprints(): Set<String> {
+        val json = prefs.getString("seen_fingerprints", null) ?: return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        } catch (_: Exception) { emptySet() }
+    }
+
+    private fun saveSeenFingerprints(fps: Set<String>) {
+        val arr = JSONArray()
+        fps.forEach { arr.put(it) }
+        prefs.edit().putString("seen_fingerprints", arr.toString()).apply()
+    }
 }
