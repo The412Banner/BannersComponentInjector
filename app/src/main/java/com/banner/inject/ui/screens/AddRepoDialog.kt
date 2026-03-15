@@ -226,6 +226,9 @@ private suspend fun autoDetectFormat(url: String): RemoteSourceRepository.Source
         if (url.contains("t3st31.github.io") || url.contains("rankings.json", ignoreCase = true)) {
             return@withContext RemoteSourceRepository.SourceFormat.RANKING_EMULATORS_JSON
         }
+        if (url.contains("gamenative", ignoreCase = true) && url.endsWith("manifest.json", ignoreCase = true)) {
+            return@withContext RemoteSourceRepository.SourceFormat.GAMENATIVE_MANIFEST
+        }
         if (url.endsWith(".json", ignoreCase = true) || url.contains("raw.githubusercontent.com")) {
             return@withContext RemoteSourceRepository.SourceFormat.WCP_JSON
         }

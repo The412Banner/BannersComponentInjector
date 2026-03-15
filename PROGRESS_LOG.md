@@ -6,6 +6,23 @@
 
 ---
 
+### [pre] — v2.0.1-pre — Add GameNative built-in source (2026-03-15)
+**Commit:** (pending)  |  **Tag:** v2.0.1-pre  |  **Branch:** main
+
+#### What changed
+- Added GameNative as a built-in source (9th built-in repo)
+- New `GAMENATIVE_MANIFEST` SourceFormat for `items.driver/dxvk/proton/fexcore/wowbox64` JSON
+- `fetchGameNativeManifest()` — fetches items for a single componentType; maps `driver` key → `GPU Drivers`
+- `cacheAllGameNativeManifest()` — fetches once, populates all category buckets
+- `discoverTypes()` — GAMENATIVE_MANIFEST case reads manifest keys, normalises `driver` → `GPU Drivers`
+- `autoDetectFormat()` — detects gamenative manifest URL before raw.githubusercontent.com fallback
+
+#### Files touched
+- `data/RemoteSourceRepository.kt`
+- `ui/screens/AddRepoDialog.kt`
+
+---
+
 ### [stable] — v2.0.0 — Export/import repo list (2026-03-15)
 **Commit:** `21c3717` (code) + `9bc85c1` (README)  |  **Tag:** v2.0.0  |  **Branch:** main
 

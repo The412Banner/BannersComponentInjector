@@ -233,7 +233,8 @@ class RemoteSourceRepository(private val context: Context) {
         GITHUB_RELEASES_WCP,
         GITHUB_RELEASES_ZIP,         // All .zip assets from each release, no name filter
         GITHUB_REPO_CONTENTS,        // GitHub Contents API — folders = types, files inside = components
-        RANKING_EMULATORS_JSON       // HUB Emulators rankings.json — manifestDrivers (WCP) + results Drivers (GPU)
+        RANKING_EMULATORS_JSON,      // HUB Emulators rankings.json — manifestDrivers (WCP) + results Drivers (GPU)
+        GAMENATIVE_MANIFEST          // GameNative manifest.json — items.driver/dxvk/proton/fexcore/wowbox64
     }
 
     // Default built-in sources mapped strictly to the components they provide
@@ -257,7 +258,8 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")),
         RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList()),
         RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList()),
-        RemoteSource("Nightlies by The412Banner", "https://api.github.com/repos/The412Banner/Nightlies/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "fex", "fexcore", "box64"))
+        RemoteSource("Nightlies by The412Banner", "https://api.github.com/repos/The412Banner/Nightlies/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "fex", "fexcore", "box64")),
+        RemoteSource("GameNative", "https://raw.githubusercontent.com/utkarshdalal/GameNative/refs/heads/master/manifest.json", SourceFormat.GAMENATIVE_MANIFEST, emptyList())
     )
 
     fun getAllSources(): List<RemoteSource> {
@@ -507,6 +509,7 @@ class RemoteSourceRepository(private val context: Context) {
             SourceFormat.GITHUB_RELEASES_ZIP -> fetchGithubReleasesZip(activeUrl, source.name)
             SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(activeUrl, componentType, source.name)
             SourceFormat.RANKING_EMULATORS_JSON -> fetchRankingEmulators(activeUrl, componentType, source.name)
+            SourceFormat.GAMENATIVE_MANIFEST -> fetchGameNativeManifest(activeUrl, componentType, source.name)
         }
         putToCache(source.name, componentType, result)
         result
@@ -565,6 +568,9 @@ class RemoteSourceRepository(private val context: Context) {
                             }
                             SourceFormat.RANKING_EMULATORS_JSON -> {
                                 cacheAllRankingEmulators(source.url, source.name)
+                            }
+                            SourceFormat.GAMENATIVE_MANIFEST -> {
+                                cacheAllGameNativeManifest(source.url, source.name)
                             }
                         }
 
@@ -931,6 +937,18 @@ class RemoteSourceRepository(private val context: Context) {
                     }
                     if (hasGpuDrivers) types + listOf(GPU_DRIVER_TYPE) else types
                 }
+                SourceFormat.GAMENATIVE_MANIFEST -> {
+                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val root = JSONObject(conn.inputStream.bufferedReader().readText())
+                    val items = root.optJSONObject("items") ?: return@withContext emptyList()
+                    val types = mutableListOf<String>()
+                    items.keys().forEach { key ->
+                        if (key.equals("driver", ignoreCase = true)) types.add(GPU_DRIVER_TYPE)
+                        else types.add(key.lowercase())
+                    }
+                    types
+                }
             }
         } catch (_: Exception) {
             if (source.supportedTypes.isNotEmpty()) source.supportedTypes else knownTypes
@@ -1119,6 +1137,65 @@ class RemoteSourceRepository(private val context: Context) {
             ))
         }
         result
+    }
+
+    private suspend fun fetchGameNativeManifest(
+        url: String,
+        componentType: String,
+        sourceName: String
+    ): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val root = JSONObject(json)
+        val updatedAt = root.optString("updatedAt").takeIf { it.isNotEmpty() }
+        val items = root.optJSONObject("items") ?: return@withContext emptyList()
+        val result = mutableListOf<RemoteItem>()
+        val isGpu = componentType == GPU_DRIVER_TYPE
+        // Map componentType → manifest key
+        val targetKey = if (isGpu) "driver" else componentType
+        val matchKey = items.keys().asSequence().firstOrNull { it.equals(targetKey, ignoreCase = true) }
+            ?: return@withContext emptyList()
+        val arr = items.getJSONArray(matchKey)
+        for (i in 0 until arr.length()) {
+            val item = arr.getJSONObject(i)
+            val name = item.optString("name").ifEmpty { item.optString("id") }
+            val dlUrl = item.optString("url")
+            if (dlUrl.isEmpty()) continue
+            result.add(RemoteItem(
+                displayName = name,
+                versionName = name,
+                downloadUrl = dlUrl,
+                sourceName = sourceName,
+                publishedAt = updatedAt
+            ))
+        }
+        result
+    }
+
+    /** Fetches the GameNative manifest once and populates the cache for all categories. */
+    private suspend fun cacheAllGameNativeManifest(url: String, sourceName: String) = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val root = JSONObject(json)
+        val updatedAt = root.optString("updatedAt").takeIf { it.isNotEmpty() }
+        val items = root.optJSONObject("manifestItems") ?: root.optJSONObject("items") ?: return@withContext
+        items.keys().forEach { key ->
+            val cacheType = if (key.equals("driver", ignoreCase = true)) GPU_DRIVER_TYPE else key.lowercase()
+            val arr = try { items.getJSONArray(key) } catch (_: Exception) { return@forEach }
+            val list = mutableListOf<RemoteItem>()
+            for (i in 0 until arr.length()) {
+                val item = arr.getJSONObject(i)
+                val name = item.optString("name").ifEmpty { item.optString("id") }
+                val dlUrl = item.optString("url")
+                if (dlUrl.isEmpty()) continue
+                list.add(RemoteItem(
+                    displayName = name,
+                    versionName = name,
+                    downloadUrl = dlUrl,
+                    sourceName = sourceName,
+                    publishedAt = updatedAt
+                ))
+            }
+            putToCache(sourceName, cacheType, list)
+        }
     }
 
     suspend fun downloadToTemp(
