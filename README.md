@@ -36,6 +36,8 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
     - [Reordering Repositories](#reordering-repositories)
     - [Adding a Custom Repository](#adding-a-custom-repository)
     - [Editing a Repository](#editing-a-repository)
+    - [Exporting Your Repo List](#exporting-your-repo-list)
+    - [Importing a Repo List](#importing-a-repo-list)
   - [My Downloads Tab](#my-downloads-tab)
   - [My Games Tab](#my-games-tab)
   - [Backup Manager](#backup-manager)
@@ -88,6 +90,8 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Edit Repository** — rename any repository, change its URL, choose which component types it shows, and enable individual release tags as browseable categories.
 - **Hamburger menu per repo** — Open in Browser, Edit Repository, Move Up, Move Down, Remove Repository.
 - **Refresh All** — pre-fetches all sources × all types in parallel and caches results in memory.
+- **Export repo list** — saves your complete repo configuration (custom repos, hidden built-in sources, source order) to `bci-repos.json` in Downloads.
+- **Import repo list** — loads a `bci-repos.json` file with a preview dialog; choose Merge (add new repos, keep existing) or Replace (swap all custom repos).
 
 **My Downloads**
 - Browse saved files by Repository → Type → File.
@@ -314,6 +318,37 @@ Tap **⋮ → Edit Repository** on any card.
 - **Component Types** — existing configured types always appear first, followed by any newly discovered ones (labelled **new**). Check or uncheck categories to control which ones are shown.
 - **Additional Releases** — individual GitHub releases listed by name/tag; each can be enabled as its own browseable category.
 - Tap **Save** to apply.
+
+---
+
+#### Exporting Your Repo List
+
+Tap the **↓ FileDownload icon** in the source list header (between Refresh and Add) to export your entire repo configuration to a JSON file.
+
+The export includes:
+- All **custom repositories** you've added (name, URL, format, types, extra endpoints, release tags)
+- Any **built-in sources you've hidden** via Remove Repository
+- Your current **source order**
+
+The file is saved as `Downloads/BannersComponentInjector/bci-repos.json` and overwrites any previous export. A spinner is shown while writing; a snackbar confirms the path on success.
+
+---
+
+#### Importing a Repo List
+
+Tap the **↑ FileUpload icon** in the source list header to import a `bci-repos.json` file.
+
+1. A file picker opens — select a `.json` file.
+2. A **preview dialog** appears showing:
+   - All incoming custom repo names (with their source icon)
+   - Which built-in sources will be hidden (if any)
+   - Whether source order will be applied
+3. Choose how to apply:
+   - **Merge** *(default)* — adds repos not already in your list; your existing repos stay untouched.
+   - **Replace** — removes all current custom repos and replaces them with the imported set.
+4. Tap **Import** to apply. The source list refreshes immediately.
+
+> The hidden-defaults and source order from the file are always applied regardless of Merge/Replace mode.
 
 ---
 
