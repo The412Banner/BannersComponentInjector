@@ -1,11 +1,14 @@
 package com.banner.inject.ui.screens
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.documentfile.provider.DocumentFile
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -75,6 +78,25 @@ fun DownloadScreen(
     var sourceToDelete by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sourceToEdit by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
     var sourceMenuExpanded by remember { mutableStateOf<RemoteSourceRepository.RemoteSource?>(null) }
+    var importPreview by remember { mutableStateOf<RemoteSourceRepository.RepoListImport?>(null) }
+    var importMerge by remember { mutableStateOf(true) }
+    var isExporting by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                        ?: throw Exception("Could not read file")
+                }
+                importPreview = repo.parseRepoListJson(json)
+                importMerge = true
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Import failed: ${e.message ?: "Invalid file"}")
+            }
+        }
+    }
     // Force recomposition when sources change
     var sources by remember { mutableStateOf(repo.getAllSources()) }
     var sortOrder by remember { mutableStateOf(SortOrder.NEWEST_FIRST) }
@@ -356,6 +378,41 @@ fun DownloadScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh All", tint = MaterialTheme.colorScheme.primary)
                         }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    if (isExporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        IconButton(
+                            onClick = {
+                                isExporting = true
+                                scope.launch {
+                                    try {
+                                        val json = repo.exportRepoListJson()
+                                        exportRepoListToDownloads(context, json)
+                                        snackbarHostState.showSnackbar("Repo list exported to Downloads/BannersComponentInjector/bci-repos.json")
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("Export failed: ${e.message}")
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.FileDownload, contentDescription = "Export Repo List", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.FileUpload, contentDescription = "Import Repo List", tint = MaterialTheme.colorScheme.primary)
                     }
                     Spacer(Modifier.width(4.dp))
                     IconButton(
@@ -930,6 +987,110 @@ fun DownloadScreen(
             }
         )
     }
+
+    importPreview?.let { preview ->
+        AlertDialog(
+            onDismissRequest = { importPreview = null },
+            title = { Text("Import Repo List") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    // Custom sources section
+                    if (preview.customSources.isEmpty()) {
+                        Text("No custom repositories found in this file.", fontSize = 14.sp)
+                    } else {
+                        Text(
+                            "${preview.customSources.size} custom repo${if (preview.customSources.size != 1) "s" else ""} found:",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        preview.customSources.forEach { source ->
+                            Row(
+                                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Source, contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(6.dp))
+                                Text(source.name, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    // Hidden defaults
+                    if (preview.removedDefaults.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "${preview.removedDefaults.size} built-in source${if (preview.removedDefaults.size != 1) "s" else ""} will be hidden:",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        preview.removedDefaults.forEach { name ->
+                            Text("  • $name", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    // Source order
+                    if (preview.sourceOrder.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("Custom source order will be applied.", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    // Merge / Replace
+                    if (preview.customSources.isNotEmpty()) {
+                        Spacer(Modifier.height(14.dp))
+                        HorizontalDivider()
+                        Spacer(Modifier.height(10.dp))
+                        Text("How to apply:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { importMerge = true }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = importMerge, onClick = { importMerge = true })
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text("Merge", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("Add new repos, keep existing ones", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { importMerge = false }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = !importMerge, onClick = { importMerge = false })
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text("Replace", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("Remove existing custom repos, use imported ones only", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    repo.applyRepoListImport(preview, importMerge)
+                    sources = repo.getAllSources()
+                    importPreview = null
+                    scope.launch { snackbarHostState.showSnackbar("Repo list imported") }
+                }) {
+                    Text("Import")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { importPreview = null }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1033,6 +1194,30 @@ private fun SearchContent(
             }
         }
     }
+}
+
+private suspend fun exportRepoListToDownloads(context: Context, json: String) = withContext(Dispatchers.IO) {
+    val fileName = "bci-repos.json"
+    val relPath = "${Environment.DIRECTORY_DOWNLOADS}/BannersComponentInjector/"
+    // Delete any existing file with the same name so we always overwrite
+    val projection = arrayOf(MediaStore.Downloads._ID)
+    val selection = "${MediaStore.Downloads.RELATIVE_PATH} = ? AND ${MediaStore.Downloads.DISPLAY_NAME} = ?"
+    context.contentResolver.query(
+        MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, arrayOf(relPath, fileName), null
+    )?.use { cursor ->
+        while (cursor.moveToNext()) {
+            val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
+            context.contentResolver.delete(ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id), null, null)
+        }
+    }
+    val values = ContentValues().apply {
+        put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+        put(MediaStore.Downloads.RELATIVE_PATH, relPath)
+        put(MediaStore.Downloads.MIME_TYPE, "application/json")
+    }
+    val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+        ?: throw Exception("Could not create export file")
+    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray(Charsets.UTF_8)) }
 }
 
 private suspend fun saveToDownloads(

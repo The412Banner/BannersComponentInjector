@@ -221,6 +221,12 @@ class RemoteSourceRepository(private val context: Context) {
         val releaseTags: List<String> = emptyList()
     )
 
+    data class RepoListImport(
+        val customSources: List<RemoteSource>,
+        val removedDefaults: List<String>,
+        val sourceOrder: List<String>
+    )
+
     enum class SourceFormat {
         WCP_JSON,
         GITHUB_RELEASES_TURNIP,
@@ -295,55 +301,52 @@ class RemoteSourceRepository(private val context: Context) {
         prefs.edit().putString("removed_defaults", array.toString()).apply()
     }
 
+    private fun parseRemoteSourceObject(obj: JSONObject): RemoteSource {
+        val format = try {
+            SourceFormat.valueOf(obj.getString("format"))
+        } catch (_: Exception) {
+            SourceFormat.WCP_JSON
+        }
+        val typesArray = obj.optJSONArray("supportedTypes")
+        val typesList = mutableListOf<String>()
+        if (typesArray != null) {
+            for (j in 0 until typesArray.length()) typesList.add(typesArray.getString(j))
+        }
+        val extrasArray = obj.optJSONArray("extraEndpoints")
+        val extrasList = mutableListOf<ExtraEndpoint>()
+        if (extrasArray != null) {
+            for (j in 0 until extrasArray.length()) {
+                val ep = extrasArray.getJSONObject(j)
+                val epFormat = try { SourceFormat.valueOf(ep.getString("format")) } catch (_: Exception) { SourceFormat.WCP_JSON }
+                val epTypes = mutableListOf<String>()
+                val epTypesArr = ep.optJSONArray("types")
+                if (epTypesArr != null) for (k in 0 until epTypesArr.length()) epTypes.add(epTypesArr.getString(k))
+                extrasList.add(ExtraEndpoint(ep.getString("url"), epFormat, epTypes))
+            }
+        }
+        val releaseTagsArray = obj.optJSONArray("releaseTags")
+        val releaseTagsList = mutableListOf<String>()
+        if (releaseTagsArray != null) {
+            for (j in 0 until releaseTagsArray.length()) releaseTagsList.add(releaseTagsArray.getString(j))
+        }
+        return RemoteSource(
+            name = obj.getString("name"),
+            url = obj.getString("url"),
+            format = format,
+            supportedTypes = typesList,
+            isCustom = true,
+            extraEndpoints = extrasList,
+            releaseTags = releaseTagsList
+        )
+    }
+
     private fun getCustomSources(): List<RemoteSource> {
         val jsonStr = prefs.getString("custom_sources", "[]") ?: "[]"
         val customSources = mutableListOf<RemoteSource>()
         try {
             val array = JSONArray(jsonStr)
             for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                val format = try {
-                    SourceFormat.valueOf(obj.getString("format"))
-                } catch (e: Exception) {
-                    SourceFormat.WCP_JSON
-                }
-                
-                val typesArray = obj.optJSONArray("supportedTypes")
-                val typesList = mutableListOf<String>()
-                if (typesArray != null) {
-                    for (j in 0 until typesArray.length()) typesList.add(typesArray.getString(j))
-                }
-
-                val extrasArray = obj.optJSONArray("extraEndpoints")
-                val extrasList = mutableListOf<ExtraEndpoint>()
-                if (extrasArray != null) {
-                    for (j in 0 until extrasArray.length()) {
-                        val ep = extrasArray.getJSONObject(j)
-                        val epFormat = try { SourceFormat.valueOf(ep.getString("format")) } catch (_: Exception) { SourceFormat.WCP_JSON }
-                        val epTypes = mutableListOf<String>()
-                        val epTypesArr = ep.optJSONArray("types")
-                        if (epTypesArr != null) for (k in 0 until epTypesArr.length()) epTypes.add(epTypesArr.getString(k))
-                        extrasList.add(ExtraEndpoint(ep.getString("url"), epFormat, epTypes))
-                    }
-                }
-
-                val releaseTagsArray = obj.optJSONArray("releaseTags")
-                val releaseTagsList = mutableListOf<String>()
-                if (releaseTagsArray != null) {
-                    for (j in 0 until releaseTagsArray.length()) releaseTagsList.add(releaseTagsArray.getString(j))
-                }
-
-                customSources.add(
-                    RemoteSource(
-                        name = obj.getString("name"),
-                        url = obj.getString("url"),
-                        format = format,
-                        supportedTypes = typesList,
-                        isCustom = true,
-                        extraEndpoints = extrasList,
-                        releaseTags = releaseTagsList
-                    )
-                )
+                customSources.add(parseRemoteSourceObject(array.getJSONObject(i)))
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -376,6 +379,73 @@ class RemoteSourceRepository(private val context: Context) {
 
     fun restoreDefaultSources() {
         prefs.edit().remove("removed_defaults").remove("source_order").apply()
+    }
+
+    fun exportRepoListJson(): String {
+        val obj = JSONObject()
+        obj.put("version", 1)
+        // custom sources — reuse the same serialization as saveCustomSources
+        val customArray = JSONArray()
+        for (source in getCustomSources()) {
+            val s = JSONObject()
+            s.put("name", source.name)
+            s.put("url", source.url)
+            s.put("format", source.format.name)
+            val typesArr = JSONArray(); source.supportedTypes.forEach { typesArr.put(it) }
+            s.put("supportedTypes", typesArr)
+            if (source.releaseTags.isNotEmpty()) {
+                val tagsArr = JSONArray(); source.releaseTags.forEach { tagsArr.put(it) }
+                s.put("releaseTags", tagsArr)
+            }
+            if (source.extraEndpoints.isNotEmpty()) {
+                val extrasArr = JSONArray()
+                for (ep in source.extraEndpoints) {
+                    val epObj = JSONObject()
+                    epObj.put("url", ep.url)
+                    epObj.put("format", ep.format.name)
+                    val epTypes = JSONArray(); ep.types.forEach { epTypes.put(it) }
+                    epObj.put("types", epTypes)
+                    extrasArr.put(epObj)
+                }
+                s.put("extraEndpoints", extrasArr)
+            }
+            customArray.put(s)
+        }
+        obj.put("customSources", customArray)
+        val removedArr = JSONArray(); getRemovedDefaultSources().forEach { removedArr.put(it) }
+        obj.put("removedDefaults", removedArr)
+        val orderArr = JSONArray(); getSourceOrder().forEach { orderArr.put(it) }
+        obj.put("sourceOrder", orderArr)
+        return obj.toString(2)
+    }
+
+    fun parseRepoListJson(json: String): RepoListImport {
+        val obj = JSONObject(json)
+        val customSources = mutableListOf<RemoteSource>()
+        val customArr = obj.optJSONArray("customSources") ?: JSONArray()
+        for (i in 0 until customArr.length()) {
+            try { customSources.add(parseRemoteSourceObject(customArr.getJSONObject(i))) } catch (_: Exception) {}
+        }
+        val removedDefaults = mutableListOf<String>()
+        val removedArr = obj.optJSONArray("removedDefaults") ?: JSONArray()
+        for (i in 0 until removedArr.length()) removedDefaults.add(removedArr.getString(i))
+        val sourceOrder = mutableListOf<String>()
+        val orderArr = obj.optJSONArray("sourceOrder") ?: JSONArray()
+        for (i in 0 until orderArr.length()) sourceOrder.add(orderArr.getString(i))
+        return RepoListImport(customSources, removedDefaults, sourceOrder)
+    }
+
+    fun applyRepoListImport(import: RepoListImport, merge: Boolean) {
+        if (merge) {
+            val existing = getCustomSources()
+            val existingNames = existing.map { it.name }.toSet()
+            val toAdd = import.customSources.filter { it.name !in existingNames }
+            saveCustomSources(existing + toAdd)
+        } else {
+            saveCustomSources(import.customSources)
+        }
+        saveRemovedDefaultSources(import.removedDefaults)
+        if (import.sourceOrder.isNotEmpty()) saveSourceOrder(import.sourceOrder)
     }
 
     private fun saveCustomSources(sources: List<RemoteSource>) {
