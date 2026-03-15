@@ -6,6 +6,20 @@
 
 ---
 
+### [stable] — v2.0.0 — Export/import repo list (2026-03-15)
+**Commit:** `21c3717` (code) + `9bc85c1` (README)  |  **Tag:** v2.0.0  |  **Branch:** main
+
+#### What changed (since v1.9.7)
+- Export repo list: FileDownload icon in Download Components source list header — writes `bci-repos.json` to `Downloads/BannersComponentInjector/` via MediaStore; includes custom sources, hidden defaults, source order
+- Import repo list: FileUpload icon opens JSON file picker; preview dialog shows incoming custom repos, hidden built-ins, order info; Merge (default) vs Replace; applies on confirm
+
+#### Files touched
+- `data/RemoteSourceRepository.kt` — `RepoListImport`, `exportRepoListJson()`, `parseRepoListJson()`, `applyRepoListImport()`, `parseRemoteSourceObject()` helper
+- `ui/screens/DownloadScreen.kt` — import launcher, state vars, export/import buttons, preview dialog, `exportRepoListToDownloads()` suspend fun
+- `README.md` — Export/Import sections added
+
+---
+
 ### [pre-release] — v1.9.8-pre — Export/import repo list (2026-03-15)
 **Commit:** `21c3717`  |  **Tag:** v1.9.8-pre  |  **Branch:** main
 
