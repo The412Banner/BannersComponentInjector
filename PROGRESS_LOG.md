@@ -7,7 +7,7 @@
 ---
 
 ### [pre] — v2.0.1-pre — Add GameNative built-in source (2026-03-15)
-**Commit:** (pending)  |  **Tag:** v2.0.1-pre  |  **Branch:** main
+**Commit:** `1e3662a`  |  **Tag:** v2.0.1-pre  |  **Branch:** main
 
 #### What changed
 - Added GameNative as a built-in source (9th built-in repo)
