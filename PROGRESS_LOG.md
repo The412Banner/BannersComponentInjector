@@ -6,6 +6,20 @@
 
 ---
 
+### [pre-release] — v1.9.8-pre — Export/import repo list (2026-03-15)
+**Commit:** `21c3717`  |  **Tag:** v1.9.8-pre  |  **Branch:** main
+
+#### What changed (since v1.9.7)
+- Export repo list: FileDownload icon in Download Components source list header — writes `bci-repos.json` to `Downloads/BannersComponentInjector/` via MediaStore (overwrites existing); includes custom sources, hidden defaults, source order
+- Import repo list: FileUpload icon opens JSON file picker; preview dialog shows incoming custom repos, hidden built-ins, order info; Merge (default, add new only) vs Replace (swap all custom sources); applies on confirm
+- Refactored `getCustomSources()` to use shared `parseRemoteSourceObject()` helper reused by new `parseRepoListJson()`
+
+#### Files touched
+- `data/RemoteSourceRepository.kt` — `RepoListImport` data class, `exportRepoListJson()`, `parseRepoListJson()`, `applyRepoListImport()`, `parseRemoteSourceObject()` helper
+- `ui/screens/DownloadScreen.kt` — import launcher, state vars, export/import buttons, preview dialog, `exportRepoListToDownloads()` suspend fun
+
+---
+
 ### [stable] — v1.9.7 — Remove local game from list / delete folder (2026-03-13)
 **Commit:** `0c1886e` (code) + `1af1fb3` (README)  |  **Tag:** v1.9.7  |  **Branch:** main
 
