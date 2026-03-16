@@ -6,6 +6,18 @@
 
 ---
 
+### [pre] — v2.1.4-pre — Auto-select GameHub app on launch for Steam scan (2026-03-16)
+**Commit:** `765cc67`  |  **Tag:** v2.1.4-pre  |  **Branch:** main
+
+#### What changed
+- `refreshAppList()` now auto-selects the first app with a stored data URI on startup
+- Steam games load immediately without manual app selection, matching imported games behavior
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+
+---
+
 ### [pre] — v2.1.3-pre — Manual import game list with .iso writer (2026-03-16)
 **Commit:** `3794a0d` (fix) + `e22b112` (feat)  |  **Tag:** v2.1.3-pre  |  **Branch:** main
 
