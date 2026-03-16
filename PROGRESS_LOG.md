@@ -6,6 +6,20 @@
 
 ---
 
+### [pre] — v2.0.2-pre — Move download button to top of detail sheet (2026-03-16)
+**Commit:** `b4ffdb9`  |  **Tag:** v2.0.2-pre  |  **Branch:** main
+
+#### What changed
+- Download button (and progress indicator) moved to top of component detail ModalBottomSheet in both Download Components screens
+- Previously the button was at the bottom and got cut off in landscape mode
+- New order: title → download button → chips → metadata → release notes
+
+#### Files touched
+- `ui/screens/DownloadScreen.kt`
+- `ui/screens/RemoteSourceSheet.kt`
+
+---
+
 ### [pre] — v2.0.1-pre — Add GameNative built-in source (2026-03-15)
 **Commit:** `1e3662a`  |  **Tag:** v2.0.1-pre  |  **Branch:** main
 
