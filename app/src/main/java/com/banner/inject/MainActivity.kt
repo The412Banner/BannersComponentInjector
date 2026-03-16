@@ -11,6 +11,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -57,7 +61,9 @@ import com.banner.inject.ui.screens.BackupManagerSheet
 import com.banner.inject.ui.screens.ComponentListScreen
 import com.banner.inject.ui.screens.DownloadManagerScreen
 import com.banner.inject.ui.screens.DownloadScreen
+import com.banner.inject.ui.screens.LandscapeNavRail
 import com.banner.inject.ui.screens.LocalHasNewDownloads
+import com.banner.inject.ui.screens.LocalIsLandscape
 import com.banner.inject.ui.screens.LocalShowGamesTab
 import com.banner.inject.ui.screens.MyGamesScreen
 import com.banner.inject.ui.screens.SettingsSheet
@@ -89,10 +95,12 @@ class MainActivity : ComponentActivity() {
                 amoled = isAmoled,
                 dynamicColor = isDynamicColor
             ) {
+                val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 var hasNewDownloads by remember { mutableStateOf(false) }
                 CompositionLocalProvider(
                     LocalShowGamesTab provides showMyGamesTab,
-                    LocalHasNewDownloads provides hasNewDownloads
+                    LocalHasNewDownloads provides hasNewDownloads,
+                    LocalIsLandscape provides isLandscape
                 ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val prefs = remember { getSharedPreferences("bci_settings", Context.MODE_PRIVATE) }
@@ -267,6 +275,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    val screenContent: @Composable () -> Unit = {
                     when (currentTab) {
                         MainTab.INJECT -> {
                             if (uiState.selectedApp == null) {
@@ -449,6 +458,19 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                    }
+                    } // end screenContent lambda
+
+                    if (isLandscape) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            LandscapeNavRail(
+                                currentTab = currentTab,
+                                onTabSelected = { currentTab = it }
+                            )
+                            Box(modifier = Modifier.weight(1f)) { screenContent() }
+                        }
+                    } else {
+                        screenContent()
                     }
                 }
                 } // CompositionLocalProvider
