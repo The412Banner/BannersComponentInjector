@@ -7,7 +7,7 @@
 ---
 
 ### [pre] — v2.0.6-pre — Nightlies source switched to PACK_JSON (2026-03-16)
-**Commit:** `TBD`  |  **Tag:** v2.0.6-pre  |  **Branch:** main
+**Commit:** `a5b5a6d`  |  **Tag:** v2.0.6-pre  |  **Branch:** main
 
 #### What changed
 - "Nightlies by The412Banner" built-in source switched from `GITHUB_RELEASES_WCP` (GitHub Releases API) to `PACK_JSON` format
