@@ -18,6 +18,7 @@ import com.banner.inject.data.SteamRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameEntry
 import com.banner.inject.model.GameOverride
+import com.banner.inject.model.GameType
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.KNOWN_GAMEHUB_APPS
 import com.banner.inject.model.KnownApp
