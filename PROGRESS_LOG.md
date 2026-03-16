@@ -6,6 +6,27 @@
 
 ---
 
+### [pre] — v2.0.3-pre — PACK_JSON format; switch 5 sources from API to raw JSON (2026-03-16)
+**Commit:** `3a1c76d`  |  **Tag:** v2.0.3-pre  |  **Branch:** main
+
+#### What changed
+- New `PACK_JSON` SourceFormat for flat `[{type, verName, remoteUrl}]` files — bypasses GitHub API rate limit
+- `fetchPackJson()` — fetches and filters by type; maps `GpuDriver` → GPU Drivers
+- `cacheAllPackJson()` — fetches once, populates all type buckets
+- `discoverTypes` PACK_JSON case — reads unique `type` values from array
+- Wired into `fetchFromSource`, `refreshAllCache` (primary + extra endpoint blocks)
+- Sources switched from `api.github.com` to raw JSON:
+  - StevenMXZ GPU Drivers extra → `Nightlies/stevenmxz_drivers.json`
+  - Arihany WCPHub → Arihany `pack.json` (raw), extra endpoint removed
+  - AdrenoToolsDrivers (K11MCH1) → `Nightlies/kimchi_drivers.json`
+  - freedreno Turnip CI (whitebelyash) → `Nightlies/white_drivers.json`
+  - MaxesTechReview (MTR) → `Nightlies/mtr_drivers.json`
+
+#### Files touched
+- `data/RemoteSourceRepository.kt`
+
+---
+
 ### [pre] — v2.0.2-pre — Move download button to top of detail sheet (2026-03-16)
 **Commit:** `b4ffdb9`  |  **Tag:** v2.0.2-pre  |  **Branch:** main
 
