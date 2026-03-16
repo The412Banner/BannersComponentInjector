@@ -27,7 +27,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -50,8 +49,9 @@ fun MyGamesScreen(
     onTabSelected: (MainTab) -> Unit,
     apps: List<GameHubApp>,
     selectedApp: GameHubApp?,
-    games: List<GameEntry>,
-    isLoadingGames: Boolean,
+    importedGames: List<GameEntry>,
+    steamGames: List<GameEntry>,
+    isLoadingSteam: Boolean,
     hasDataAccess: (String) -> Boolean,
     onSelectApp: (GameHubApp) -> Unit,
     onAccessGranted: (GameHubApp, Uri) -> Unit,
@@ -59,9 +59,8 @@ fun MyGamesScreen(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onLaunchGame: (packageName: String, gameId: String) -> Unit,
-    onCreateIsos: () -> Unit,
-    onHideGame: (GameEntry) -> Unit,
-    onDeleteGame: (GameEntry, onResult: (Boolean) -> Unit) -> Unit,
+    onAddImport: (name: String, localId: String) -> Unit,
+    onRemoveImport: (GameEntry) -> Unit,
     initialDataUriHintFor: (String) -> Uri
 ) {
     val context = LocalContext.current
@@ -69,11 +68,12 @@ fun MyGamesScreen(
     val overrides = remember { mutableStateMapOf<String, GameOverride>() }
     val scope = rememberCoroutineScope()
 
-    // Load stored overrides whenever the games list changes (disk reads on IO thread)
-    LaunchedEffect(games) {
+    // Load stored overrides whenever game lists change
+    val allGameIds = remember(importedGames, steamGames) { (importedGames + steamGames).map { it.gameId } }
+    LaunchedEffect(allGameIds) {
         val loaded = withContext(Dispatchers.IO) {
-            games.mapNotNull { game ->
-                overrideRepo.get(game.gameId)?.let { game.gameId to it }
+            allGameIds.mapNotNull { id ->
+                overrideRepo.get(id)?.let { id to it }
             }
         }
         loaded.forEach { (id, override) -> overrides[id] = override }
@@ -83,8 +83,8 @@ fun MyGamesScreen(
     var showSetupDialog by remember { mutableStateOf<GameHubApp?>(null) }
     var showManageAccessDialog by remember { mutableStateOf(false) }
     var editingGame by remember { mutableStateOf<GameEntry?>(null) }
-    var confirmDeleteGame by remember { mutableStateOf<GameEntry?>(null) }
-    var deleteInProgress by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var confirmRemoveImport by remember { mutableStateOf<GameEntry?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -93,8 +93,9 @@ fun MyGamesScreen(
         if (uri != null && app != null) onAccessGranted(app, uri)
     }
 
-    val localGames = games.filter { it.type == GameType.LOCAL }
-    val steamGames = games.filter { it.type == GameType.STEAM }
+    val eligibleApps = apps.filter {
+        it.isInstalled || it.known.packageNames.any { p -> hasDataAccess(p) }
+    }
 
     Scaffold(
         topBar = {
@@ -116,12 +117,7 @@ fun MyGamesScreen(
                     actions = {
                         if (selectedApp != null) {
                             IconButton(onClick = onRefresh) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                            }
-                            if (selectedApp.known.packageNames.any { hasDataAccess(it) }) {
-                                IconButton(onClick = onCreateIsos) {
-                                    Icon(Icons.Default.SaveAlt, contentDescription = "Create ISOs")
-                                }
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh Steam")
                             }
                             IconButton(onClick = { showManageAccessDialog = true }) {
                                 Icon(Icons.Default.FolderShared, contentDescription = "Manage access")
@@ -134,80 +130,207 @@ fun MyGamesScreen(
                 )
                 MainTabRow(currentTab = currentTab, onTabSelected = onTabSelected)
             }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add imported game")
+            }
         }
     ) { padding ->
-        if (selectedApp == null) {
-            AppSelectorList(
-                padding = padding,
-                apps = apps,
-                hasDataAccess = hasDataAccess,
-                onAppClick = { app ->
-                    if (app.known.packageNames.any { hasDataAccess(it) }) onSelectApp(app)
-                    else showSetupDialog = app
-                }
-            )
-        } else if (isLoadingGames) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.height(12.dp))
-                    Text("Scanning games…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(bottom = 80.dp)
+        ) {
+            // ── Imported Games section ────────────────────────────────────────
+            item {
+                SectionHeader("Imported Games", importedGames.size, Icons.Default.Computer)
             }
-        } else if (games.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                    Icon(Icons.Default.SportsEsports, null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(12.dp))
-                    Text("No games found.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Install games in GameHub, or grant access to both folders.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), fontSize = 12.sp)
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                if (localGames.isNotEmpty()) {
-                    item { SectionHeader("Local Games", localGames.size, Icons.Default.Computer) }
-                    items(localGames, key = { "local_${it.gameId}" }) { game ->
-                        GameCard(
-                            game = game,
-                            override = overrides[game.gameId],
-                            onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) },
-                            onEdit = { editingGame = game },
-                            onResetOverride = if (overrides.containsKey(game.gameId)) ({
-                                overrideRepo.clear(game.gameId)
-                                overrides.remove(game.gameId)
-                            }) else null,
-                            onHideGame = { onHideGame(game) },
-                            onDeleteGame = { confirmDeleteGame = game }
-                        )
+            if (importedGames.isEmpty()) {
+                item {
+                    Box(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.AddCircleOutline, null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.size(36.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text("No imported games yet.",
+                                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Tap + to add one.",
+                                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
                     }
                 }
-                if (steamGames.isNotEmpty()) {
+            } else {
+                items(importedGames, key = { "local_${it.gameId}" }) { game ->
+                    LocalGameCard(
+                        game = game,
+                        override = overrides[game.gameId],
+                        onLaunch = {
+                            selectedApp?.let { onLaunchGame(it.activePackage, game.gameId) }
+                                ?: run { /* no app selected, play button still works if any app has access */ }
+                        },
+                        onEdit = { editingGame = game },
+                        onResetOverride = if (overrides.containsKey(game.gameId)) ({
+                            overrideRepo.clear(game.gameId)
+                            overrides.remove(game.gameId)
+                        }) else null,
+                        onRemove = { confirmRemoveImport = game }
+                    )
+                }
+            }
+
+            // ── Steam Games section ───────────────────────────────────────────
+            item {
+                SectionHeader(
+                    title = "Steam Games",
+                    count = steamGames.size,
+                    icon = Icons.Default.Games,
+                    topPadding = 8.dp
+                )
+            }
+            if (selectedApp == null) {
+                if (eligibleApps.isEmpty()) {
                     item {
-                        SectionHeader("Steam Games", steamGames.size, Icons.Default.Games,
-                            topPadding = if (localGames.isNotEmpty()) 8.dp else 0.dp)
+                        Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp),
+                            contentAlignment = Alignment.Center) {
+                            Text("No GameHub variants installed.",
+                                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                    items(steamGames, key = { "steam_${it.gameId}" }) { game ->
-                        GameCard(
-                            game = game,
-                            override = overrides[game.gameId],
-                            onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) },
-                            onEdit = { editingGame = game },
-                            onResetOverride = if (overrides.containsKey(game.gameId)) ({
-                                overrideRepo.clear(game.gameId)
-                                overrides.remove(game.gameId)
-                            }) else null
+                } else {
+                    item {
+                        Text(
+                            "Select your GameHub version to browse Steam games.",
+                            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
+                    items(eligibleApps, key = { "app_${it.known.packageNames.first()}" }) { app ->
+                        Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                            GamesAppCard(
+                                app = app,
+                                hasAccess = app.known.packageNames.any { hasDataAccess(it) },
+                                onClick = {
+                                    if (app.known.packageNames.any { hasDataAccess(it) }) onSelectApp(app)
+                                    else showSetupDialog = app
+                                }
+                            )
+                        }
+                    }
+                }
+            } else if (isLoadingSteam) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Text("Scanning Steam games…", fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            } else if (steamGames.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp),
+                        contentAlignment = Alignment.Center) {
+                        Text("No Steam games found in ${selectedApp.known.displayName}.",
+                            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else {
+                items(steamGames, key = { "steam_${it.gameId}" }) { game ->
+                    SteamGameCard(
+                        game = game,
+                        override = overrides[game.gameId],
+                        onLaunch = { onLaunchGame(selectedApp.activePackage, game.gameId) },
+                        onEdit = { editingGame = game },
+                        onResetOverride = if (overrides.containsKey(game.gameId)) ({
+                            overrideRepo.clear(game.gameId)
+                            overrides.remove(game.gameId)
+                        }) else null
+                    )
                 }
             }
         }
+    }
+
+    // ── Add Import dialog ─────────────────────────────────────────────────────
+    if (showAddDialog) {
+        var nameInput by remember { mutableStateOf("") }
+        var localIdInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            icon = { Icon(Icons.Default.AddCircle, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Add Imported Game", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Game Name") },
+                        placeholder = { Text("e.g. Halo Infinite") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = localIdInput,
+                        onValueChange = { localIdInput = it },
+                        label = { Text("Local ID") },
+                        placeholder = { Text("e.g. halo-infinite") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("The game's ID used by GameHub") }
+                    )
+                    Text(
+                        "A .iso file named after the game will be saved to Downloads/front end/",
+                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onAddImport(nameInput.trim(), localIdInput.trim())
+                        showAddDialog = false
+                    },
+                    enabled = nameInput.isNotBlank() && localIdInput.isNotBlank()
+                ) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // ── Remove confirmation dialog ────────────────────────────────────────────
+    confirmRemoveImport?.let { game ->
+        val displayName = overrides[game.gameId]?.customName ?: game.gameId
+        AlertDialog(
+            onDismissRequest = { confirmRemoveImport = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Remove Game?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "\"$displayName\" will be removed from your import list and its .iso file deleted from Downloads/front end/.",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onRemoveImport(game); confirmRemoveImport = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemoveImport = null }) { Text("Cancel") }
+            }
+        )
     }
 
     // ── Edit sheet ────────────────────────────────────────────────────────────
@@ -220,61 +343,12 @@ fun MyGamesScreen(
             onSave = { override ->
                 overrideRepo.save(override)
                 overrides[override.gameId] = override
-                // If a Steam App ID was linked, pre-fetch its metadata for cover art
                 override.linkedSteamAppId?.let { linkedId ->
                     scope.launch { SteamRepository.fetch(linkedId) }
                 }
                 editingGame = null
             },
             onDismiss = { editingGame = null }
-        )
-    }
-
-    // ── Delete confirmation dialog ────────────────────────────────────────────
-    confirmDeleteGame?.let { game ->
-        val displayName = game.gameId
-        AlertDialog(
-            onDismissRequest = { if (!deleteInProgress) confirmDeleteGame = null },
-            icon = { Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Delete Game?", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "\"$displayName\" and all its files will be permanently deleted from the virtual_containers folder.",
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        "This cannot be undone.",
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        deleteInProgress = true
-                        onDeleteGame(game) { success ->
-                            deleteInProgress = false
-                            confirmDeleteGame = null
-                        }
-                    },
-                    enabled = !deleteInProgress,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    if (deleteInProgress) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onError)
-                    } else {
-                        Text("Delete")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteGame = null }, enabled = !deleteInProgress) {
-                    Text("Cancel")
-                }
-            }
         )
     }
 
@@ -287,7 +361,7 @@ fun MyGamesScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "Grant access to ${app.known.displayName}'s data folder. The app will automatically find both local import games and Steam games from there.",
+                        "Grant access to ${app.known.displayName}'s data folder to browse its Steam games.",
                         fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     FolderGrantRow(
@@ -303,7 +377,7 @@ fun MyGamesScreen(
                 TextButton(
                     onClick = { showSetupDialog = null; onSelectApp(app) },
                     enabled = app.known.packageNames.any { hasDataAccess(it) }
-                ) { Text("View Games") }
+                ) { Text("View Steam Games") }
             },
             dismissButton = { TextButton(onClick = { showSetupDialog = null }) { Text("Cancel") } }
         )
@@ -333,65 +407,6 @@ fun MyGamesScreen(
     }
 }
 
-// ── App selector ──────────────────────────────────────────────────────────────
-
-@Composable
-private fun AppSelectorList(
-    padding: PaddingValues,
-    apps: List<GameHubApp>,
-    hasDataAccess: (String) -> Boolean,
-    onAppClick: (GameHubApp) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item {
-            Text("Select your GameHub version to browse installed games.",
-                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
-        }
-        val eligible = apps.filter {
-            it.isInstalled || it.known.packageNames.any { p -> hasDataAccess(p) }
-        }
-        if (eligible.isEmpty()) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("No GameHub variants installed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else {
-            items(eligible, key = { it.known.packageNames.first() }) { app ->
-                GamesAppCard(
-                    app = app,
-                    hasAccess = app.known.packageNames.any { hasDataAccess(it) },
-                    onClick = { onAppClick(app) }
-                )
-            }
-        }
-    }
-}
-
-// ── Game card dispatcher ──────────────────────────────────────────────────────
-
-@Composable
-private fun GameCard(
-    game: GameEntry,
-    override: GameOverride?,
-    onLaunch: () -> Unit,
-    onEdit: () -> Unit,
-    onResetOverride: (() -> Unit)?,
-    onHideGame: (() -> Unit)? = null,
-    onDeleteGame: (() -> Unit)? = null
-) {
-    if (game.type == GameType.STEAM) {
-        SteamGameCard(game, override, onLaunch, onEdit, onResetOverride)
-    } else {
-        LocalGameCard(game, override, onLaunch, onEdit, onResetOverride, onHideGame, onDeleteGame)
-    }
-}
-
 // ── Local game card ───────────────────────────────────────────────────────────
 
 @Composable
@@ -401,8 +416,7 @@ private fun LocalGameCard(
     onLaunch: () -> Unit,
     onEdit: () -> Unit,
     onResetOverride: (() -> Unit)?,
-    onHideGame: (() -> Unit)? = null,
-    onDeleteGame: (() -> Unit)? = null
+    onRemove: () -> Unit
 ) {
     val linkedId = override?.linkedSteamAppId
     val displayName = override?.customName ?: game.gameId
@@ -488,22 +502,13 @@ private fun LocalGameCard(
                             onClick = { menuExpanded = false; onResetOverride() }
                         )
                     }
-                    if (onHideGame != null) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Text("Remove from list") },
-                            leadingIcon = { Icon(Icons.Default.VisibilityOff, null, modifier = Modifier.size(18.dp)) },
-                            onClick = { menuExpanded = false; onHideGame() }
-                        )
-                    }
-                    if (onDeleteGame != null) {
-                        DropdownMenuItem(
-                            text = { Text("Remove and delete folder", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Default.DeleteForever, null,
-                                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
-                            onClick = { menuExpanded = false; onDeleteGame() }
-                        )
-                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    DropdownMenuItem(
+                        text = { Text("Remove", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, null,
+                            tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                        onClick = { menuExpanded = false; onRemove() }
+                    )
                 }
             }
         }
@@ -539,7 +544,7 @@ private fun SearchResultThumbnail(appId: String) {
         },
         error = {
             if (!useFallbackUrl) {
-                useFallbackUrl = true  // retry with header.jpg
+                useFallbackUrl = true
             } else {
                 Box(
                     Modifier.fillMaxSize()
@@ -578,7 +583,6 @@ private fun SteamGameCard(
     onEdit: () -> Unit,
     onResetOverride: (() -> Unit)?
 ) {
-    // Start null — memory cache is checked first inside fetch(), disk I/O stays off the main thread
     var info by remember(game.gameId) { mutableStateOf<SteamGameInfo?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -586,7 +590,6 @@ private fun SteamGameCard(
         if (info == null) info = SteamRepository.fetch(game.gameId)
     }
 
-    // Effective display values: override takes priority over fetched info
     val displayName     = override?.customName        ?: info?.name             ?: game.gameId
     val displayGenres   = override?.customGenres      ?: info?.genres           ?: emptyList()
     val displayDesc     = override?.customDescription ?: info?.shortDescription
@@ -600,7 +603,6 @@ private fun SteamGameCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            // Cover image
             Box(modifier = Modifier.width(80.dp).height(130.dp)) {
                 SubcomposeAsyncImage(
                     model = SteamRepository.coverUrl(coverAppId),
@@ -634,7 +636,6 @@ private fun SteamGameCard(
                 )
             }
 
-            // Info column
             Column(
                 modifier = Modifier.weight(1f).padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -665,7 +666,6 @@ private fun SteamGameCard(
                 }
             }
 
-            // Hamburger menu
             Box {
                 IconButton(onClick = { menuExpanded = true }, modifier = Modifier.padding(top = 4.dp)) {
                     Icon(Icons.Default.MoreVert, contentDescription = "More options", modifier = Modifier.size(20.dp))
@@ -702,7 +702,6 @@ private fun GameEditSheet(
 ) {
     val scope = rememberCoroutineScope()
 
-    // Pre-fill from override → steam info → defaults
     var nameField   by remember { mutableStateOf(initialOverride?.customName        ?: steamInfo?.name             ?: "") }
     var genresField by remember { mutableStateOf(
         (initialOverride?.customGenres ?: steamInfo?.genres)?.joinToString(", ") ?: ""
@@ -714,7 +713,6 @@ private fun GameEditSheet(
     )}
     var linkedId    by remember { mutableStateOf(initialOverride?.linkedSteamAppId) }
 
-    // Search state
     var searchResults by remember { mutableStateOf<List<SteamRepository.SearchResult>>(emptyList()) }
     var isSearching   by remember { mutableStateOf(false) }
     var searchError   by remember { mutableStateOf<String?>(null) }
@@ -798,7 +796,6 @@ private fun GameEditSheet(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Cover preview
                 linkedId?.let { id ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SubcomposeAsyncImage(
@@ -829,7 +826,6 @@ private fun GameEditSheet(
                     HorizontalDivider()
                 }
 
-                // ── Game Name + Search ────────────────────────────────────
                 Text("Game Name", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
@@ -847,7 +843,6 @@ private fun GameEditSheet(
                     }
                 )
 
-                // Search button
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(
                         onClick = { doSearch() },
@@ -870,12 +865,10 @@ private fun GameEditSheet(
                     }
                 }
 
-                // Search error
                 searchError?.let {
                     Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                 }
 
-                // Search results
                 if (searchResults.isNotEmpty()) {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -911,7 +904,6 @@ private fun GameEditSheet(
 
                 HorizontalDivider()
 
-                // ── Genres ────────────────────────────────────────────────
                 Text("Genres", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
@@ -923,7 +915,6 @@ private fun GameEditSheet(
                     supportingText = { Text("Comma-separated", fontSize = 10.sp) }
                 )
 
-                // ── Description ───────────────────────────────────────────
                 Text("Description", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
@@ -935,7 +926,6 @@ private fun GameEditSheet(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // ── Release Year + Metacritic (side by side) ──────────────
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Release Year", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
@@ -966,7 +956,6 @@ private fun GameEditSheet(
                     }
                 }
 
-                // Info about what game ID will be used for launching
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
                     Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))

@@ -10,11 +10,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.banner.inject.data.BackupManager
 import com.banner.inject.data.ComponentRepository
+import com.banner.inject.data.GameOverrideRepository
 import com.banner.inject.data.GameRepository
+import com.banner.inject.data.ImportedGame
+import com.banner.inject.data.ImportedGameRepository
 import com.banner.inject.data.SteamRepository
 import com.banner.inject.model.ComponentEntry
 import com.banner.inject.model.GameEntry
-import com.banner.inject.model.GameType
+import com.banner.inject.model.GameOverride
 import com.banner.inject.model.GameHubApp
 import com.banner.inject.model.KNOWN_GAMEHUB_APPS
 import com.banner.inject.model.KnownApp
@@ -40,18 +43,20 @@ data class UiState(
     val opState: OpState = OpState.Idle,
     // My Games tab
     val selectedGamesApp: GameHubApp? = null,
-    val games: List<GameEntry> = emptyList(),
-    val isLoadingGames: Boolean = false
+    val importedGames: List<GameEntry> = emptyList(),
+    val steamGames: List<GameEntry> = emptyList(),
+    val isLoadingSteam: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context: Context get() = getApplication()
     private val prefs = application.getSharedPreferences("bci_prefs", Context.MODE_PRIVATE)
-    private val hiddenGamesPrefs = application.getSharedPreferences("hidden_games_prefs", Context.MODE_PRIVATE)
     private val repo = ComponentRepository(application)
     private val backupManager = BackupManager(application)
     private val gameRepo = GameRepository(application)
+    private val importedGameRepo = ImportedGameRepository(application)
+    private val gameOverrideRepo = GameOverrideRepository(application)
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -59,6 +64,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         SteamRepository.init(context)
         refreshAppList()
+        loadImportedGames()
     }
 
     fun refreshAppList() {
@@ -353,19 +359,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── My Games ───────────────────────────────────────────────────────────────
 
-    /** True when the data root grant exists, which covers both components and games. */
+    /** True when the data root grant exists (used for Steam game scanning). */
     fun hasDataAccess(packageName: String): Boolean = prefs.contains(dataUriKey(packageName))
+
+    /** Loads imported games from prefs into UiState — called at init and after add/remove. */
+    private fun loadImportedGames() {
+        val imported = importedGameRepo.getAll()
+            .map { GameEntry(it.localId, GameType.LOCAL) }
+        _uiState.update { it.copy(importedGames = imported) }
+    }
+
+    /**
+     * Adds an imported game: saves to prefs, saves the name as a GameOverride,
+     * writes the .iso file to Downloads/front end/, and refreshes the list.
+     */
+    fun addImportedGame(name: String, localId: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                importedGameRepo.add(ImportedGame(name, localId))
+                gameOverrideRepo.save(GameOverride(gameId = localId, customName = name))
+                gameRepo.writeIsoToFrontEnd(name, localId)
+            }
+            loadImportedGames()
+        }
+    }
+
+    /**
+     * Removes an imported game: deletes from prefs, deletes the .iso from Downloads/front end/,
+     * and refreshes the list.
+     */
+    fun removeImportedGame(localId: String) {
+        viewModelScope.launch {
+            val name = withContext(Dispatchers.IO) {
+                val gameName = importedGameRepo.getAll().firstOrNull { it.localId == localId }?.name
+                importedGameRepo.remove(localId)
+                gameName
+            }
+            if (name != null) {
+                withContext(Dispatchers.IO) { gameRepo.deleteIsoFromFrontEnd(name) }
+            }
+            loadImportedGames()
+        }
+    }
 
     fun selectGamesApp(app: GameHubApp) {
         val uri = storedDataUri(app.activePackage)
             ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
             ?: return
-        _uiState.update { it.copy(selectedGamesApp = app, games = emptyList(), isLoadingGames = true) }
-        loadGames(uri)
+        _uiState.update { it.copy(selectedGamesApp = app, steamGames = emptyList(), isLoadingSteam = true) }
+        loadSteamGames(uri)
     }
 
     fun clearSelectedGamesApp() {
-        _uiState.update { it.copy(selectedGamesApp = null, games = emptyList(), isLoadingGames = false) }
+        _uiState.update { it.copy(selectedGamesApp = null, steamGames = emptyList(), isLoadingSteam = false) }
     }
 
     fun refreshGames() {
@@ -373,34 +419,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val uri = storedDataUri(app.activePackage)
             ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
             ?: return
-        _uiState.update { it.copy(games = emptyList(), isLoadingGames = true) }
-        loadGames(uri)
+        _uiState.update { it.copy(steamGames = emptyList(), isLoadingSteam = true) }
+        loadSteamGames(uri)
     }
 
-    private fun loadGames(dataUri: Uri) {
+    private fun loadSteamGames(dataUri: Uri) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingGames = true, games = emptyList()) }
+            _uiState.update { it.copy(isLoadingSteam = true, steamGames = emptyList()) }
             try {
                 val dataRoot = withContext(Dispatchers.IO) { gameRepo.getRootDocument(dataUri) }
                 if (dataRoot == null || !dataRoot.canRead()) {
-                    _uiState.update { it.copy(isLoadingGames = false) }
+                    _uiState.update { it.copy(isLoadingSteam = false) }
                     return@launch
                 }
-                val allGames = mutableListOf<GameEntry>()
-                val hidden = loadHiddenGameIds()
-                val localRoot = withContext(Dispatchers.IO) { gameRepo.navigateToVirtualContainers(dataRoot) }
-                if (localRoot != null && localRoot.canRead()) {
-                    allGames += withContext(Dispatchers.IO) { gameRepo.scanLocalGames(localRoot) }
-                        .filter { it.gameId !in hidden }
-                }
                 val steamRoot = withContext(Dispatchers.IO) { gameRepo.navigateToShadercache(dataRoot) }
-                if (steamRoot != null && steamRoot.canRead()) {
-                    allGames += withContext(Dispatchers.IO) { gameRepo.scanSteamGames(steamRoot) }
-                }
-                _uiState.update { it.copy(games = allGames, isLoadingGames = false) }
+                val steamGames = if (steamRoot != null && steamRoot.canRead()) {
+                    withContext(Dispatchers.IO) { gameRepo.scanSteamGames(steamRoot) }
+                } else emptyList()
+                _uiState.update { it.copy(steamGames = steamGames, isLoadingSteam = false) }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isLoadingGames = false, opState = OpState.Error(e.message ?: "Failed to scan games"))
+                    it.copy(isLoadingSteam = false, opState = OpState.Error(e.message ?: "Failed to scan Steam games"))
                 }
             }
         }
@@ -410,60 +449,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         gameRepo.launchGame(packageName, gameId).onFailure { e ->
             _uiState.update { it.copy(opState = OpState.Error("Launch failed: ${e.message}")) }
         }
-    }
-
-    /** Creates .iso files in virtual_containers/ for all LOCAL games. Returns count written. */
-    fun createIsoFiles(onResult: (Int) -> Unit) {
-        val app = _uiState.value.selectedGamesApp ?: return
-        val dataUri = storedDataUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
-            ?: return
-        viewModelScope.launch {
-            val dataRoot = withContext(Dispatchers.IO) { gameRepo.getRootDocument(dataUri) } ?: return@launch
-            val localRoot = withContext(Dispatchers.IO) { gameRepo.navigateToVirtualContainers(dataRoot) } ?: return@launch
-            val localGames = _uiState.value.games.filter { it.type == GameType.LOCAL }
-            val count = gameRepo.createIsoFiles(localRoot, localGames)
-            onResult(count)
-        }
-    }
-
-    /** Hides [gameId] from the Local Games list without touching the folder. Persists across restarts. */
-    fun hideLocalGame(gameId: String) {
-        saveHiddenGameIds(loadHiddenGameIds() + gameId)
-        _uiState.update { state -> state.copy(games = state.games.filter { it.gameId != gameId }) }
-    }
-
-    /**
-     * Deletes the virtual container folder (and companion .iso stub) for [gameId],
-     * then removes it from the displayed list.
-     */
-    fun deleteLocalGameFolder(gameId: String, onResult: (Boolean) -> Unit) {
-        val app = _uiState.value.selectedGamesApp ?: return
-        val dataUri = storedDataUri(app.activePackage)
-            ?: app.known.packageNames.mapNotNull { storedDataUri(it) }.firstOrNull()
-            ?: return
-        viewModelScope.launch {
-            val success = withContext(Dispatchers.IO) {
-                try {
-                    val dataRoot = gameRepo.getRootDocument(dataUri) ?: return@withContext false
-                    val localRoot = gameRepo.navigateToVirtualContainers(dataRoot) ?: return@withContext false
-                    gameRepo.deleteLocalGameFolder(localRoot, gameId)
-                } catch (_: Exception) { false }
-            }
-            if (success) {
-                // Also remove from the hidden set in case it was hidden previously
-                saveHiddenGameIds(loadHiddenGameIds() - gameId)
-                _uiState.update { state -> state.copy(games = state.games.filter { it.gameId != gameId }) }
-            }
-            onResult(success)
-        }
-    }
-
-    private fun loadHiddenGameIds(): Set<String> =
-        hiddenGamesPrefs.getStringSet("hidden_local_games", emptySet()) ?: emptySet()
-
-    private fun saveHiddenGameIds(ids: Set<String>) {
-        hiddenGamesPrefs.edit().putStringSet("hidden_local_games", ids).apply()
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

@@ -413,15 +413,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         MainTab.GAMES -> {
-                            var isoSnackbarMessage by remember { mutableStateOf<String?>(null) }
-
                             MyGamesScreen(
                                 currentTab = currentTab,
                                 onTabSelected = { currentTab = it },
                                 apps = uiState.apps,
                                 selectedApp = uiState.selectedGamesApp,
-                                games = uiState.games,
-                                isLoadingGames = uiState.isLoadingGames,
+                                importedGames = uiState.importedGames,
+                                steamGames = uiState.steamGames,
+                                isLoadingSteam = uiState.isLoadingSteam,
                                 hasDataAccess = { vm.hasDataAccess(it) },
                                 onSelectApp = { vm.selectGamesApp(it) },
                                 onAccessGranted = { app, uri -> vm.grantAccess(app, uri) },
@@ -429,35 +428,10 @@ class MainActivity : ComponentActivity() {
                                 onBack = { vm.clearSelectedGamesApp() },
                                 onRefresh = { vm.refreshGames() },
                                 onLaunchGame = { pkg, gameId -> vm.launchGame(pkg, gameId) },
-                                onCreateIsos = {
-                                    vm.createIsoFiles { count ->
-                                        isoSnackbarMessage = "$count ISO file${if (count != 1) "s" else ""} created in virtual_containers"
-                                    }
-                                },
-                                onHideGame = { game -> vm.hideLocalGame(game.gameId) },
-                                onDeleteGame = { game, onResult -> vm.deleteLocalGameFolder(game.gameId, onResult) },
+                                onAddImport = { name, localId -> vm.addImportedGame(name, localId) },
+                                onRemoveImport = { game -> vm.removeImportedGame(game.gameId) },
                                 initialDataUriHintFor = { vm.initialUriHintFor(it) }
                             )
-
-                            isoSnackbarMessage?.let { msg ->
-                                androidx.compose.runtime.LaunchedEffect(msg) {
-                                    kotlinx.coroutines.delay(3000)
-                                    isoSnackbarMessage = null
-                                }
-                                androidx.compose.foundation.layout.Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.BottomCenter
-                                ) {
-                                    Snackbar(
-                                        modifier = Modifier.padding(16.dp),
-                                        action = {
-                                            TextButton(onClick = { isoSnackbarMessage = null }) {
-                                                Text("OK")
-                                            }
-                                        }
-                                    ) { Text(msg) }
-                                }
-                            }
                         }
                     }
                     } // end screenContent lambda
