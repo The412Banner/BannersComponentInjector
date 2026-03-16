@@ -64,11 +64,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         SteamRepository.init(context)
-        refreshAppList()
+        refreshAppList(autoSelectForSteam = true)
         loadImportedGames()
     }
 
-    fun refreshAppList() {
+    fun refreshAppList(autoSelectForSteam: Boolean = false) {
         val pm = context.packageManager
         val apps = (KNOWN_GAMEHUB_APPS + loadCustomApps()).map { known ->
             val installedPkgs = known.packageNames.filter { pkg ->
@@ -88,6 +88,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         _uiState.update { it.copy(apps = apps) }
+        // Auto-select the first app with data access so Steam games load without manual selection
+        if (autoSelectForSteam && _uiState.value.selectedGamesApp == null) {
+            apps.firstOrNull { app -> app.known.packageNames.any { prefs.contains(dataUriKey(it)) } }
+                ?.let { selectGamesApp(it) }
+        }
     }
 
     /** Returns true if the data/ root grant exists for this package. */
