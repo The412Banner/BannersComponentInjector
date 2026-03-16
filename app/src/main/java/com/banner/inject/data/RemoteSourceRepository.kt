@@ -234,7 +234,8 @@ class RemoteSourceRepository(private val context: Context) {
         GITHUB_RELEASES_ZIP,         // All .zip assets from each release, no name filter
         GITHUB_REPO_CONTENTS,        // GitHub Contents API — folders = types, files inside = components
         RANKING_EMULATORS_JSON,      // HUB Emulators rankings.json — manifestDrivers (WCP) + results Drivers (GPU)
-        GAMENATIVE_MANIFEST          // GameNative manifest.json — items.driver/dxvk/proton/fexcore/wowbox64
+        GAMENATIVE_MANIFEST,         // GameNative manifest.json — items.driver/dxvk/proton/fexcore/wowbox64
+        PACK_JSON                    // Flat [{type, verName, remoteUrl}] — Arihany pack.json / Nightlies relay files
     }
 
     // Default built-in sources mapped strictly to the components they provide
@@ -244,19 +245,18 @@ class RemoteSourceRepository(private val context: Context) {
             url = "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json",
             format = SourceFormat.WCP_JSON,
             supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "GPU Drivers"),
-            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/StevenMXZ/Adreno-Tools-Drivers/releases", SourceFormat.GITHUB_RELEASES_ZIP, listOf("GPU Drivers")))
+            extraEndpoints = listOf(ExtraEndpoint("https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/stevenmxz_drivers.json", SourceFormat.PACK_JSON, listOf("GPU Drivers")))
         ),
         RemoteSource(
             name = "Arihany WCPHub",
-            url = "https://api.github.com/repos/Arihany/WinlatorWCPHub/releases",
-            format = SourceFormat.GITHUB_RELEASES_WCP,
-            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "GPU Drivers"),
-            extraEndpoints = listOf(ExtraEndpoint("https://api.github.com/repos/Arihany/WinlatorWCPHub/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")))
+            url = "https://raw.githubusercontent.com/Arihany/WinlatorWCPHub/refs/heads/main/pack.json",
+            format = SourceFormat.PACK_JSON,
+            supportedTypes = listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton", "GPU Drivers")
         ),
         RemoteSource("Xnick417x", "https://raw.githubusercontent.com/Xnick417x/Winlator-Bionic-Nightly-wcp/refs/heads/main/content.json", SourceFormat.WCP_JSON, listOf("dxvk", "vkd3d", "box64", "fex", "fexcore", "wine", "proton")),
-        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://api.github.com/repos/K11MCH1/AdrenoToolsDrivers/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")),
-        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://api.github.com/repos/whitebelyash/freedreno_turnip-CI/releases", SourceFormat.GITHUB_RELEASES_TURNIP, listOf("GPU Drivers")),
-        RemoteSource("MaxesTechReview (MTR)", "https://github.com/maxjivi05/Components", SourceFormat.GITHUB_REPO_CONTENTS, emptyList()),
+        RemoteSource("AdrenoToolsDrivers (K11MCH1)", "https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/kimchi_drivers.json", SourceFormat.PACK_JSON, listOf("GPU Drivers")),
+        RemoteSource("freedreno Turnip CI (whitebelyash)", "https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/white_drivers.json", SourceFormat.PACK_JSON, listOf("GPU Drivers")),
+        RemoteSource("MaxesTechReview (MTR)", "https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/mtr_drivers.json", SourceFormat.PACK_JSON, listOf("GPU Drivers")),
         RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList()),
         RemoteSource("Nightlies by The412Banner", "https://api.github.com/repos/The412Banner/Nightlies/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "fex", "fexcore", "box64")),
         RemoteSource("GameNative", "https://raw.githubusercontent.com/utkarshdalal/GameNative/refs/heads/master/manifest.json", SourceFormat.GAMENATIVE_MANIFEST, emptyList())
@@ -510,6 +510,7 @@ class RemoteSourceRepository(private val context: Context) {
             SourceFormat.GITHUB_REPO_CONTENTS -> fetchGithubRepoContents(activeUrl, componentType, source.name)
             SourceFormat.RANKING_EMULATORS_JSON -> fetchRankingEmulators(activeUrl, componentType, source.name)
             SourceFormat.GAMENATIVE_MANIFEST -> fetchGameNativeManifest(activeUrl, componentType, source.name)
+            SourceFormat.PACK_JSON -> fetchPackJson(activeUrl, componentType, source.name)
         }
         putToCache(source.name, componentType, result)
         result
@@ -572,6 +573,9 @@ class RemoteSourceRepository(private val context: Context) {
                             SourceFormat.GAMENATIVE_MANIFEST -> {
                                 cacheAllGameNativeManifest(source.url, source.name)
                             }
+                            SourceFormat.PACK_JSON -> {
+                                cacheAllPackJson(source.url, source.name)
+                            }
                         }
 
                         // Fetch each extra endpoint and cache under its declared types
@@ -602,6 +606,9 @@ class RemoteSourceRepository(private val context: Context) {
                                         val items = fetchWcpJson(ep.url, type, source.name)
                                         putToCache(source.name, type, items)
                                     }
+                                }
+                                SourceFormat.PACK_JSON -> {
+                                    cacheAllPackJson(ep.url, source.name)
                                 }
                                 else -> { /* GITHUB_REPO_CONTENTS not expected as extra endpoint */ }
                             }
@@ -949,6 +956,18 @@ class RemoteSourceRepository(private val context: Context) {
                     }
                     types
                 }
+                SourceFormat.PACK_JSON -> {
+                    val conn = URL(source.url).openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 8000; conn.readTimeout = 8000; conn.connect()
+                    val array = JSONArray(conn.inputStream.bufferedReader().readText())
+                    val types = mutableSetOf<String>()
+                    for (i in 0 until array.length()) {
+                        val rawType = array.getJSONObject(i).optString("type")
+                        if (rawType.equals("GpuDriver", ignoreCase = true)) types.add(GPU_DRIVER_TYPE)
+                        else if (rawType.isNotEmpty()) types.add(rawType.lowercase())
+                    }
+                    types.toList()
+                }
             }
         } catch (_: Exception) {
             if (source.supportedTypes.isNotEmpty()) source.supportedTypes else knownTypes
@@ -1196,6 +1215,51 @@ class RemoteSourceRepository(private val context: Context) {
             }
             putToCache(sourceName, cacheType, list)
         }
+    }
+
+    /** Fetches a flat [{type, verName, remoteUrl}] JSON and returns items matching componentType. */
+    private suspend fun fetchPackJson(url: String, componentType: String, sourceName: String): List<RemoteItem> = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val array = JSONArray(json)
+        val isGpu = componentType == GPU_DRIVER_TYPE
+        val result = mutableListOf<RemoteItem>()
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            val rawType = item.optString("type")
+            val matches = if (isGpu) rawType.equals("GpuDriver", ignoreCase = true)
+                          else rawType.equals(componentType, ignoreCase = true)
+            if (!matches) continue
+            val verName = item.optString("verName").trim()
+            val remoteUrl = item.optString("remoteUrl")
+            if (remoteUrl.isEmpty()) continue
+            result.add(RemoteItem(
+                displayName = verName,
+                versionName = verName,
+                downloadUrl = remoteUrl,
+                sourceName = sourceName
+            ))
+        }
+        result
+    }
+
+    /** Fetches a PACK_JSON file once and populates the cache for all type buckets it contains. */
+    private suspend fun cacheAllPackJson(url: String, sourceName: String) = withContext(Dispatchers.IO) {
+        val json = openUrl(url).inputStream.bufferedReader().readText()
+        val array = JSONArray(json)
+        val byType = mutableMapOf<String, MutableList<RemoteItem>>()
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            val rawType = item.optString("type")
+            val verName = item.optString("verName").trim()
+            val remoteUrl = item.optString("remoteUrl")
+            if (remoteUrl.isEmpty()) continue
+            val cacheType = if (rawType.equals("GpuDriver", ignoreCase = true)) GPU_DRIVER_TYPE
+                            else rawType.lowercase()
+            byType.getOrPut(cacheType) { mutableListOf() }.add(
+                RemoteItem(displayName = verName, versionName = verName, downloadUrl = remoteUrl, sourceName = sourceName)
+            )
+        }
+        byType.forEach { (type, items) -> putToCache(sourceName, type, items) }
     }
 
     suspend fun downloadToTemp(
