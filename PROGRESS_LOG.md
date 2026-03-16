@@ -6,6 +6,28 @@
 
 ---
 
+### [stable] — v2.1.0 — Landscape rail, GameNative source, PACK_JSON, My Downloads auto-refresh (2026-03-16)
+**Commit:** `5b0acf3` (code) + `1e69e85` (README)  |  **Tag:** v2.1.0  |  **Branch:** main
+
+#### What changed (since v2.0.0)
+- GameNative added as 9th built-in source (GAMENATIVE_MANIFEST format)
+- Download button moved to top of file detail sheet (no longer cut off in landscape)
+- 5 sources switched to PACK_JSON (raw JSON, no GitHub API): StevenMXZ GPU Drivers, Arihany WCPHub, K11MCH1, freedreno Turnip CI, MTR
+- Nightlies by The412Banner source switched to PACK_JSON (nightlies_components.json)
+- Landscape NavigationRail — tabs move to left-side rail in landscape orientation
+- My Downloads auto-refreshes (prune + reload) every time the tab is opened
+- README rewritten to reflect all current features and 9 built-in sources
+
+#### Files touched
+- `data/RemoteSourceRepository.kt`
+- `ui/screens/DownloadScreen.kt`, `RemoteSourceSheet.kt`
+- `ui/screens/MainTabRow.kt`, `MainActivity.kt`
+- `ui/screens/DownloadManagerScreen.kt`
+- `ui/screens/AddRepoDialog.kt`
+- `README.md`
+
+---
+
 ### [pre] — v2.0.7-pre — Auto-refresh My Downloads on tab open (2026-03-16)
 **Commit:** `ca43b07`  |  **Tag:** v2.0.7-pre  |  **Branch:** main
 
