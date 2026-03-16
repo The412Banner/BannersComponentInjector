@@ -258,7 +258,7 @@ class RemoteSourceRepository(private val context: Context) {
         RemoteSource("freedreno Turnip CI (whitebelyash)", "https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/white_drivers.json", SourceFormat.PACK_JSON, listOf("GPU Drivers")),
         RemoteSource("MaxesTechReview (MTR)", "https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/mtr_drivers.json", SourceFormat.PACK_JSON, listOf("GPU Drivers")),
         RemoteSource("HUB Emulators (T3st31)", "https://t3st31.github.io/Ranking-Emulators-Download/data/rankings.json", SourceFormat.RANKING_EMULATORS_JSON, emptyList()),
-        RemoteSource("Nightlies by The412Banner", "https://api.github.com/repos/The412Banner/Nightlies/releases", SourceFormat.GITHUB_RELEASES_WCP, listOf("dxvk", "vkd3d", "fex", "fexcore", "box64")),
+        RemoteSource("Nightlies by The412Banner", "https://raw.githubusercontent.com/The412Banner/Nightlies/refs/heads/main/nightlies_components.json", SourceFormat.PACK_JSON, listOf("DXVK", "VKD3D", "FEXCore", "Box64", "WOWBox64")),
         RemoteSource("GameNative", "https://raw.githubusercontent.com/utkarshdalal/GameNative/refs/heads/master/manifest.json", SourceFormat.GAMENATIVE_MANIFEST, emptyList())
     )
 
