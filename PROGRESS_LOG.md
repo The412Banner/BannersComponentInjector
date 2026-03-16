@@ -7,7 +7,7 @@
 ---
 
 ### [pre] — v2.1.1-pre — Fix: scan all virtual_containers dirs as local games (2026-03-16)
-**Commit:** TBD  |  **Tag:** v2.1.1-pre  |  **Branch:** main
+**Commit:** `3447657`  |  **Tag:** v2.1.1-pre  |  **Branch:** main
 
 #### What changed
 - `scanLocalGames()` now includes ALL directories in `virtual_containers/` — previously only dirs named `local*` were picked up, silently dropping most imported games
