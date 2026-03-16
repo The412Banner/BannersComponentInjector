@@ -7,7 +7,7 @@
 ---
 
 ### [pre] — v2.0.7-pre — Auto-refresh My Downloads on tab open (2026-03-16)
-**Commit:** `TBD`  |  **Tag:** v2.0.7-pre  |  **Branch:** main
+**Commit:** `ca43b07`  |  **Tag:** v2.0.7-pre  |  **Branch:** main
 
 #### What changed
 - My Downloads tab now auto-refreshes (prunes stale records + reloads list) every time the tab is opened
