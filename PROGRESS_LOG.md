@@ -6,6 +6,29 @@
 
 ---
 
+### [pre] — v2.1.3-pre — Manual import game list with .iso writer (2026-03-16)
+**Commit:** `3794a0d` (fix) + `e22b112` (feat)  |  **Tag:** v2.1.3-pre  |  **Branch:** main
+
+#### What changed
+- Removed auto-scan of virtual_containers for local games
+- New `ImportedGameRepository` stores imports as JSON in SharedPrefs
+- `GameRepository`: `writeIsoToFrontEnd()` / `deleteIsoFromFrontEnd()` via MediaStore → Downloads/front end/
+- My Games tab always shows Imported Games section (no app selection needed)
+- FAB (+ button) opens "Add Imported Game" dialog: Game Name + Local ID
+- On add: writes `<name>.iso` to Downloads/front end/ + saves entry
+- On remove: deletes entry + deletes .iso from Downloads
+- Steam Games section still requires selecting a GameHub app
+- UiState: `games`/`isLoadingGames` → `importedGames` + `steamGames`/`isLoadingSteam`
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/ImportedGameRepository.kt` (new)
+- `app/src/main/java/com/banner/inject/data/GameRepository.kt`
+- `app/src/main/java/com/banner/inject/viewmodel/MainViewModel.kt`
+- `app/src/main/java/com/banner/inject/ui/screens/MyGamesScreen.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [pre] — v2.1.1-pre — Fix: scan all virtual_containers dirs as local games (2026-03-16)
 **Commit:** `3447657`  |  **Tag:** v2.1.1-pre  |  **Branch:** main
 
