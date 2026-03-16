@@ -61,6 +61,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Custom app entries** — add any GameHub variant not in the built-in list by entering a display name and package name.
 - **Fast streaming scanner** — components appear progressively as folders are found, with a live "Loading X / Y" counter. Parallel scanning with semaphore limiting keeps load times fast even on large component trees.
 - **Four-tab layout** — Inject Components, Download Components, My Downloads, and My Games (opt-in).
+- **Landscape NavigationRail** — in landscape orientation the top tab row is replaced by a navigation rail on the left side of the screen; content fills the remaining space to the right.
 
 **Inject Components**
 - **Backup** — back up any component folder to `Downloads/BannersComponentInjector/<componentName>/` (or a custom location).
@@ -73,11 +74,11 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - **Pull-to-refresh** — swipe down on the component list to re-scan the folder.
 
 **Download Components**
-- **8 built-in repositories** — StevenMXZ, Arihany WCPHub, Xnick417x, AdrenoToolsDrivers (K11MCH1), freedreno Turnip CI, MaxesTechReview (MTR), HUB Emulators (T3st31), and Nightlies by The412Banner.
+- **9 built-in repositories** — StevenMXZ, Arihany WCPHub, Xnick417x, AdrenoToolsDrivers (K11MCH1), freedreno Turnip CI, MaxesTechReview (MTR), HUB Emulators (T3st31), Nightlies by The412Banner, and GameNative.
 - **Unified GPU Drivers category** — Turnip, Adreno, Qualcomm, and Mesa driver files all appear together under a single "GPU Drivers" category.
 - **Release tag browsing** — any individual GitHub release can be enabled as its own browseable category; browse all assets (WCP, ZIP, APK, tar.gz, and more) from a single named release.
 - **Always-visible cross-repo search** — search field above the repo list searches all repositories simultaneously; results show file name, source, and type.
-- **File detail sheet** — tap any file to see its name, source/type chips, published date, file size, and scrollable Release Notes (from GitHub release body); "Download to Device" button confirms the save.
+- **File detail sheet** — tap any file to see its name, source/type chips, published date, file size, and scrollable Release Notes (from GitHub release body); download button is at the top of the sheet for quick access.
 - **Upload dates and file sizes** — shown on every file card and in the detail sheet.
 - **Sort control** — Newest First, Oldest First, Name A→Z, Name Z→A.
 - **Already-downloaded indicator** — files you've previously saved are marked with a checkmark.
@@ -95,6 +96,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 
 **My Downloads**
 - Browse saved files by Repository → Type → File.
+- **Auto-refresh on open** — the list is refreshed and stale records are pruned every time the tab is opened.
 - **Inject into GameHub** — tap the inject icon on any file to choose an app and a component slot; result shown as a Done/Error snackbar.
 - **Pull-to-refresh** — swipe down to prune stale records (files deleted outside the app); snackbar shows how many were removed.
 - **Verify Downloads** — ☁ icon in the top bar runs the same stale-record check on demand.
@@ -230,7 +232,7 @@ This tab is the main workspace for managing components already installed inside 
    - **Step 1 — Choose a repository**: tap any repo card to drill in.
    - **Step 2 — Choose a component type**: select the category (DXVK, VKD3D, Box64, FEXCore, GPU Drivers, Wine, etc.) or any individual release tag you've enabled.
    - **Step 3 — Choose a file**: sorted list with published date. Tap any file to open its detail sheet.
-5. The detail sheet shows the file name, source, type, date, size, and Release Notes (if available).
+5. The detail sheet shows the file name, source, type, date, size, and Release Notes (if available). The **download button** is at the top of the sheet.
 6. Tap **Download & Replace**. A progress indicator shows download status. The component folder is updated on completion.
 
 > Repo cards have a **⋮ menu**: Open in Browser, Edit Repository, Move Up, Move Down, Remove Repository.
@@ -272,7 +274,7 @@ Tap the **☑ checkbox icon** in the top bar to enter multi-select mode. Tap fil
    - Each item shows its name, upload date (where available), file size, and a checkmark if you've already downloaded it.
    - Files are sorted **newest first** by default.
    - Tap the **Sort** button (top-right) to switch: Newest First, Oldest First, Name A→Z, Name Z→A.
-4. **Tap a file** to open its detail sheet. The detail sheet shows the file name, source/type chips, published date, file size, and scrollable Release Notes (if available).
+4. **Tap a file** to open its detail sheet. The detail sheet shows the file name, source/type chips, published date, file size, and scrollable Release Notes (if available). The **download button** is at the top of the sheet.
 5. Tap **Download to Device** to save it to `Downloads/BannersComponentInjector/<Repo>/<Type>/<filename>` (or your custom Downloads location).
 
 ---
@@ -357,6 +359,7 @@ Tap the **↑ FileUpload icon** in the source list header to import a `bci-repos
 Browse and manage all files previously downloaded via the Download Components tab.
 
 - The list is grouped by **Repository → Type → File**.
+- The list **auto-refreshes every time the tab is opened** — stale records for files no longer on disk are pruned automatically.
 - A **Backups** folder at the root gives quick access to all component backups.
 - **Inject into GameHub** — tap the inject icon (↑ arrow) on any file card to open a two-step picker: choose the GameHub app, then choose the component slot. A snackbar shows Done or the error message.
 - **Swipe down** (pull-to-refresh) to verify all download records — stale records for files deleted outside the app are pruned.
@@ -477,7 +480,8 @@ When browsing a repository's individual release tags, all assets are shown regar
 | whitebelyash / freedreno_turnip-CI | GPU Drivers |
 | maxjivi05 / Components (MTR) | Auto-detected from repo folders |
 | T3st31 / HUB Emulators | DXVK, VKD3D, Box64, FEXCore, Wine, WowBox64, GPU Drivers |
-| The412Banner / Nightlies | Box64, FEXCore, VKD3D, DXVK, and individual release tags |
+| The412Banner / Nightlies | Box64, FEXCore, VKD3D, DXVK, WOWBox64 |
+| GameNative | GPU Drivers, DXVK, Proton, FEXCore, WOWBox64 |
 
 > GPU Drivers consolidates Turnip, Adreno, Qualcomm, and Mesa driver files into a single unified category.
 
