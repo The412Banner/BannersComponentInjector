@@ -62,6 +62,12 @@ fun DownloadManagerScreen(
     // Downloads navigation state
     var downloads by remember { mutableStateOf(repo.getAllDownloads()) }
 
+    // Auto-refresh every time this tab is opened
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) { repo.pruneStaleDownloadRecords(context) }
+        downloads = repo.getAllDownloads()
+    }
+
     LaunchedEffect(pullRefreshState.isRefreshing) {
         if (pullRefreshState.isRefreshing) {
             val removed = withContext(Dispatchers.IO) { repo.pruneStaleDownloadRecords(context) }

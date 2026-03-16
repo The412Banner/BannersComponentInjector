@@ -6,6 +6,18 @@
 
 ---
 
+### [pre] — v2.0.7-pre — Auto-refresh My Downloads on tab open (2026-03-16)
+**Commit:** `TBD`  |  **Tag:** v2.0.7-pre  |  **Branch:** main
+
+#### What changed
+- My Downloads tab now auto-refreshes (prunes stale records + reloads list) every time the tab is opened
+- Uses `LaunchedEffect(Unit)` in `DownloadManagerScreen` — fires on each composition when tab becomes active
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/DownloadManagerScreen.kt`
+
+---
+
 ### [pre] — v2.0.6-pre — Nightlies source switched to PACK_JSON (2026-03-16)
 **Commit:** `a5b5a6d`  |  **Tag:** v2.0.6-pre  |  **Branch:** main
 
