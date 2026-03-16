@@ -605,6 +605,39 @@ fun RemoteSourceSheet(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                if (isDownloading) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(downloadProgress, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isDownloading = true
+                                try {
+                                    val file = repo.downloadToTemp(dItem.downloadUrl) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    onDownloadAndReplace(Uri.fromFile(file))
+                                    onDismiss()
+                                } catch (e: Exception) {
+                                    errorMessage = "Download failed: ${e.message}"
+                                    isDownloading = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Download & Replace")
+                    }
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -667,40 +700,6 @@ fun RemoteSourceSheet(
                             text = dItem.description,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
-                if (isDownloading) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(8.dp))
-                        Text(downloadProgress, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isDownloading = true
-                                try {
-                                    val file = repo.downloadToTemp(dItem.downloadUrl) { progress ->
-                                        downloadProgress = progress
-                                    }
-                                    onDownloadAndReplace(Uri.fromFile(file))
-                                    onDismiss()
-                                } catch (e: Exception) {
-                                    errorMessage = "Download failed: ${e.message}"
-                                    isDownloading = false
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Download & Replace")
                     }
                 }
             }

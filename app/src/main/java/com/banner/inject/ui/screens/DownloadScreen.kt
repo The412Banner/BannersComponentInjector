@@ -824,6 +824,49 @@ fun DownloadScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                // Download button or progress
+                if (isDownloading) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(downloadProgress, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isDownloading = true
+                                try {
+                                    val file = repo.downloadToTemp(detailItem.downloadUrl) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    val (uriString, fileSize) = saveToDownloads(
+                                        context, file, detailFileName, detailItem.sourceName, detailType
+                                    )
+                                    repo.recordDownload(detailItem.sourceName, detailType, detailFileName, fileSize, uriString)
+                                    downloadedSet = downloadedSet + detailFileName
+                                    lastFailedItem = null
+                                    detailTarget = null
+                                    snackbarHostState.showSnackbar("Saved $detailFileName to Downloads")
+                                } catch (e: Exception) {
+                                    lastFailedItem = detailItem
+                                    errorMessage = "Download failed: ${e.message}"
+                                } finally {
+                                    isDownloading = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !alreadyDownloaded
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (alreadyDownloaded) "Already Downloaded" else "Download to Device")
+                    }
+                }
                 // Source + type chips
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -889,50 +932,6 @@ fun DownloadScreen(
                             text = detailItem.description,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
-                // Download button or progress
-                if (isDownloading) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(8.dp))
-                        Text(downloadProgress, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isDownloading = true
-                                try {
-                                    val file = repo.downloadToTemp(detailItem.downloadUrl) { progress ->
-                                        downloadProgress = progress
-                                    }
-                                    val (uriString, fileSize) = saveToDownloads(
-                                        context, file, detailFileName, detailItem.sourceName, detailType
-                                    )
-                                    repo.recordDownload(detailItem.sourceName, detailType, detailFileName, fileSize, uriString)
-                                    downloadedSet = downloadedSet + detailFileName
-                                    lastFailedItem = null
-                                    detailTarget = null
-                                    snackbarHostState.showSnackbar("Saved $detailFileName to Downloads")
-                                } catch (e: Exception) {
-                                    lastFailedItem = detailItem
-                                    errorMessage = "Download failed: ${e.message}"
-                                } finally {
-                                    isDownloading = false
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !alreadyDownloaded
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (alreadyDownloaded) "Already Downloaded" else "Download to Device")
                     }
                 }
             }
