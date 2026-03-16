@@ -6,6 +6,32 @@
 
 ---
 
+### [pre] — v2.0.5-pre — Landscape NavigationRail (build fix) (2026-03-16)
+**Commit:** `2fc715a`  |  **Tag:** v2.0.5-pre  |  **Branch:** main
+
+#### What changed
+- Fix: added missing `import androidx.compose.runtime.Composable` needed for `@Composable () -> Unit` lambda type in `MainActivity`
+
+---
+
+### [pre] — v2.0.4-pre — Landscape NavigationRail (2026-03-16)
+**Commit:** `62f90d1`  |  **Tag:** v2.0.4-pre  |  **Branch:** main
+
+#### What changed
+- Landscape orientation now shows a `NavigationRail` on the left side instead of the top `ScrollableTabRow`
+- `MainTabRow` returns early (empty) when `LocalIsLandscape` is true — no tab row rendered in landscape
+- `LandscapeNavRail` composable added to `MainTabRow.kt` — `NavigationRail` with icon + label per tab, badge on Download tab, vertically centered
+- Tab icons: Inject=Build, Download=Download, Managers=Checklist, Games=SportsEsports
+- `LocalIsLandscape` CompositionLocal added — provided by `MainActivity`, read by `MainTabRow`
+- `MainActivity` detects orientation via `LocalConfiguration.current.orientation`; in landscape wraps screen in `Row { LandscapeNavRail + Box(weight=1f) { screen } }`
+- Portrait layout unchanged — `ScrollableTabRow` in topBar as before
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/ui/screens/MainTabRow.kt`
+- `app/src/main/java/com/banner/inject/MainActivity.kt`
+
+---
+
 ### [pre] — v2.0.3-pre — PACK_JSON format; switch 5 sources from API to raw JSON (2026-03-16)
 **Commit:** `3a1c76d`  |  **Tag:** v2.0.3-pre  |  **Branch:** main
 
