@@ -36,11 +36,11 @@ class GameRepository(private val context: Context) {
 
     /**
      * Scans virtual_containers/ for LOCAL game folders.
-     * Only includes directories whose name starts with "local" (case-insensitive).
+     * Includes all directories (GameHub uses any folder name for imported games).
      */
     fun scanLocalGames(rootDoc: DocumentFile): List<GameEntry> =
         rootDoc.listFiles()
-            ?.filter { it.isDirectory && it.name?.startsWith("local", ignoreCase = true) == true }
+            ?.filter { it.isDirectory }
             ?.mapNotNull { it.name?.takeIf { n -> n.isNotBlank() } }
             ?.sorted()
             ?.map { GameEntry(it, GameType.LOCAL) }

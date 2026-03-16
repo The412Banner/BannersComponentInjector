@@ -6,6 +6,17 @@
 
 ---
 
+### [pre] — v2.1.1-pre — Fix: scan all virtual_containers dirs as local games (2026-03-16)
+**Commit:** TBD  |  **Tag:** v2.1.1-pre  |  **Branch:** main
+
+#### What changed
+- `scanLocalGames()` now includes ALL directories in `virtual_containers/` — previously only dirs named `local*` were picked up, silently dropping most imported games
+
+#### Files touched
+- `app/src/main/java/com/banner/inject/data/GameRepository.kt`
+
+---
+
 ### [stable] — v2.1.0 — Landscape rail, GameNative source, PACK_JSON, My Downloads auto-refresh (2026-03-16)
 **Commit:** `5b0acf3` (code) + `1e69e85` (README)  |  **Tag:** v2.1.0  |  **Branch:** main
 
