@@ -58,6 +58,7 @@ fun MyGamesScreen(
     onRevokeAccess: (GameHubApp) -> Unit,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onExportIsos: () -> Unit,
     onLaunchGame: (packageName: String, gameId: String) -> Unit,
     onAddImport: (name: String, localId: String) -> Unit,
     onRemoveImport: (GameEntry) -> Unit,
@@ -116,6 +117,9 @@ fun MyGamesScreen(
                     },
                     actions = {
                         if (selectedApp != null) {
+                            IconButton(onClick = onExportIsos, enabled = steamGames.isNotEmpty()) {
+                                Icon(Icons.Default.FileDownload, contentDescription = "Export ISOs")
+                            }
                             IconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh Steam")
                             }

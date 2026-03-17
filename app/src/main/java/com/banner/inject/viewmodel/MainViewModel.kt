@@ -429,6 +429,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadSteamGames(uri)
     }
 
+    fun exportSteamIsos() {
+        val games = _uiState.value.steamGames
+        if (games.isEmpty()) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                games.forEach { game ->
+                    val info = SteamRepository.fetch(game.gameId)
+                    val name = gameOverrideRepo.get(game.gameId)?.customName
+                        ?: info?.name
+                        ?: game.gameId
+                    gameRepo.writeIsoToFrontEnd(name, game.gameId)
+                }
+            }
+        }
+    }
+
     private fun loadSteamGames(dataUri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingSteam = true, steamGames = emptyList()) }
@@ -443,17 +459,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.IO) { gameRepo.scanSteamGames(steamRoot) }
                 } else emptyList()
                 _uiState.update { it.copy(steamGames = steamGames, isLoadingSteam = false) }
-                // Write ISO for each Steam game (matches imported-game behaviour).
-                // Filename = resolved display name; content = Steam App ID.
-                withContext(Dispatchers.IO) {
-                    steamGames.forEach { game ->
-                        val info = SteamRepository.fetch(game.gameId)
-                        val name = gameOverrideRepo.get(game.gameId)?.customName
-                            ?: info?.name
-                            ?: game.gameId
-                        gameRepo.writeIsoToFrontEnd(name, game.gameId)
-                    }
-                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoadingSteam = false, opState = OpState.Error(e.message ?: "Failed to scan Steam games"))

@@ -427,6 +427,7 @@ class MainActivity : ComponentActivity() {
                                 onRevokeAccess = { vm.revokeAccess(it) },
                                 onBack = { vm.clearSelectedGamesApp() },
                                 onRefresh = { vm.refreshGames() },
+                                onExportIsos = { vm.exportSteamIsos() },
                                 onLaunchGame = { pkg, gameId -> vm.launchGame(pkg, gameId) },
                                 onAddImport = { name, localId -> vm.addImportedGame(name, localId) },
                                 onRemoveImport = { game -> vm.removeImportedGame(game.gameId) },
