@@ -6,6 +6,13 @@
 
 ---
 
+### [pre] — v2.1.8-pre — Fix ISO duplicate for games with colon in name (2026-03-17)
+**Commit:** `e426780`  |  **Tag:** v2.1.8-pre  |  **Branch:** main
+**What changed:** Sanitize filename chars `[/\:*?"<>|]` → `_` before MediaStore query/insert. Fixes Counter-Strike: Source (and any game with `:` in the name) creating a new ISO on every launch — old code queried with `:` but MediaStore stored `_`, so existence check always failed.
+**Files touched:** `data/GameRepository.kt`
+
+---
+
 ### [pre] — v2.1.7-pre — Fix duplicate ISO files on every app launch (2026-03-17)
 **Commit:** `0bc8725`  |  **Tag:** v2.1.7-pre  |  **Branch:** main
 **What changed:** `writeIsoToFrontEnd()` now queries MediaStore first and skips writing if the ISO already exists. Fixes Counter-Strike_ Source (1).iso, (2).iso, etc. accumulating in Downloads/front end/ on every launch. Root cause: old delete()+insert() pattern — MediaStore delete() removes catalog entry but not the physical file, so insert() auto-renamed on collision.
