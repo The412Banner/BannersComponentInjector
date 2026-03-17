@@ -6,6 +6,13 @@
 
 ---
 
+### [stable] — v2.1.6 — Stable release: Steam ISO files + auto-select on startup (2026-03-17)
+**Commit:** `(README/docs commit)`  |  **Tag:** v2.1.6  |  **Branch:** main
+**What changed:** Stable release combining v2.1.4-pre (auto-select GameHub app on startup) and v2.1.5-pre (Steam ISO files written automatically). README rewritten to reflect all current features.
+**Files touched:** `README.md`, `PROGRESS_LOG.md`
+
+---
+
 ### [pre] — v2.1.5-pre — Write ISO files for Steam games on load (2026-03-17)
 **Commit:** `a364fcf`  |  **Tag:** v2.1.5-pre  |  **Branch:** main
 **What changed:** After scanning Steam games in `loadSteamGames()`, fetches each game's display name (custom override → Steam Store API → App ID fallback) and calls `writeIsoToFrontEnd(name, appId)`. ISOs land in `Downloads/front end/` as `<Game Name>.iso` containing the Steam App ID — same location and format as imported game ISOs.

@@ -105,8 +105,11 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 
 **My Games Tab (opt-in)**
 - Enable via Settings → **Show My Games Tab**.
-- Auto-discovers **Local games** (`virtual_containers/` dirs starting with "local") and **Steam games** (`shadercache/` dirs keyed by Steam App ID).
+- Auto-discovers **Local games** (all subdirs in `virtual_containers/`) and **Steam games** (`shadercache/` dirs keyed by Steam App ID).
+- **Auto-select on startup** — at launch, BCI automatically selects the first GameHub variant that already has access granted; Steam games appear immediately without a manual tap.
 - **Offline Steam metadata** — game name, cover art, genres, description, release year, and Metacritic score are fetched from the Steam Store API and persisted to disk; available without network after first load.
+- **Steam ISO files** — automatically writes `<Game Name>.iso` to `Downloads/front end/` for every Steam game when the list loads; content = Steam App ID (plain text). Matches the imported-game ISO behaviour.
+- **Manual game imports** — tap **+** to add a game by display name and local ID; BCI writes the corresponding `.iso` to `Downloads/front end/`.
 - **Edit game cards** — tap any card to open an edit sheet; all fields (name, genres, description, release year, Metacritic score) are editable; "Search Steam" auto-fills fields and links cover art for local import games.
 - **Launch games** — tap the launch button to start a game directly via GameHub's game detail screen.
 - **ISO creator** — write a `.iso` stub to `virtual_containers/` for GameHub launcher compatibility.
@@ -375,10 +378,10 @@ Browse and manage all files previously downloaded via the Download Components ta
 
 Enable this tab in **Settings → Show My Games Tab**.
 
-Once enabled, select a GameHub variant (grant `data/` access if not already done). The tab auto-discovers two types of games:
+Once enabled, BCI automatically selects the first GameHub variant that already has `data/` access granted — the game list loads immediately. If no app is pre-selected, tap a variant to grant access. The tab auto-discovers two types of games:
 
-- **Local games** — any directory in `virtual_containers/` whose name starts with "local" (case-insensitive).
-- **Steam games** — any directory in `shadercache/` (directory name = Steam App ID).
+- **Local games** — every subdirectory in `virtual_containers/`.
+- **Steam games** — every subdirectory in `shadercache/` (directory name = Steam App ID).
 
 **Steam metadata** (name, cover art, genres, description, release year, Metacritic score) is fetched from the Steam Store API and cached to disk — available offline after the first load.
 
@@ -392,6 +395,19 @@ Tap any game card to open the edit sheet:
 #### Launching a Game
 
 Tap the **Launch** button on any game card to start the game directly via GameHub's game detail screen.
+
+#### Steam & Imported Game ISOs
+
+Every time the game list loads, BCI automatically writes a `<Game Name>.iso` file to `Downloads/front end/` for each Steam game (content = Steam App ID) and each manually imported game (content = local ID). These ISO files are used by front-end launchers for compatibility.
+
+#### Adding a Game Manually
+
+Tap the **+** button in the My Games header to add a game that isn't auto-discovered:
+
+1. Enter a **Display Name** and a **Local ID**.
+2. Tap **Add**. BCI saves the entry and writes `<Display Name>.iso` to `Downloads/front end/`.
+
+Manually added games appear in the Local Games section and support Edit, Remove from list, and Remove and delete folder.
 
 #### ISO Creator
 
