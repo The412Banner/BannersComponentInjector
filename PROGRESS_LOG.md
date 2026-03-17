@@ -6,6 +6,13 @@
 
 ---
 
+### [pre] — v2.1.9-pre — Move Steam ISO export to manual button (2026-03-17)
+**Commit:** `6fdc856`  |  **Tag:** v2.1.9-pre  |  **Branch:** main
+**What changed:** Removed automatic ISO writing from `loadSteamGames()` — it was running SteamRepository.fetch() + MediaStore ops on every navigation, causing sluggishness. Added `exportSteamIsos()` ViewModel function and a FileDownload icon button in My Games top bar (disabled when no Steam games loaded). ISOs only written when user taps the button.
+**Files touched:** `viewmodel/MainViewModel.kt`, `ui/screens/MyGamesScreen.kt`, `MainActivity.kt`
+
+---
+
 ### [pre] — v2.1.8-pre — Fix ISO duplicate for games with colon in name (2026-03-17)
 **Commit:** `e426780`  |  **Tag:** v2.1.8-pre  |  **Branch:** main
 **What changed:** Sanitize filename chars `[/\:*?"<>|]` → `_` before MediaStore query/insert. Fixes Counter-Strike: Source (and any game with `:` in the name) creating a new ISO on every launch — old code queried with `:` but MediaStore stored `_`, so existence check always failed.
