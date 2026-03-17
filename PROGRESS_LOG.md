@@ -6,6 +6,13 @@
 
 ---
 
+### [pre] — v2.1.7-pre — Fix duplicate ISO files on every app launch (2026-03-17)
+**Commit:** `0bc8725`  |  **Tag:** v2.1.7-pre  |  **Branch:** main
+**What changed:** `writeIsoToFrontEnd()` now queries MediaStore first and skips writing if the ISO already exists. Fixes Counter-Strike_ Source (1).iso, (2).iso, etc. accumulating in Downloads/front end/ on every launch. Root cause: old delete()+insert() pattern — MediaStore delete() removes catalog entry but not the physical file, so insert() auto-renamed on collision.
+**Files touched:** `data/GameRepository.kt`
+
+---
+
 ### [stable] — v2.1.6 — Stable release: Steam ISO files + auto-select on startup (2026-03-17)
 **Commit:** `(README/docs commit)`  |  **Tag:** v2.1.6  |  **Branch:** main
 **What changed:** Stable release combining v2.1.4-pre (auto-select GameHub app on startup) and v2.1.5-pre (Steam ISO files written automatically). README rewritten to reflect all current features.
