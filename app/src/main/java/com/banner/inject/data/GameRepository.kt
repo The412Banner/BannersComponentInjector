@@ -48,13 +48,14 @@ class GameRepository(private val context: Context) {
         return try {
             val relativePath = Environment.DIRECTORY_DOWNLOADS + "/front end/"
             val displayName = "$name.iso"
-            // Delete any existing file with the same name first
             val selection = "${MediaStore.Downloads.RELATIVE_PATH} = ? AND ${MediaStore.Downloads.DISPLAY_NAME} = ?"
-            context.contentResolver.delete(
+            val selArgs = arrayOf(relativePath, displayName)
+            // Skip if already exists — avoids duplicate "(1)", "(2)" copies on every launch.
+            context.contentResolver.query(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                selection,
-                arrayOf(relativePath, displayName)
-            )
+                arrayOf(MediaStore.Downloads._ID),
+                selection, selArgs, null
+            )?.use { cursor -> if (cursor.moveToFirst()) return true }
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, displayName)
                 put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
