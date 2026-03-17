@@ -47,7 +47,9 @@ class GameRepository(private val context: Context) {
     fun writeIsoToFrontEnd(name: String, localId: String): Boolean {
         return try {
             val relativePath = Environment.DIRECTORY_DOWNLOADS + "/front end/"
-            val displayName = "$name.iso"
+            // Sanitize characters Android replaces in filenames (e.g. ':' → '_' in "Counter-Strike: Source")
+            // so the query and insert both use the same string that MediaStore actually stores.
+            val displayName = "$name.iso".replace(Regex("[/\\\\:*?\"<>|]"), "_")
             val selection = "${MediaStore.Downloads.RELATIVE_PATH} = ? AND ${MediaStore.Downloads.DISPLAY_NAME} = ?"
             val selArgs = arrayOf(relativePath, displayName)
             // Skip if already exists — avoids duplicate "(1)", "(2)" copies on every launch.
