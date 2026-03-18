@@ -6,6 +6,13 @@
 
 ---
 
+### [release] — v2.2.0 — Stable: manual ISO export, duplicate skip, name sanitize (2026-03-18)
+**Commit:** `a5776a1` (README)  |  **Tag:** v2.2.0  |  **Branch:** main
+**What changed:** Stable release promoting v2.1.7-pre through v2.1.9-pre. Steam ISO export moved to manual FileDownload button; ISO duplicate skip; game name sanitization for MediaStore/ISO creation. README rewritten to reflect all v2.2.0 state.
+**Files touched:** `README.md`
+
+---
+
 ### [pre] — v2.1.9-pre — Move Steam ISO export to manual button (2026-03-17)
 **Commit:** `6fdc856`  |  **Tag:** v2.1.9-pre  |  **Branch:** main
 **What changed:** Removed automatic ISO writing from `loadSteamGames()` — it was running SteamRepository.fetch() + MediaStore ops on every navigation, causing sluggishness. Added `exportSteamIsos()` ViewModel function and a FileDownload icon button in My Games top bar (disabled when no Steam games loaded). ISOs only written when user taps the button.
