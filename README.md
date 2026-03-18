@@ -108,7 +108,7 @@ BannersComponentInjector lets you browse, back up, replace, and restore the Wind
 - Auto-discovers **Local games** (all subdirs in `virtual_containers/`) and **Steam games** (`shadercache/` dirs keyed by Steam App ID).
 - **Auto-select on startup** — at launch, BCI automatically selects the first GameHub variant that already has access granted; Steam games appear immediately without a manual tap.
 - **Offline Steam metadata** — game name, cover art, genres, description, release year, and Metacritic score are fetched from the Steam Store API and persisted to disk; available without network after first load.
-- **Steam ISO files** — automatically writes `<Game Name>.iso` to `Downloads/front end/` for every Steam game when the list loads; content = Steam App ID (plain text). Matches the imported-game ISO behaviour.
+- **Steam ISO files** — tap the **↓ FileDownload** button in the My Games top bar to write `<Game Name>.iso` files to `Downloads/front end/` for all Steam and imported games on demand. ISO export skips files that already exist, and game names are sanitized (colons and other illegal filename characters replaced) before file creation.
 - **Manual game imports** — tap **+** to add a game by display name and local ID; BCI writes the corresponding `.iso` to `Downloads/front end/`.
 - **Edit game cards** — tap any card to open an edit sheet; all fields (name, genres, description, release year, Metacritic score) are editable; "Search Steam" auto-fills fields and links cover art for local import games.
 - **Launch games** — tap the launch button to start a game directly via GameHub's game detail screen.
@@ -398,7 +398,7 @@ Tap the **Launch** button on any game card to start the game directly via GameHu
 
 #### Steam & Imported Game ISOs
 
-Every time the game list loads, BCI automatically writes a `<Game Name>.iso` file to `Downloads/front end/` for each Steam game (content = Steam App ID) and each manually imported game (content = local ID). These ISO files are used by front-end launchers for compatibility.
+Tap the **↓ FileDownload** button in the My Games top bar to write `<Game Name>.iso` files to `Downloads/front end/` for all Steam and imported games on demand. Steam ISOs contain the Steam App ID (plain text); imported game ISOs contain the local ID. BCI skips any file that already exists in the destination and sanitizes game names (removing colons and other illegal filename characters) before writing. These ISO files are used by front-end launchers for compatibility.
 
 #### Adding a Game Manually
 
