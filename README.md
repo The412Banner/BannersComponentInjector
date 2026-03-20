@@ -556,3 +556,6 @@ The APK is output to `app/build/outputs/apk/debug/`.
 ---
 
 *BannersComponentInjector is an independent third-party tool and is not affiliated with, endorsed by, or connected to the GameHub or Winlator projects.*
+
+---
+<sub>☕ [Support on Ko-fi](https://ko-fi.com/the412banner)</sub>
