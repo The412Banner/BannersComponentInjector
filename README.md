@@ -1,4 +1,6 @@
 # BannersComponentInjector
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/n8S4G2WZQ4)
+
 
 **An external component manager for GameHub (Lite) and its variants — no root required.**
 
@@ -559,3 +561,8 @@ The APK is output to `app/build/outputs/apk/debug/`.
 
 ---
 <sub>☕ [Support on Ko-fi](https://ko-fi.com/the412banner)</sub>
+
+
+## Community
+
+Join our Discord: https://discord.gg/n8S4G2WZQ4
